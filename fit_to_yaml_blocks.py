@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# type: ignore
 """
 Convert a Garmin structured workout FIT file into a block-based YAML summary.
 
@@ -47,6 +46,7 @@ class BlockStats:
     pct_time_below: Optional[float] = None
     pct_time_in_range: Optional[float] = None
     pct_time_above: Optional[float] = None
+    hr_drift_pct: Optional[float] = None
 
 
 # ---------- Helper functions ----------
@@ -200,6 +200,203 @@ def extract_records(ff: FitFile):
     return records
 
 
+def extract_hr_zones(ff, lthr_bpm: Optional[float] = None) -> Optional[dict]:
+    """
+    Extract HR zone boundaries from hr_zone messages or unknown_216 vendor fields.
+    Returns a dict with zone definitions or None if not available.
+    """
+    try:
+        zones_raw = []
+        
+        # First try standard hr_zone messages
+        hr_zone_msgs = list(ff.get_messages("hr_zone"))
+        if hr_zone_msgs:
+            for msg in hr_zone_msgs:
+                high = None
+                for field in msg:
+                    if field.name == "high_bpm":
+                        high = field.value
+                        break
+                if high is not None:
+                    zones_raw.append(high)
+        
+        # Fallback: Check unknown_216 field unknown_6 for Garmin/Stryd zone boundaries
+        # This field contains a tuple of HR zone upper bounds
+        if not zones_raw:
+            for msg in ff.get_messages("unknown_216"):
+                for field in msg:
+                    if field.name == "unknown_6" and field.value is not None:
+                        # field.value is a tuple like (91, 134, 151, 159, 172, 189)
+                        if isinstance(field.value, (list, tuple)):
+                            zones_raw = list(field.value)
+                            break
+                if zones_raw:
+                    break
+        
+        if not zones_raw:
+            return None
+        
+        # Sort by high_bpm ascending
+        zones_raw.sort()
+        
+        # Build contiguous zones
+        zones = {}
+        min_bpm = 0
+        for i, high_bpm in enumerate(zones_raw):
+            zone_label = f"Z{i+1}"
+            zones[zone_label] = {
+                "min_bpm": min_bpm,
+                "max_bpm": high_bpm
+            }
+            min_bpm = high_bpm + 1
+        
+        result = {
+            "source": "garmin",
+            "system": f"Garmin_{len(zones)}_zone",
+            "zones": zones
+        }
+        
+        if lthr_bpm is not None:
+            result["lthr_bpm"] = lthr_bpm
+        
+        return result
+    except Exception:
+        return None
+
+
+def hr_zone_label(hr_zone_def: dict, hr_bpm: float) -> Optional[str]:
+    """
+    Classify a heart rate value into a zone label (Z1, Z2, etc.).
+    Returns the zone label or None if no match.
+    """
+    if hr_zone_def is None or hr_bpm is None:
+        return None
+    
+    zones = hr_zone_def.get("zones", {})
+    for zone_label, bounds in zones.items():
+        if bounds["min_bpm"] <= hr_bpm <= bounds["max_bpm"]:
+            return zone_label
+    
+    return None
+
+
+def compute_zone_distribution(records: list, zone_def: dict, value_key: str, 
+                              zone_classifier) -> Optional[dict]:
+    """
+    Compute time-in-zone distribution for a set of records.
+    
+    Args:
+        records: List of record dicts
+        zone_def: Zone definition dict (hr_zone_definition)
+        value_key: Key to extract value from record ("heart_rate" or "power")
+        zone_classifier: Function to classify value into zone (hr_zone_label or power_zone_label)
+    
+    Returns:
+        Dict with {Z1_pct: ..., Z2_pct: ..., ...} or None if no data
+    """
+    if zone_def is None:
+        return None
+    
+    zone_counts = {}
+    zones = zone_def.get("zones", {})
+    
+    # Initialize counts
+    for zone_label in zones.keys():
+        zone_counts[zone_label] = 0
+    
+    # Count samples per zone
+    for record in records:
+        value = record.get(value_key)
+        if value is None or value == 0:
+            continue
+        
+        zone = zone_classifier(zone_def, value)
+        if zone and zone in zone_counts:
+            zone_counts[zone] += 1
+    
+    total = sum(zone_counts.values())
+    if total == 0:
+        return None
+    
+    # Compute percentages
+    result = {}
+    for zone_label, count in zone_counts.items():
+        pct_key = f"{zone_label}_pct"
+        result[pct_key] = round(100.0 * count / total, 1)
+    
+    return result
+
+
+def compute_hr_drift_pct(block_records: list) -> Optional[float]:
+    """
+    Compute HR drift (aerobic decoupling) for a block using first-half vs second-half HR.
+    
+    Returns drift percentage (e.g. 3.8 for +3.8%) or None if insufficient data.
+    Formula: drift_pct = (HR2 / HR1 - 1) * 100
+    
+    Args:
+        block_records: List of record dicts from records_for_lap()
+    
+    Returns:
+        Drift percentage rounded to 2 decimals, or None
+    """
+    if not block_records:
+        return None
+    
+    # Extract records with valid timestamps and HR
+    valid_records = []
+    for r in block_records:
+        ts = r.get("timestamp")
+        hr = r.get("heart_rate")
+        if ts is not None and hr is not None and hr > 0:
+            valid_records.append({"timestamp": ts, "heart_rate": hr})
+    
+    if len(valid_records) < 20:  # Need minimum samples
+        return None
+    
+    # Sort by timestamp
+    valid_records.sort(key=lambda x: x["timestamp"])
+    
+    # Calculate total duration
+    t0 = valid_records[0]["timestamp"]
+    t_end = valid_records[-1]["timestamp"]
+    total_duration_s = (t_end - t0).total_seconds()
+    
+    # Require at least 8 minutes (480 seconds)
+    if total_duration_s < 480:
+        return None
+    
+    # Calculate midpoint
+    midpoint_s = total_duration_s / 2.0
+    
+    # Split into first and second half
+    first_half_hrs = []
+    second_half_hrs = []
+    
+    for r in valid_records:
+        elapsed_s = (r["timestamp"] - t0).total_seconds()
+        if elapsed_s <= midpoint_s:
+            first_half_hrs.append(r["heart_rate"])
+        else:
+            second_half_hrs.append(r["heart_rate"])
+    
+    # Check we have enough samples in each half
+    if len(first_half_hrs) < 10 or len(second_half_hrs) < 10:
+        return None
+    
+    # Compute averages
+    hr1 = statistics.mean(first_half_hrs)
+    hr2 = statistics.mean(second_half_hrs)
+    
+    if hr1 <= 0:
+        return None
+    
+    # Calculate drift percentage
+    drift_pct = (hr2 / hr1 - 1.0) * 100.0
+    
+    return round(drift_pct, 2)
+
+
 def classify_block_type(step: dict, lap_index: int, total_laps: int) -> str:
     """
     Best-effort guess of block type from workout_step + lap position.
@@ -232,7 +429,7 @@ def classify_block_type(step: dict, lap_index: int, total_laps: int) -> str:
     return "work"
 
 
-def extract_power_target(step: dict) -> (Optional[float], Optional[float]):
+def extract_power_target(step: dict) -> tuple[Optional[float], Optional[float]]:
     """
     Try to get power target band from workout_step.
 
@@ -406,6 +603,9 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     lthr = None
     vo2_max = None
     recovery_time_min = None
+    critical_power = None
+    avg_temperature = None
+    baseline_humidity = None
     
 
     for msg in ff.get_messages("session"):
@@ -429,6 +629,13 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         # Training effect fields
         aerobic_te = aerobic_te or d.get("total_training_effect") or d.get("training_effect")
         anaerobic_te = anaerobic_te or d.get("total_anaerobic_training_effect") or d.get("anaerobic_training_effect")
+        
+        # Critical Power
+        critical_power = critical_power or d.get("CP")
+        
+        # Environmental conditions
+        avg_temperature = avg_temperature or d.get("avg_temperature")
+        baseline_humidity = baseline_humidity or d.get("Baseline Humidity")
 
     # VO2 max sometimes lives in a vendor message: unknown_140 field 7
     # Vendor/developer mapping (observed in this FIT file):
@@ -486,6 +693,9 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
                 break
     except Exception:
         lthr = None
+
+    # Extract HR zone definitions from FIT file
+    hr_zone_definition = extract_hr_zones(ff, lthr_bpm=lthr)
 
     # Provide a human-readable recovery time (e.g. "2d 09:45" or "9:45").
     def _format_minutes_readable(mins: Optional[int]) -> Optional[str]:
@@ -598,6 +808,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         # prefer FIT file serial_number if present
         "id": str(file_serial) if file_serial is not None else path.stem,
         "name": workout_name or (workout_block_name or "Activity"),
+        "hr_zone_definition": hr_zone_definition,
         # expose workout block name explicitly when present
         "workout_name": workout_block_name,
         # date in YYYY-MM-DD (derived from session start)
@@ -619,6 +830,9 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         "vo2_max": _round(vo2_max, 4) if vo2_max is not None else None,
         "recovery_time_min": recovery_time_min,
         "recovery_time_readable": recovery_time_readable,
+        "critical_power": critical_power,
+        "avg_temperature": avg_temperature,
+        "baseline_humidity": baseline_humidity,
         "actual_weight": _round(actual_weight, 1) if actual_weight is not None else None,
         "resting_hr": resting_hr,
         "lthr": lthr,
@@ -720,6 +934,16 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
             "form_power_ratio_mean": _round(_mean_or_none(samples["form_power_ratio"]), 2),
         }
 
+        # Compute HR zone distribution for this block
+        hr_zones = compute_zone_distribution(
+            recs, hr_zone_definition, "heart_rate", hr_zone_label
+        )
+
+        # Compute HR drift for eligible blocks
+        hr_drift_pct = None
+        if recs and b.duration_min is not None and b.duration_min >= 8 and b.type in ("warmup", "work", "float"):
+            hr_drift_pct = compute_hr_drift_pct(recs)
+
         blocks_out[name] = {
             "type": b.type,
             "start_utc": b.start_utc,
@@ -728,6 +952,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
             "distance_km": b.distance_km,
             "avg_hr": b.avg_hr,
             "avg_power": b.avg_power,
+            "hr_drift_pct": hr_drift_pct,
             "target_power": (
                 {
                     "min_w": b.target_min_w,
@@ -740,6 +965,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
                 else None
             ),
             "running_dynamics": running_dynamics,
+            "hr_zones": hr_zones,
         }
 
     # Run-wide running dynamics (aggregate across all records in the run)
@@ -770,9 +996,15 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         "form_power_ratio_mean": _round(_mean_or_none(all_samples["form_power_ratio"]), 2),
     }
 
+    # Compute session-level (whole-run) HR zone distribution
+    session_hr_zones = compute_zone_distribution(
+        records, hr_zone_definition, "heart_rate", hr_zone_label
+    )
+
     # Attach blocks and run-wide summary to top-level summary
     summary["blocks"] = blocks_out
     summary["running_dynamics_summary"] = running_dynamics_summary
+    summary["session_hr_zones"] = session_hr_zones
 
     return summary
 
