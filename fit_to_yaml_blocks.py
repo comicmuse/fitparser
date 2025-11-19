@@ -1,0 +1,808 @@
+#!/usr/bin/env python3
+# type: ignore
+"""
+Convert a Garmin structured workout FIT file into a block-based YAML summary.
+
+- Assumes the FIT file comes from a structured workout (e.g. Stryd → Garmin).
+- Maps workout steps to laps by index (step 0 → lap 0, etc.).
+- For each block/lap:
+    - duration, distance, avg HR, avg power
+    - if step has power target: % time below / in / above target band
+- Outputs YAML to stdout (or to a file if you uncomment the write section).
+
+This is designed as a starting point:
+- You can tweak block naming/classification logic.
+- You can plug it into Home Assistant / Pyscript later.
+"""
+
+from __future__ import annotations
+
+import sys
+import math
+import statistics
+import yaml
+from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import List, Optional, Dict, Any
+
+from fitparse import FitFile
+
+
+# ---------- Data structures ----------
+
+@dataclass
+class BlockStats:
+    name: str
+    type: str  # "warmup", "work", "float", "cooldown", "other"
+    start_utc: Optional[str]
+    end_utc: Optional[str]
+    duration_min: Optional[float]
+    distance_km: Optional[float]
+    avg_hr: Optional[float]
+    avg_power: Optional[float]
+
+    target_min_w: Optional[float] = None
+    target_max_w: Optional[float] = None
+    pct_time_below: Optional[float] = None
+    pct_time_in_range: Optional[float] = None
+    pct_time_above: Optional[float] = None
+
+
+# ---------- Helper functions ----------
+
+def _round(x: Optional[float], n: int = 1) -> Optional[float]:
+    if x is None:
+        return None
+    try:
+        return round(float(x), n)
+    except Exception:
+        return None
+
+
+def load_fit(path: Path) -> FitFile:
+    ff = FitFile(str(path))
+    ff.parse()
+    return ff
+
+
+def extract_laps(ff: FitFile):
+    """
+    Extract lap messages with key fields.
+    Returns a list of dicts preserving order in file.
+    """
+    laps = []
+    for lap in ff.get_messages("lap"):
+        d = {}
+        for field in lap:
+            d[field.name] = field.value
+        laps.append(d)
+    return laps
+
+
+def extract_workout_steps(ff: FitFile):
+    """
+    Extract workout_step messages with key fields.
+    Returns a list of dicts in order.
+    """
+    steps = []
+    for step in ff.get_messages("workout_step"):
+        d = {}
+        for field in step:
+            d[field.name] = field.value
+        steps.append(d)
+    return steps
+
+
+def extract_records(ff: FitFile):
+    """
+    Extract record messages (per-sample data).
+    Each record includes timestamp, power, HR and a set of running-dynamics
+    metrics when available. This function is defensive: missing fields are
+    represented as `None` and obviously-bogus values (0, NaN, Inf) are
+    filtered out.
+    """
+    records = []
+    for rec in ff.get_messages("record"):
+        r = {}
+        for field in rec:
+            r[field.name] = field.value
+
+        # timestamp required
+        ts = r.get("timestamp")
+        if ts is None:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+
+        # Helper: safely convert to float when possible
+        def _f(name):
+            v = r.get(name)
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except Exception:
+                return None
+
+        # Capture a broad set of running-dynamics fields (defensive)
+        # Power is Stryd's field. Garmin's equivalent is power.
+        # ChatGPT suggested _f("Power") or _f("power"), but we only need Stryd's version
+        power = _f("Power")
+        form_power = _f("Form Power") or _f("form_power")
+        # Leg spring stiffness (raw or normalized)
+        lss = _f("Leg Spring Stiffness") or _f("leg_spring_stiffness") or _f("leg_spring_stiffness_norm")
+        # Air power (absolute) and possible percent field
+        air_power = _f("Air Power") or _f("air_power")
+        air_power_pct = _f("Air Power Percent") or _f("air_power_pct")
+        # Vertical oscillation
+        vert_osc = _f("vertical_oscillation") or _f("Vertical Oscillation")
+        # Ground contact / stance time
+        gct = _f("ground_contact_time") or _f("stance_time")
+        # Cadence
+        cadence = _f("cadence") or _f("fractional_cadence")
+        # Step length
+        step_length = _f("step_length")
+        # form power ratio (may not be present) - if missing, compute form_power / power when available
+        form_power_ratio = _f("form_power_ratio")
+
+        # Normalize some obviously-bogus values to None (ignore zeros for metrics that shouldn't be zero)
+        def _valid(x, allow_zero=False):
+            if x is None:
+                return None
+            if not allow_zero and x == 0:
+                return None
+            if isinstance(x, float) and (math.isnan(x) or math.isinf(x)):
+                return None
+            return x
+
+        form_power = _valid(form_power)
+        lss = _valid(lss)
+        air_power = _valid(air_power)
+        air_power_pct = _valid(air_power_pct)
+        vert_osc = _valid(vert_osc)
+        gct = _valid(gct)
+        cadence = _valid(cadence)
+        step_length = _valid(step_length)
+        form_power_ratio = _valid(form_power_ratio)
+
+        # compute derived fields when missing
+        if form_power_ratio is None and form_power is not None and power is not None and power != 0:
+            try:
+                form_power_ratio = float(form_power) / float(power)
+            except Exception:
+                form_power_ratio = None
+
+        # air_power_pct: compute if we have absolute air_power and total power
+        if air_power_pct is None and air_power is not None and power is not None and power != 0:
+            try:
+                air_power_pct = 100.0 * float(air_power) / float(power)
+            except Exception:
+                air_power_pct = None
+
+        records.append({
+            "timestamp": ts,
+            "power": power,
+            "heart_rate": r.get("heart_rate"),
+            # running dynamics
+            "form_power": form_power,
+            "lss": lss,
+            "air_power": air_power,
+            "air_power_pct": air_power_pct,
+            "vert_osc": vert_osc,
+            "gct": gct,
+            "cadence": cadence,
+            "step_length": step_length,
+            "form_power_ratio": form_power_ratio,
+        })
+    # Ensure sorted by time
+    records.sort(key=lambda x: x["timestamp"])
+    return records
+
+
+def classify_block_type(step: dict, lap_index: int, total_laps: int) -> str:
+    """
+    Best-effort guess of block type from workout_step + lap position.
+    You can tune this based on what Stryd names/labels its steps.
+
+    Heuristics:
+      - first lap → warmup (if not obviously work)
+      - last lap → cooldown (if not obviously work)
+      - if step["intensity"] hints: map accordingly
+      - else: treat as "work" and let higher-level logic decide.
+    """
+    intensity = (step.get("intensity") or "").lower()
+    step_name = (step.get("step_name") or step.get("custom_target_value_high") or "")
+    step_text = str(step_name).lower()
+
+    if "warm" in step_text or "wu" in step_text or intensity == "warmup":
+        return "warmup"
+    if "cool" in step_text or "cd" in step_text or intensity == "cooldown":
+        return "cooldown"
+    if "rest" in step_text or "recover" in step_text or intensity in ("recovery", "rest"):
+        return "float"
+
+    # Fallback position-based:
+    if lap_index == 0:
+        return "warmup"
+    if lap_index == total_laps - 1:
+        return "cooldown"
+
+    # Default: some kind of work
+    return "work"
+
+
+def extract_power_target(step: dict) -> (Optional[float], Optional[float]):
+    """
+    Try to get power target band from workout_step.
+
+    Common fields in workout_step for power targets:
+      - target_type (enum; for power, "power" or a numeric code)
+      - custom_target_power_low (watts)
+      - custom_target_power_high (watts)
+
+    NOTE: Values are in watts from Stryd/Garmin power workouts.
+    """
+    target_type = step.get("target_type")
+    
+    # Try custom_target_power_low/high first (most common for power workouts)
+    low = step.get("custom_target_power_low")
+    high = step.get("custom_target_power_high")
+    
+    # Fall back to generic custom_target_value_low/high if power-specific not found
+    if low is None or high is None:
+        low = step.get("custom_target_value_low")
+        high = step.get("custom_target_value_high")
+
+    # We need both values and target_type to be power
+    if low is None or high is None:
+        return None, None
+    
+    if target_type is not None and str(target_type).lower() != "power":
+        return None, None
+
+    # Convert to float
+    low_f = float(low)
+    high_f = float(high)
+
+    # Heuristic sanity check: if values are extremely big/small, maybe scaled.
+    # If it looks like deciwatts (e.g. 2200–2400 for a 220–240 W range)
+    if low_f > 1000 and low_f < 10000:
+        low_f /= 10.0
+        high_f /= 10.0
+    # If it looks like centiwatts (22000–24000)
+    elif low_f > 10000 and low_f < 100000:
+        low_f /= 100.0
+        high_f /= 100.0
+
+    return low_f, high_f
+
+
+def records_for_lap(records: List[dict], lap: dict) -> List[dict]:
+    """
+    Select records whose timestamps fall within this lap's time range.
+    Uses lap.start_time and lap.total_timer_time.
+    """
+    start = lap.get("start_time")
+    duration = lap.get("total_timer_time")
+
+    if start is None or duration is None:
+        return []
+
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    end = start + timedelta(seconds=float(duration))
+
+    in_lap = [r for r in records if start <= r["timestamp"] < end]
+    return in_lap
+
+
+def compute_power_band_stats(block_records: List[dict], target_min_w: float, target_max_w: float) -> Dict[str, float]:
+    """
+    Count % of time below / in / above target range based on power samples.
+
+    Assumes (roughly) uniform sampling rate, so we can use sample counts
+    as a proxy for time.
+    """
+    if not block_records:
+        return {"below": 0.0, "in": 0.0, "above": 0.0}
+
+    below = in_range = above = 0
+    for r in block_records:
+        p = r.get("power")
+        if p is None:
+            continue
+        try:
+            p = float(p)
+        except Exception:
+            continue
+        if p < target_min_w:
+            below += 1
+        elif p > target_max_w:
+            above += 1
+        else:
+            in_range += 1
+
+    total = below + in_range + above
+    if total == 0:
+        return {"below": 0.0, "in": 0.0, "above": 0.0}
+
+    return {
+        "below": round(100.0 * below / total, 1),
+        "in": round(100.0 * in_range / total, 1),
+        "above": round(100.0 * above / total, 1),
+    }
+
+
+def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[str, Any]:
+    """
+    Main function:
+      - loads FIT
+      - extracts session-level fields
+      - builds block stats from laps + workout_step
+      - returns a YAML-ready dict
+    """
+    ff = load_fit(path)
+    laps = extract_laps(ff)
+    steps = extract_workout_steps(ff)
+    records = extract_records(ff)
+
+    # File ID serial (use as canonical id if present)
+    file_serial = None
+    for m in ff.get_messages("file_id"):
+        d = {field.name: field.value for field in m}
+        if d.get("serial_number"):
+            file_serial = d.get("serial_number")
+            break
+
+    # User profile weight (kg) and resting heart rate (bpm)
+    actual_weight = None
+    resting_hr = None
+    for m in ff.get_messages("user_profile"):
+        d = {field.name: field.value for field in m}
+        weight = d.get("weight")
+        if weight is not None:
+            actual_weight = float(weight)
+        rhr = d.get("resting_heart_rate")
+        if rhr is not None:
+            resting_hr = int(rhr)
+        if actual_weight is not None and resting_hr is not None:
+            break
+
+    # Workout block name (if present)
+    workout_block_name = None
+    for m in ff.get_messages("workout"):
+        d = {field.name: field.value for field in m}
+        # common field name in workout message for name is 'wkt_name'
+        workout_block_name = d.get("wkt_name") or workout_block_name
+
+    # Compute session-level avg/max power from record samples if available
+    power_samples = [float(r["power"]) for r in records if r.get("power") is not None]
+    session_avg_power = None
+    session_max_power = None
+    if power_samples:
+        session_avg_power = sum(power_samples) / len(power_samples)
+        session_max_power = max(power_samples)
+
+    if not laps:
+        raise RuntimeError("No laps found in FIT (is this a structured workout?)")
+
+    # Session-level info (take from first session message)
+    sport = None
+    session_start_utc = None
+    total_distance_m = None
+    total_timer_s = None
+    total_ascent_m = None
+    avg_hr_session = None
+    avg_power_session = None
+    max_hr_session = None
+    max_power_session = None
+    calories = None
+    workout_name = None
+
+    # Additional activity metrics we want to surface
+    aerobic_te = None
+    anaerobic_te = None
+    lthr = None
+    vo2_max = None
+    recovery_time_min = None
+    
+
+    for msg in ff.get_messages("session"):
+        d = {field.name: field.value for field in msg}
+        sport = (d.get("sport") or d.get("sub_sport") or sport)
+        st = d.get("start_time")
+        if st and session_start_utc is None:
+            if st.tzinfo is None:
+                st = st.replace(tzinfo=timezone.utc)
+            session_start_utc = st
+        total_distance_m = total_distance_m or d.get("total_distance")
+        total_timer_s = total_timer_s or d.get("total_timer_time")
+        total_ascent_m = total_ascent_m or d.get("total_ascent")
+        avg_hr_session = avg_hr_session or d.get("avg_heart_rate")
+        max_hr_session = max_hr_session or d.get("max_heart_rate")
+        avg_power_session = avg_power_session or d.get("avg_power")
+        max_power_session = max_power_session or d.get("max_power")
+        calories = calories or d.get("total_calories")
+        workout_name = workout_name or d.get("sport_profile_name") or d.get("workout_name")
+
+        # Training effect fields
+        aerobic_te = aerobic_te or d.get("total_training_effect") or d.get("training_effect")
+        anaerobic_te = anaerobic_te or d.get("total_anaerobic_training_effect") or d.get("anaerobic_training_effect")
+
+    # VO2 max sometimes lives in a vendor message: unknown_140 field 7
+    # Vendor/developer mapping (observed in this FIT file):
+    # - message type: `unknown_140` (vendor message)
+    # - field index 7  -> `unknown_7`  : raw VO2 value (unitless) ; scale to VO2max using
+    #                                vo2_max = raw * 3.5 / 65536.0
+    # - field index 9  -> `unknown_9`  : recovery time in minutes (integer)
+    # These mappings are vendor-specific (Garmin/STRYD in this file) and may not exist
+    # in other FIT files. Keep `recovery_time_min` as the raw minutes integer to preserve
+    # the original data, and add a human-readable `recovery_time_readable` below.
+    try:
+        for m in ff.get_messages("unknown_140"):
+            for field in m:
+                # Field 7: VO2 max (scaled fixed-point)
+                if field.name == "unknown_7":
+                    raw = field.value
+                    if raw is not None:
+                        try:
+                            vo2_max = float(raw) * 3.5 / 65536.0
+                        except Exception:
+                            vo2_max = None
+                # Field 9: recovery time (in minutes)
+                if field.name == "unknown_9":
+                    raw = field.value
+                    if raw is not None:
+                        try:
+                            recovery_time_min = int(raw)
+                        except Exception:
+                            recovery_time_min = None
+            if vo2_max is not None and recovery_time_min is not None:
+                break
+    except Exception:
+        vo2_max = None
+        recovery_time_min = None
+
+    # LTHR (Lactate Threshold Heart Rate) lives in unknown_216 field 13
+    # Discovery: searched all FIT messages for values ~174 (expected LTHR) and found
+    # unknown_216: unknown_13 = 174. The unknown_216 message contains heart rate thresholds:
+    # - unknown_12: resting_hr (49, matches user_profile.resting_heart_rate)
+    # - unknown_13: LTHR in bpm (174)
+    # - unknown_11: likely max threshold (189)
+    # - unknown_6: tuple of 6 HR zone boundaries (91, 134, 151, 159, 172, 189)
+    try:
+        for m in ff.get_messages("unknown_216"):
+            for field in m:
+                if field.name == "unknown_13":
+                    raw = field.value
+                    if raw is not None:
+                        try:
+                            lthr = int(raw)
+                        except Exception:
+                            lthr = None
+                        break
+            if lthr is not None:
+                break
+    except Exception:
+        lthr = None
+
+    # Provide a human-readable recovery time (e.g. "2d 09:45" or "9:45").
+    def _format_minutes_readable(mins: Optional[int]) -> Optional[str]:
+        if mins is None:
+            return None
+        try:
+            mins = int(mins)
+        except Exception:
+            return None
+        days = mins // 1440
+        rem = mins % 1440
+        hours = rem // 60
+        minutes = rem % 60
+        if days > 0:
+            return f"{days}d {hours}:{minutes:02d}"
+        return f"{hours}:{minutes:02d}"
+
+    recovery_time_readable = _format_minutes_readable(recovery_time_min)
+
+    # Local time
+    tz = timezone.utc if tz_name is None else None
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo(tz_name)
+    except Exception:
+        tz = timezone.utc
+
+    if session_start_utc is not None:
+        start_local = session_start_utc.astimezone(tz)
+    else:
+        start_local = None
+
+    # Build blocks
+    blocks: Dict[str, BlockStats] = {}
+    # Keep mapping of block key -> lap dict so we can re-select records for each block
+    block_laps: Dict[str, dict] = {}
+    total_laps = len(laps)
+    step_count = len(steps)
+
+    for i, lap in enumerate(laps):
+        step = steps[i] if i < step_count else {}
+        block_type = classify_block_type(step, i, total_laps)
+
+        start = lap.get("start_time")
+        dur_s = lap.get("total_timer_time")
+        dist_m = lap.get("total_distance")
+        
+        # Skip very short laps (less than 30 seconds) - likely post-workout artifacts
+        if dur_s is not None and float(dur_s) < 30:
+            continue
+
+        # Name blocks consistently
+        if block_type == "warmup":
+            key = "warmup"
+        elif block_type == "cooldown":
+            key = "cooldown"
+        elif block_type == "float":
+            key = f"float_{i}"  # you can re-label later (float_1, float_2...)
+        else:  # work / other
+            key = f"active_{i}"
+
+        avg_hr = lap.get("avg_heart_rate")
+        # Use "Lap Power" field from Stryd (falls back to avg_power if not present)
+        avg_power = lap.get("Lap Power") or lap.get("avg_power")
+
+        if start is not None and start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        end = None
+        if start is not None and dur_s is not None:
+            end = start + timedelta(seconds=float(dur_s))
+
+        distance_km = None
+        if dist_m is not None:
+            distance_km = float(dist_m) / 1000.0
+
+        block = BlockStats(
+            name=key,
+            type=block_type,
+            start_utc=start.isoformat() if start else None,
+            end_utc=end.isoformat() if end else None,
+            duration_min=_round((float(dur_s) / 60.0) if dur_s is not None else None, 1),
+            distance_km=_round(distance_km, 2),
+            avg_hr=_round(avg_hr, 0),
+            avg_power=_round(avg_power, 0),
+        )
+
+        # Attach power target if present
+        tmin, tmax = extract_power_target(step)
+        if tmin is not None and tmax is not None:
+            block.target_min_w = _round(tmin, 0)
+            block.target_max_w = _round(tmax, 0)
+
+            # Compute time in band from record samples
+            recs = records_for_lap(records, lap)
+            band_stats = compute_power_band_stats(recs, tmin, tmax)
+            block.pct_time_below = band_stats["below"]
+            block.pct_time_in_range = band_stats["in"]
+            block.pct_time_above = band_stats["above"]
+
+        blocks[key] = block
+        block_laps[key] = lap
+
+    # Build top-level summary
+    distance_km_total = None if total_distance_m is None else total_distance_m / 1000.0
+    duration_min_total = None if total_timer_s is None else total_timer_s / 60.0
+
+    # Build the top-level summary dictionary (without blocks yet)
+    summary: Dict[str, Any] = {
+        "source_file": str(path),
+        # prefer FIT file serial_number if present
+        "id": str(file_serial) if file_serial is not None else path.stem,
+        "name": workout_name or (workout_block_name or "Activity"),
+        # expose workout block name explicitly when present
+        "workout_name": workout_block_name,
+        # date in YYYY-MM-DD (derived from session start)
+        "date": session_start_utc.date().isoformat() if session_start_utc else None,
+        "sport": str(sport).lower() if sport else None,
+        "start_utc": session_start_utc.isoformat() if session_start_utc else None,
+        "start_local": start_local.isoformat() if start_local else None,
+        "distance_km": _round(distance_km_total, 2),
+        "duration_min": _round(duration_min_total, 1),
+        "elev_gain_m": _round(total_ascent_m, 0) if total_ascent_m is not None else None,
+        "avg_hr": _round(avg_hr_session, 0),
+        "max_hr": _round(max_hr_session, 0),
+        # prefer computed session values from record samples
+        "avg_power": _round(session_avg_power or avg_power_session, 0),
+        "max_power": _round(session_max_power or max_power_session, 0),
+        "calories_kcal": _round(calories, 0) if calories is not None else None,
+        "aerobic_te": _round(aerobic_te, 1) if aerobic_te is not None else None,
+        "anaerobic_te": _round(anaerobic_te, 1) if anaerobic_te is not None else None,
+        "vo2_max": _round(vo2_max, 4) if vo2_max is not None else None,
+        "recovery_time_min": recovery_time_min,
+        "recovery_time_readable": recovery_time_readable,
+        "actual_weight": _round(actual_weight, 1) if actual_weight is not None else None,
+        "resting_hr": resting_hr,
+        "lthr": lthr,
+    }
+
+    # Helper: aggregate a list with median/mean and return None if empty
+    def _median_or_none(samples: List[float]) -> Optional[float]:
+        if not samples:
+            return None
+        try:
+            return float(statistics.median(samples))
+        except Exception:
+            return None
+
+    def _mean_or_none(samples: List[float]) -> Optional[float]:
+        if not samples:
+            return None
+        try:
+            return float(statistics.mean(samples))
+        except Exception:
+            return None
+
+    # Unit conversion helpers
+    def _step_length_mm_to_m(mm: Optional[float]) -> Optional[float]:
+        """Convert step length from mm to meters."""
+        if mm is None:
+            return None
+        try:
+            return float(mm) / 1000.0
+        except Exception:
+            return None
+
+    def _cadence_per_leg_to_spm(per_leg: Optional[float]) -> Optional[float]:
+        """Convert cadence from per-leg (one foot) to steps per minute (both feet)."""
+        if per_leg is None:
+            return None
+        try:
+            return float(per_leg) * 2.0
+        except Exception:
+            return None
+
+    def _vert_osc_mm_to_cm(mm: Optional[float]) -> Optional[float]:
+        """Convert vertical oscillation from mm to cm."""
+        if mm is None:
+            return None
+        try:
+            return float(mm) / 10.0
+        except Exception:
+            return None
+
+    # Build per-block output including running_dynamics
+    blocks_out: Dict[str, Any] = {}
+    for name, b in blocks.items():
+        lap = block_laps.get(name)
+        recs = records_for_lap(records, lap) if lap is not None else []
+
+        # Gather samples for this block
+        samples = {
+            "form_power": [],
+            "lss": [],
+            "gct": [],
+            "vert_osc": [],
+            "step_length": [],
+            "cadence": [],
+            "air_power_pct": [],
+            "form_power_ratio": [],
+        }
+        for r in recs:
+            if r.get("form_power") is not None:
+                samples["form_power"].append(r["form_power"])
+            if r.get("lss") is not None:
+                samples["lss"].append(r["lss"])
+            if r.get("gct") is not None:
+                samples["gct"].append(r["gct"])
+            if r.get("vert_osc") is not None:
+                samples["vert_osc"].append(r["vert_osc"])
+            if r.get("step_length") is not None:
+                samples["step_length"].append(r["step_length"])
+            if r.get("cadence") is not None:
+                samples["cadence"].append(r["cadence"])
+            if r.get("air_power_pct") is not None:
+                samples["air_power_pct"].append(r["air_power_pct"])
+            if r.get("form_power_ratio") is not None:
+                samples["form_power_ratio"].append(r["form_power_ratio"])
+
+        # Compute medians and apply unit conversions
+        step_length_med = _median_or_none(samples["step_length"])
+        cadence_med = _median_or_none(samples["cadence"])
+        vert_osc_med = _median_or_none(samples["vert_osc"])
+        
+        running_dynamics: Dict[str, Optional[float]] = {
+            "form_power_med": _median_or_none(samples["form_power"]),
+            "lss_med": _median_or_none(samples["lss"]),
+            "gct_med": _median_or_none(samples["gct"]),
+            "vert_osc_med": _round(_vert_osc_mm_to_cm(vert_osc_med), 1),  # mm → cm
+            "step_length_med": _round(_step_length_mm_to_m(step_length_med), 3),  # mm → m
+            "cadence_med": _round(_cadence_per_leg_to_spm(cadence_med), 0),  # per-leg → spm (both feet)
+            "air_power_pct_mean": _round(_mean_or_none(samples["air_power_pct"]), 2),
+            "form_power_ratio_mean": _round(_mean_or_none(samples["form_power_ratio"]), 2),
+        }
+
+        blocks_out[name] = {
+            "type": b.type,
+            "start_utc": b.start_utc,
+            "end_utc": b.end_utc,
+            "duration_min": b.duration_min,
+            "distance_km": b.distance_km,
+            "avg_hr": b.avg_hr,
+            "avg_power": b.avg_power,
+            "target_power": (
+                {
+                    "min_w": b.target_min_w,
+                    "max_w": b.target_max_w,
+                    "pct_time_below": b.pct_time_below,
+                    "pct_time_in_range": b.pct_time_in_range,
+                    "pct_time_above": b.pct_time_above,
+                }
+                if b.target_min_w is not None and b.target_max_w is not None
+                else None
+            ),
+            "running_dynamics": running_dynamics,
+        }
+
+    # Run-wide running dynamics (aggregate across all records in the run)
+    all_samples = {
+        "form_power": [r["form_power"] for r in records if r.get("form_power") is not None],
+        "lss": [r["lss"] for r in records if r.get("lss") is not None],
+        "gct": [r["gct"] for r in records if r.get("gct") is not None],
+        "vert_osc": [r["vert_osc"] for r in records if r.get("vert_osc") is not None],
+        "step_length": [r["step_length"] for r in records if r.get("step_length") is not None],
+        "cadence": [r["cadence"] for r in records if r.get("cadence") is not None],
+        "air_power_pct": [r["air_power_pct"] for r in records if r.get("air_power_pct") is not None],
+        "form_power_ratio": [r["form_power_ratio"] for r in records if r.get("form_power_ratio") is not None],
+    }
+
+    # Compute run-wide medians and apply unit conversions
+    step_length_med_all = _median_or_none(all_samples["step_length"])
+    cadence_med_all = _median_or_none(all_samples["cadence"])
+    vert_osc_med_all = _median_or_none(all_samples["vert_osc"])
+    
+    running_dynamics_summary = {
+        "form_power_med": _median_or_none(all_samples["form_power"]),
+        "lss_med": _median_or_none(all_samples["lss"]),
+        "gct_med": _median_or_none(all_samples["gct"]),
+        "vert_osc_med": _round(_vert_osc_mm_to_cm(vert_osc_med_all), 1),  # mm → cm
+        "step_length_med": _round(_step_length_mm_to_m(step_length_med_all), 3),  # mm → m
+        "cadence_med": _round(_cadence_per_leg_to_spm(cadence_med_all), 0),  # per-leg → spm (both feet)
+        "air_power_pct_mean": _round(_mean_or_none(all_samples["air_power_pct"]), 2),
+        "form_power_ratio_mean": _round(_mean_or_none(all_samples["form_power_ratio"]), 2),
+    }
+
+    # Attach blocks and run-wide summary to top-level summary
+    summary["blocks"] = blocks_out
+    summary["running_dynamics_summary"] = running_dynamics_summary
+
+    return summary
+
+
+# ---------- CLI entrypoint ----------
+
+def main(argv: List[str]) -> None:
+    if len(argv) < 2:
+        print(f"Usage: {argv[0]} ACTIVITY.fit [Europe/London]", file=sys.stderr)
+        sys.exit(1)
+
+    fit_path = Path(argv[1])
+    if not fit_path.exists():
+        print(f"File not found: {fit_path}", file=sys.stderr)
+        sys.exit(1)
+
+    tz_name = argv[2] if len(argv) > 2 else "Europe/London"
+
+    summary = build_blocks_from_fit(fit_path, tz_name=tz_name)
+
+    # Print YAML to stdout
+    yaml.safe_dump(summary, sys.stdout, sort_keys=False, allow_unicode=True)
+
+    # Or, to write alongside the FIT file, uncomment:
+    # out_path = fit_path.with_suffix(".yaml")
+    # with open(out_path, "w", encoding="utf-8") as f:
+    #     yaml.safe_dump(summary, f, sort_keys=False, allow_unicode=True)
+    # print(f"Wrote {out_path}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main(sys.argv)
+
