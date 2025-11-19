@@ -20,7 +20,7 @@ import sys
 import math
 import statistics
 import yaml
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
