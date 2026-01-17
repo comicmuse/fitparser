@@ -735,16 +735,106 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     total_laps = len(laps)
     step_count = len(steps)
 
+    # Build a step-to-lap mapping that handles repeat structures
+    # Scan for repeat steps and build the full execution sequence
+    step_sequence = []
+    i = 0
+    while i < len(steps):
+        step = steps[i]
+        duration_type = str(step.get("duration_type") or "").lower()
+        
+        if "repeat" in duration_type:
+            # Found a repeat marker - figure out what to repeat
+            # Typically the steps immediately before the repeat are what gets repeated
+            # Look for the repeated block (usually 2 steps before the repeat marker)
+            repeat_block_start = max(0, i - 2)
+            repeat_block_end = i
+            repeat_block = list(range(repeat_block_start, repeat_block_end))
+            
+            # The repeat marker tells us to cycle through previous steps
+            # We need to figure out how many times based on remaining laps
+            # For now, we'll handle this dynamically when mapping laps
+            step_sequence.append(("repeat", repeat_block))
+            i += 1
+        else:
+            step_sequence.append(("step", i))
+            i += 1
+    
+    # Now map laps to steps, expanding repeats as needed
+    lap_to_step = []
+    seq_idx = 0
+    repeat_cycle_idx = 0
+    in_repeat = False
+    repeat_block = []
+    
+    for lap_idx in range(len(laps)):
+        if seq_idx >= len(step_sequence):
+            # Ran out of step sequence, use last non-repeat step
+            if lap_to_step:
+                lap_to_step.append(lap_to_step[-1])
+            else:
+                lap_to_step.append(len(steps) - 1)
+            continue
+        
+        seq_item_type, seq_item_data = step_sequence[seq_idx]
+        
+        if seq_item_type == "repeat":
+            # Enter repeat mode
+            repeat_block = seq_item_data
+            in_repeat = True
+            repeat_cycle_idx = 0
+            seq_idx += 1
+            # Now get the first step from the repeat block
+            if repeat_block:
+                lap_to_step.append(repeat_block[repeat_cycle_idx % len(repeat_block)])
+                repeat_cycle_idx += 1
+            else:
+                lap_to_step.append(0)
+        elif in_repeat:
+            # We're in repeat mode, cycle through the repeat block
+            lap_to_step.append(repeat_block[repeat_cycle_idx % len(repeat_block)])
+            repeat_cycle_idx += 1
+        else:
+            # Normal step execution
+            lap_to_step.append(seq_item_data)
+            seq_idx += 1
+    
+    # Check if we need to exit repeat mode when we see enough laps
+    # The last non-repeat step should be the cooldown
+    # Adjust: if there are more steps after the repeat, we need to exit repeat mode
+    if len(step_sequence) > 1:
+        last_seq_item = step_sequence[-1]
+        if last_seq_item[0] == "step":
+            # There's a step after the repeat (likely cooldown)
+            # We need to figure out when to stop repeating and use that final step
+            # Count backwards from total laps to find when cooldown should start
+            cooldown_step_idx = last_seq_item[1]
+            cooldown_step = steps[cooldown_step_idx]
+            if cooldown_step.get("intensity") == "cooldown":
+                # Find last lap with significant duration (>30s)
+                last_real_lap_idx = len(laps) - 1
+                while last_real_lap_idx > 0:
+                    dur = laps[last_real_lap_idx].get("total_timer_time")
+                    if dur and float(dur) >= 30:
+                        break
+                    last_real_lap_idx -= 1
+                # Map that lap to cooldown step
+                if last_real_lap_idx < len(lap_to_step):
+                    lap_to_step[last_real_lap_idx] = cooldown_step_idx
+    
     for i, lap in enumerate(laps):
-        step = steps[i] if i < step_count else {}
+        step_idx = lap_to_step[i] if i < len(lap_to_step) else (len(steps) - 1)
+        step = steps[step_idx] if step_idx < len(steps) else {}
         block_type = classify_block_type(step, i, total_laps)
 
         start = lap.get("start_time")
         dur_s = lap.get("total_timer_time")
         dist_m = lap.get("total_distance")
         
-        # Skip very short laps (less than 30 seconds) - likely post-workout artifacts
-        if dur_s is not None and float(dur_s) < 30:
+        # Skip only the final segment if it's very short (less than 30 seconds) - likely post-workout artifact
+        # Keep all other short segments as they may be legitimate workout intervals
+        is_last_lap = (i == total_laps - 1)
+        if is_last_lap and dur_s is not None and float(dur_s) < 30:
             continue
 
         # Name blocks consistently
@@ -1025,14 +1115,11 @@ def main(argv: List[str]) -> None:
 
     summary = build_blocks_from_fit(fit_path, tz_name=tz_name)
 
-    # Print YAML to stdout
-    yaml.safe_dump(summary, sys.stdout, sort_keys=False, allow_unicode=True)
-
-    # Or, to write alongside the FIT file, uncomment:
-    # out_path = fit_path.with_suffix(".yaml")
-    # with open(out_path, "w", encoding="utf-8") as f:
-    #     yaml.safe_dump(summary, f, sort_keys=False, allow_unicode=True)
-    # print(f"Wrote {out_path}", file=sys.stderr)
+    # Write to YAML file alongside the FIT file
+    out_path = fit_path.with_suffix(".yaml")
+    with open(out_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(summary, f, sort_keys=False, allow_unicode=True)
+    print(f"Wrote {out_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
