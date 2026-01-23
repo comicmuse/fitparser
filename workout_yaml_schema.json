@@ -1,0 +1,311 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Garmin Structured Workout Summary",
+  "description": "Schema for YAML output from fit_to_yaml_blocks.py - a block-based summary of structured workouts from Garmin FIT files",
+  "type": "object",
+  "required": [
+    "source_file",
+    "id",
+    "blocks"
+  ],
+  "properties": {
+    "source_file": {
+      "type": "string",
+      "description": "Original FIT file path"
+    },
+    "id": {
+      "type": "string",
+      "description": "Workout/file serial number or identifier"
+    },
+    "name": {
+      "type": ["string", "null"],
+      "description": "Activity or workout name"
+    },
+    "hr_zone_definition": {
+      "type": ["object", "null"],
+      "description": "Heart rate zone configuration",
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Source of HR zone data (e.g., 'garmin')"
+        },
+        "system": {
+          "type": "string",
+          "description": "Zone system name (e.g., 'Garmin_6_zone')"
+        },
+        "zones": {
+          "type": "object",
+          "description": "Zone definitions (Z1, Z2, etc.)",
+          "patternProperties": {
+            "^Z[0-9]+$": {
+              "type": "object",
+              "properties": {
+                "min_bpm": {
+                  "type": "number",
+                  "description": "Minimum heart rate for this zone (bpm)"
+                },
+                "max_bpm": {
+                  "type": "number",
+                  "description": "Maximum heart rate for this zone (bpm)"
+                }
+              },
+              "required": ["min_bpm", "max_bpm"]
+            }
+          }
+        },
+        "lthr_bpm": {
+          "type": ["number", "null"],
+          "description": "Lactate threshold heart rate (bpm)"
+        }
+      },
+      "required": ["source", "system", "zones"]
+    },
+    "workout_name": {
+      "type": ["string", "null"],
+      "description": "Name of the workout"
+    },
+    "date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Workout date (YYYY-MM-DD)"
+    },
+    "sport": {
+      "type": ["string", "null"],
+      "description": "Sport type (e.g., 'running', 'cycling')"
+    },
+    "start_utc": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Workout start time in UTC (ISO 8601)"
+    },
+    "start_local": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Workout start time in local timezone (ISO 8601)"
+    },
+    "distance_km": {
+      "type": ["number", "null"],
+      "description": "Total distance in kilometers"
+    },
+    "duration_min": {
+      "type": ["number", "null"],
+      "description": "Total duration in minutes"
+    },
+    "elev_gain_m": {
+      "type": ["number", "null"],
+      "description": "Total elevation gain in meters"
+    },
+    "avg_hr": {
+      "type": ["number", "null"],
+      "description": "Average heart rate (bpm)"
+    },
+    "max_hr": {
+      "type": ["number", "null"],
+      "description": "Maximum heart rate (bpm)"
+    },
+    "avg_power": {
+      "type": ["number", "null"],
+      "description": "Average power (watts)"
+    },
+    "max_power": {
+      "type": ["number", "null"],
+      "description": "Maximum power (watts)"
+    },
+    "calories_kcal": {
+      "type": ["number", "null"],
+      "description": "Total calories burned (kcal)"
+    },
+    "aerobic_te": {
+      "type": ["number", "null"],
+      "description": "Aerobic training effect (0-5 scale)"
+    },
+    "anaerobic_te": {
+      "type": ["number", "null"],
+      "description": "Anaerobic training effect (0-5 scale)"
+    },
+    "vo2_max": {
+      "type": ["number", "null"],
+      "description": "Estimated VO2 max (ml/kg/min)"
+    },
+    "recovery_time_min": {
+      "type": ["integer", "null"],
+      "description": "Recovery time in minutes"
+    },
+    "recovery_time_readable": {
+      "type": ["string", "null"],
+      "description": "Recovery time in human-readable format (e.g., '3d 17:48')"
+    },
+    "critical_power": {
+      "type": ["number", "null"],
+      "description": "Critical power (watts)"
+    },
+    "avg_temperature": {
+      "type": ["number", "null"],
+      "description": "Average temperature (Celsius)"
+    },
+    "baseline_humidity": {
+      "type": ["number", "null"],
+      "description": "Baseline humidity percentage"
+    },
+    "actual_weight": {
+      "type": ["number", "null"],
+      "description": "Athlete weight (kg)"
+    },
+    "resting_hr": {
+      "type": ["integer", "null"],
+      "description": "Resting heart rate (bpm)"
+    },
+    "lthr": {
+      "type": ["integer", "null"],
+      "description": "Lactate threshold heart rate (bpm)"
+    },
+    "blocks": {
+      "type": "object",
+      "description": "Workout blocks/segments",
+      "patternProperties": {
+        "^(warmup|cooldown|active_[0-9]+|float_[0-9]+|other_[0-9]+)$": {
+          "$ref": "#/definitions/block"
+        }
+      }
+    },
+    "running_dynamics_summary": {
+      "$ref": "#/definitions/running_dynamics",
+      "description": "Aggregate running dynamics for entire workout"
+    },
+    "session_hr_zones": {
+      "$ref": "#/definitions/hr_zone_distribution",
+      "description": "Heart rate zone distribution for entire session"
+    }
+  },
+  "definitions": {
+    "block": {
+      "type": "object",
+      "description": "A single workout block/segment",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["warmup", "work", "float", "cooldown", "other"],
+          "description": "Block type"
+        },
+        "start_utc": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Block start time in UTC (ISO 8601)"
+        },
+        "end_utc": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Block end time in UTC (ISO 8601)"
+        },
+        "duration_min": {
+          "type": ["number", "null"],
+          "description": "Block duration in minutes"
+        },
+        "distance_km": {
+          "type": ["number", "null"],
+          "description": "Distance covered in this block (km)"
+        },
+        "avg_hr": {
+          "type": ["number", "null"],
+          "description": "Average heart rate for this block (bpm)"
+        },
+        "avg_power": {
+          "type": ["number", "null"],
+          "description": "Average power for this block (watts)"
+        },
+        "hr_drift_pct": {
+          "type": ["number", "null"],
+          "description": "Heart rate drift percentage (first half vs second half). Only computed for blocks ≥8 minutes."
+        },
+        "hr_first5s_to_last5s_delta": {
+          "type": ["number", "null"],
+          "description": "Change in HR from first 5s to last 5s of block (bpm). Only computed for blocks >30 seconds."
+        },
+        "target_power": {
+          "type": ["object", "null"],
+          "description": "Power target band and adherence statistics",
+          "properties": {
+            "min_w": {
+              "type": "number",
+              "description": "Minimum target power (watts)"
+            },
+            "max_w": {
+              "type": "number",
+              "description": "Maximum target power (watts)"
+            },
+            "pct_time_below": {
+              "type": "number",
+              "description": "Percentage of time spent below target range"
+            },
+            "pct_time_in_range": {
+              "type": "number",
+              "description": "Percentage of time spent in target range"
+            },
+            "pct_time_above": {
+              "type": "number",
+              "description": "Percentage of time spent above target range"
+            }
+          },
+          "required": ["min_w", "max_w", "pct_time_below", "pct_time_in_range", "pct_time_above"]
+        },
+        "running_dynamics": {
+          "$ref": "#/definitions/running_dynamics",
+          "description": "Running dynamics metrics for this block"
+        },
+        "hr_zones": {
+          "$ref": "#/definitions/hr_zone_distribution",
+          "description": "Heart rate zone distribution for this block"
+        }
+      }
+    },
+    "running_dynamics": {
+      "type": "object",
+      "description": "Running dynamics metrics from Stryd or similar power meters",
+      "properties": {
+        "form_power_med": {
+          "type": ["number", "null"],
+          "description": "Median form power (watts) - power needed to maintain running form"
+        },
+        "lss_med": {
+          "type": ["number", "null"],
+          "description": "Median leg spring stiffness (kN/m)"
+        },
+        "gct_med": {
+          "type": ["number", "null"],
+          "description": "Median ground contact time (milliseconds)"
+        },
+        "vert_osc_med": {
+          "type": ["number", "null"],
+          "description": "Median vertical oscillation (centimeters)"
+        },
+        "step_length_med": {
+          "type": ["number", "null"],
+          "description": "Median step length (meters)"
+        },
+        "cadence_med": {
+          "type": ["number", "null"],
+          "description": "Median cadence (steps per minute, both feet)"
+        },
+        "air_power_pct_mean": {
+          "type": ["number", "null"],
+          "description": "Mean air power as percentage of total power"
+        },
+        "form_power_ratio_mean": {
+          "type": ["number", "null"],
+          "description": "Mean ratio of form power to total power"
+        }
+      }
+    },
+    "hr_zone_distribution": {
+      "type": "object",
+      "description": "Time distribution across heart rate zones",
+      "patternProperties": {
+        "^Z[0-9]+_pct$": {
+          "type": "number",
+          "description": "Percentage of time spent in this zone"
+        }
+      }
+    }
+  }
+}

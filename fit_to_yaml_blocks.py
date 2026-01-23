@@ -47,6 +47,7 @@ class BlockStats:
     pct_time_in_range: Optional[float] = None
     pct_time_above: Optional[float] = None
     hr_drift_pct: Optional[float] = None
+    hr_first5s_to_last5s_delta: Optional[float] = None
 
 
 # ---------- Helper functions ----------
@@ -397,6 +398,69 @@ def compute_hr_drift_pct(block_records: list) -> Optional[float]:
     return round(drift_pct, 2)
 
 
+def compute_hr_first5s_to_last5s_delta(block_records: list) -> Optional[float]:
+    """
+    Compute the change in HR between first 5s and last 5s of a segment.
+    
+    Returns delta in BPM (last 5s avg - first 5s avg) or None if insufficient data.
+    
+    Args:
+        block_records: List of record dicts from records_for_lap()
+    
+    Returns:
+        HR delta rounded to 1 decimal, or None
+    """
+    if not block_records:
+        return None
+    
+    # Extract records with valid timestamps and HR
+    valid_records = []
+    for r in block_records:
+        ts = r.get("timestamp")
+        hr = r.get("heart_rate")
+        if ts is not None and hr is not None and hr > 0:
+            valid_records.append({"timestamp": ts, "heart_rate": hr})
+    
+    if len(valid_records) < 4:  # Need minimum samples
+        return None
+    
+    # Sort by timestamp
+    valid_records.sort(key=lambda x: x["timestamp"])
+    
+    # Calculate total duration
+    t0 = valid_records[0]["timestamp"]
+    t_end = valid_records[-1]["timestamp"]
+    total_duration_s = (t_end - t0).total_seconds()
+    
+    # Require at least 30 seconds
+    if total_duration_s < 30:
+        return None
+    
+    # Get first 5s and last 5s
+    first_5s_hrs = []
+    last_5s_hrs = []
+    
+    for r in valid_records:
+        elapsed_s = (r["timestamp"] - t0).total_seconds()
+        if elapsed_s <= 5.0:
+            first_5s_hrs.append(r["heart_rate"])
+        if elapsed_s >= total_duration_s - 5.0:
+            last_5s_hrs.append(r["heart_rate"])
+    
+    # Check we have samples in each window
+    if len(first_5s_hrs) < 1 or len(last_5s_hrs) < 1:
+        return None
+    
+    # Compute averages
+    hr_first = statistics.mean(first_5s_hrs)
+    hr_last = statistics.mean(last_5s_hrs)
+    
+    # Calculate delta (last - first)
+    delta = hr_last - hr_first
+    
+    return round(delta, 1)
+
+
 def classify_block_type(step: dict, lap_index: int, total_laps: int) -> str:
     """
     Best-effort guess of block type from workout_step + lap position.
@@ -745,10 +809,20 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         
         if "repeat" in duration_type:
             # Found a repeat marker - figure out what to repeat
-            # Typically the steps immediately before the repeat are what gets repeated
-            # Look for the repeated block (usually 2 steps before the repeat marker)
-            repeat_block_start = max(0, i - 2)
-            repeat_block_end = i
+            # The "repeat_steps" field tells us how many steps to repeat
+            # The "duration_step" field tells us which step to go back to
+            repeat_steps = step.get("repeat_steps", 2)
+            duration_step = step.get("duration_step")
+            
+            if duration_step is not None:
+                # duration_step is the step index to jump back to
+                repeat_block_start = int(duration_step)
+                repeat_block_end = i
+            else:
+                # Fallback: repeat the previous N steps
+                repeat_block_start = max(0, i - repeat_steps)
+                repeat_block_end = i
+            
             repeat_block = list(range(repeat_block_start, repeat_block_end))
             
             # The repeat marker tells us to cycle through previous steps
@@ -761,15 +835,16 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
             i += 1
     
     # Now map laps to steps, expanding repeats as needed
+    # Strategy: consume laps by matching them to step durations
     lap_to_step = []
     seq_idx = 0
-    repeat_cycle_idx = 0
-    in_repeat = False
-    repeat_block = []
     
     for lap_idx in range(len(laps)):
+        lap = laps[lap_idx]
+        lap_duration = lap.get("total_timer_time", 0)
+        
         if seq_idx >= len(step_sequence):
-            # Ran out of step sequence, use last non-repeat step
+            # Ran out of step sequence, use last step
             if lap_to_step:
                 lap_to_step.append(lap_to_step[-1])
             else:
@@ -779,25 +854,48 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         seq_item_type, seq_item_data = step_sequence[seq_idx]
         
         if seq_item_type == "repeat":
-            # Enter repeat mode
-            repeat_block = seq_item_data
-            in_repeat = True
-            repeat_cycle_idx = 0
+            # This is a repeat marker - it tells us to repeat the block
+            # But we need to look ahead to see when to exit the repeat
+            # For now, just skip the repeat marker and let the next lap decide
             seq_idx += 1
-            # Now get the first step from the repeat block
-            if repeat_block:
-                lap_to_step.append(repeat_block[repeat_cycle_idx % len(repeat_block)])
-                repeat_cycle_idx += 1
+            # Re-process this lap with the next sequence item
+            if seq_idx < len(step_sequence):
+                seq_item_type, seq_item_data = step_sequence[seq_idx]
+        
+        if seq_item_type == "step":
+            step = steps[seq_item_data]
+            step_duration = step.get("duration_time", 0)
+            
+            # Check if this lap matches this step's duration (within 10 seconds)
+            if abs(lap_duration - step_duration) < 10:
+                # Match! Use this step for this lap
+                lap_to_step.append(seq_item_data)
+                
+                # Move to next step ONLY if the next item is not a repeat
+                # or if we're not in a repeat block
+                if seq_idx + 1 < len(step_sequence):
+                    next_type, next_data = step_sequence[seq_idx + 1]
+                    if next_type != "repeat":
+                        seq_idx += 1
+                    # else: stay on this step, the repeat will be processed next lap
+                else:
+                    seq_idx += 1
             else:
-                lap_to_step.append(0)
-        elif in_repeat:
-            # We're in repeat mode, cycle through the repeat block
-            lap_to_step.append(repeat_block[repeat_cycle_idx % len(repeat_block)])
-            repeat_cycle_idx += 1
-        else:
-            # Normal step execution
-            lap_to_step.append(seq_item_data)
-            seq_idx += 1
+                # Duration mismatch - might be in a repeat cycle
+                # Try to find a matching step by duration in the nearby steps
+                found = False
+                for check_idx in range(max(0, seq_idx - 5), min(len(step_sequence), seq_idx + 5)):
+                    if step_sequence[check_idx][0] == "step":
+                        check_step = steps[step_sequence[check_idx][1]]
+                        check_duration = check_step.get("duration_time", 0)
+                        if abs(lap_duration - check_duration) < 10:
+                            lap_to_step.append(step_sequence[check_idx][1])
+                            found = True
+                            break
+                
+                if not found:
+                    # Fallback: use current step
+                    lap_to_step.append(seq_item_data)
     
     # Check if we need to exit repeat mode when we see enough laps
     # The last non-repeat step should be the cooldown
@@ -1034,6 +1132,11 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         if recs and b.duration_min is not None and b.duration_min >= 8 and b.type in ("warmup", "work", "float"):
             hr_drift_pct = compute_hr_drift_pct(recs)
 
+        # Compute HR 5s delta for segments longer than 30s
+        hr_first5s_to_last5s_delta = None
+        if recs and b.duration_min is not None and b.duration_min * 60 > 30:
+            hr_first5s_to_last5s_delta = compute_hr_first5s_to_last5s_delta(recs)
+
         blocks_out[name] = {
             "type": b.type,
             "start_utc": b.start_utc,
@@ -1043,6 +1146,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
             "avg_hr": b.avg_hr,
             "avg_power": b.avg_power,
             "hr_drift_pct": hr_drift_pct,
+            "hr_first5s_to_last5s_delta": hr_first5s_to_last5s_delta,
             "target_power": (
                 {
                     "min_w": b.target_min_w,
