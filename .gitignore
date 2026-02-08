@@ -3,6 +3,10 @@
 *.fit
 *.yml
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Strava webhook integration
 .env
 downloads/
