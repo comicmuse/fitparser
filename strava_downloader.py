@@ -351,6 +351,7 @@ class StravaClient:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
+                    # Create headers with current access token (refreshed on each retry if needed)
                     headers = {'Authorization': f"Bearer {self.access_token}"}
                     response = requests.get(export_url, headers=headers, timeout=30)
                     
@@ -358,6 +359,7 @@ class StravaClient:
                     if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
                         logger.info("Access token expired, refreshing...")
                         self.refresh_access_token()
+                        # Continue to next iteration, which will use the refreshed token
                         continue
                     
                     response.raise_for_status()
