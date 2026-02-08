@@ -3,3 +3,9 @@
 *.fit
 *.yml
 
+# Strava webhook integration
+.env
+downloads/
+downloaded_activities.json
+*.log
+
