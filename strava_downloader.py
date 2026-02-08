@@ -342,10 +342,35 @@ class StravaClient:
             file_path = year_month_dir / filename
             
             logger.info(f"Downloading FIT file for activity {activity_id} ({activity_type})")
-            response = self._make_api_request(
-                'GET',
-                f"activities/{activity_id}/export_original"
-            )
+            
+            # Use the web URL for export_original (not the API endpoint)
+            # The working URL format is: https://www.strava.com/activities/{id}/export_original
+            export_url = f"https://www.strava.com/activities/{activity_id}/export_original"
+            
+            # Make authenticated request with retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    headers = {'Authorization': f"Bearer {self.access_token}"}
+                    response = requests.get(export_url, headers=headers, timeout=30)
+                    
+                    # If unauthorized, try to refresh token
+                    if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
+                        logger.info("Access token expired, refreshing...")
+                        self.refresh_access_token()
+                        continue
+                    
+                    response.raise_for_status()
+                    break  # Success, exit retry loop
+                    
+                except requests.exceptions.RequestException as e:
+                    if attempt < max_retries - 1:
+                        wait_time = min(2 ** attempt, 60)
+                        logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {e}")
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(f"Request failed after {max_retries} attempts: {e}")
+                        raise
             
             # Save file
             with open(file_path, 'wb') as f:
