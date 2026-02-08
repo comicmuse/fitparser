@@ -343,17 +343,17 @@ class StravaClient:
             
             logger.info(f"Downloading FIT file for activity {activity_id} ({activity_type})")
             
-            # Use the web URL for export_original (not the API endpoint)
-            # The working URL format is: https://www.strava.com/activities/{id}/export_original
+            # Use the web URL for export_original with access_token as query parameter
+            # The web endpoint requires the token as a query parameter, not in headers
             export_url = f"https://www.strava.com/activities/{activity_id}/export_original"
             
             # Make authenticated request with retry logic
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    # Create headers with current access token (refreshed on each retry if needed)
-                    headers = {'Authorization': f"Bearer {self.access_token}"}
-                    response = requests.get(export_url, headers=headers, timeout=30)
+                    # Use access_token as a query parameter for web endpoint
+                    params = {'access_token': self.access_token}
+                    response = requests.get(export_url, params=params, timeout=30)
                     
                     # If unauthorized, try to refresh token
                     if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
