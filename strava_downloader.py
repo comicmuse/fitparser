@@ -228,7 +228,7 @@ class StravaClient:
                 
             except requests.exceptions.RequestException as e:
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff
+                    wait_time = min(2 ** attempt, 60)  # Exponential backoff, capped at 60s
                     logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:

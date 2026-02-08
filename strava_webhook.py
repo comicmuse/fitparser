@@ -213,7 +213,7 @@ def validate_config() -> bool:
     return True
 
 
-if __name__ == '__main__':
+def main():
     """
     Run the webhook server.
     
@@ -242,3 +242,7 @@ if __name__ == '__main__':
         port=WEBHOOK_PORT,
         debug=False  # Set to True for development
     )
+
+
+if __name__ == '__main__':
+    main()
