@@ -343,8 +343,8 @@ class StravaClient:
             
             logger.info(f"Downloading FIT file for activity {activity_id} ({activity_type})")
             
-            # The export_original endpoint is a web-only feature that requires cookies
-            # We'll use a session with browser-like headers to access it
+            # The export_original endpoint is a web-only feature
+            # We'll use the access token as a query parameter with browser-like headers
             export_url = f"https://www.strava.com/activities/{activity_id}/export_original"
             
             # Make authenticated request with retry logic
@@ -354,24 +354,33 @@ class StravaClient:
                     # Create a session with browser-like headers
                     session = requests.Session()
                     session.headers.update({
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
                         'Accept-Encoding': 'gzip, deflate, br',
                         'DNT': '1',
                         'Connection': 'keep-alive',
                         'Upgrade-Insecure-Requests': '1',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none',
+                        'Sec-Fetch-User': '?1',
                     })
                     
-                    # First, establish a session by visiting the activity page with OAuth token
-                    # This should set the necessary cookies
-                    auth_url = f"https://www.strava.com/activities/{activity_id}"
-                    auth_params = {'access_token': self.access_token}
-                    auth_response = session.get(auth_url, params=auth_params, timeout=30)
+                    # Request the export with access token
+                    params = {'access_token': self.access_token}
+                    response = session.get(export_url, params=params, timeout=30, allow_redirects=True)
                     
-                    # Now try to download the FIT file using the established session
-                    # The session should have the necessary cookies now
-                    response = session.get(export_url, timeout=30)
+                    # Check if we got redirected to login page or got HTML
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'text/html' in content_type:
+                        # We got HTML, not a FIT file - authentication failed
+                        if attempt < max_retries - 1 and self.refresh_token:
+                            logger.info("Access token appears invalid, refreshing...")
+                            self.refresh_access_token()
+                            continue
+                        else:
+                            raise Exception(f"Failed to download FIT file: received HTML instead of binary file. This may indicate authentication issues or the activity doesn't have an original file.")
                     
                     # If unauthorized, try to refresh token
                     if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
@@ -473,6 +482,8 @@ if __name__ == '__main__':
     client_secret = os.getenv('STRAVA_CLIENT_SECRET')
     access_token = os.getenv('STRAVA_ACCESS_TOKEN')
     refresh_token = os.getenv('STRAVA_REFRESH_TOKEN')
+    download_base_dir = os.getenv('DOWNLOAD_BASE_DIR', './downloads')
+    state_file = os.getenv('STATE_FILE', './downloaded_activities.json')
     
     if not client_id or not client_secret:
         print("Error: STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET must be set in .env file")
@@ -482,7 +493,9 @@ if __name__ == '__main__':
         client_id=client_id,
         client_secret=client_secret,
         access_token=access_token,
-        refresh_token=refresh_token
+        refresh_token=refresh_token,
+        download_base_dir=download_base_dir,
+        state_file=state_file
     )
     
     if len(sys.argv) > 1:
