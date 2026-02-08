@@ -99,6 +99,8 @@ class StravaSeleniumDownloader:
         
         try:
             # Navigate to a page with access token to establish session
+            # Note: Token in URL is visible in browser logs, but this is a local headless browser
+            # and the session is only used for immediate download, then discarded
             url = f"https://www.strava.com/dashboard?access_token={self.oauth_access_token}"
             self.driver.get(url)
             
@@ -219,7 +221,8 @@ class StravaSeleniumDownloader:
             
             # Wait for download to start (file should appear in download directory)
             # The download happens automatically when visiting the export_original URL
-            time.sleep(3)  # Give browser time to start download
+            # Check immediately, then wait if needed
+            time.sleep(1)  # Brief initial wait for download to initiate
             
             # Check if file was downloaded
             # Strava names the file as: {activity_id}.fit.gz or similar

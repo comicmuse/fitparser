@@ -410,7 +410,11 @@ class StravaClient:
             if self.use_selenium:
                 success = self._download_with_selenium(activity_id, file_path)
                 if not success:
-                    raise Exception(f"Selenium download failed for activity {activity_id}")
+                    raise Exception(
+                        f"Selenium download failed for activity {activity_id}. "
+                        f"Check logs above for specific error details. "
+                        f"Ensure Chrome/ChromeDriver is installed and STRAVA_EMAIL/STRAVA_PASSWORD are set if OAuth login fails."
+                    )
             else:
                 # The export_original endpoint is a web-only feature
                 # We'll use the access token as a query parameter with browser-like headers
@@ -452,7 +456,8 @@ class StravaClient:
                                 # Authentication issue - suggest Selenium
                                 raise Exception(
                                     f"Authentication failed: Strava's export endpoint requires browser cookies. "
-                                    f"Use Selenium mode: set USE_SELENIUM=true and optionally STRAVA_EMAIL/STRAVA_PASSWORD"
+                                    f"Enable Selenium mode with USE_SELENIUM=true in .env. "
+                                    f"For reliable login, also set STRAVA_EMAIL and STRAVA_PASSWORD (required if OAuth fails)."
                                 )
                             else:
                                 # Likely missing file or other issue
