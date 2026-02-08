@@ -352,8 +352,22 @@ class StravaClient:
             for attempt in range(max_retries):
                 try:
                     # Use access_token as a query parameter for web endpoint
+                    # Don't follow redirects to detect authentication issues
                     params = {'access_token': self.access_token}
-                    response = requests.get(export_url, params=params, timeout=30)
+                    response = requests.get(export_url, params=params, timeout=30, allow_redirects=False)
+                    
+                    # Check for redirects (authentication failure)
+                    if response.status_code in [301, 302, 303, 307, 308]:
+                        # If we're being redirected, authentication failed
+                        if self.refresh_token and attempt < max_retries - 1:
+                            logger.info("Access token appears invalid, refreshing...")
+                            self.refresh_access_token()
+                            continue
+                        else:
+                            raise requests.exceptions.HTTPError(
+                                f"Authentication failed - redirected to {response.headers.get('Location', 'unknown')}",
+                                response=response
+                            )
                     
                     # If unauthorized, try to refresh token
                     if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:

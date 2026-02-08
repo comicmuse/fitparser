@@ -136,7 +136,8 @@ def run_oauth_flow(
     auth_error = None
     
     # Build authorization URL with proper URL encoding
-    scope = "activity:read"
+    # Use activity:read_all scope to access private activities and original files
+    scope = "activity:read_all"
     auth_url = (
         f"https://www.strava.com/oauth/authorize"
         f"?client_id={quote(str(client_id))}"
