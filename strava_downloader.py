@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -36,6 +37,48 @@ class DownloadedActivity:
     activity_id: int
     download_time: str
     file_path: str
+
+
+def sanitize_activity_name(name: str) -> str:
+    """
+    Sanitize activity name for use in filename.
+    
+    Rules:
+    - Convert to lowercase
+    - Replace spaces with underscores
+    - Keep only alphanumeric characters and underscores
+    - Remove emojis and punctuation
+    
+    Args:
+        name: Activity name from Strava
+        
+    Returns:
+        Sanitized name suitable for filename
+    """
+    if not name:
+        return "untitled"
+    
+    # Convert to lowercase
+    name = name.lower()
+    
+    # Replace spaces with underscores
+    name = name.replace(' ', '_')
+    
+    # Keep only alphanumeric characters and underscores
+    # This removes emojis, punctuation, and special characters
+    name = re.sub(r'[^a-z0-9_]', '', name)
+    
+    # Remove multiple consecutive underscores
+    name = re.sub(r'_+', '_', name)
+    
+    # Remove leading/trailing underscores
+    name = name.strip('_')
+    
+    # If empty after sanitization, use default
+    if not name:
+        return "untitled"
+    
+    return name
 
 
 class StravaClient:
@@ -275,7 +318,7 @@ class StravaClient:
                 logger.info(f"Activity {activity_id} is type '{activity_type}', not downloading (only Run/VirtualRun)")
                 return None
             
-            # Get activity start time for directory structure
+            # Get activity start time for directory structure and filename
             start_date_str = activity.get('start_date', '')
             if start_date_str:
                 try:
@@ -285,12 +328,18 @@ class StravaClient:
             else:
                 start_date = datetime.now()
             
+            # Get activity name and sanitize it for filename
+            activity_name = activity.get('name', '')
+            sanitized_name = sanitize_activity_name(activity_name)
+            
             # Create directory structure: {base_dir}/{yyyy}/{mm}/
             year_month_dir = self.download_base_dir / str(start_date.year) / f"{start_date.month:02d}"
             year_month_dir.mkdir(parents=True, exist_ok=True)
             
-            # Download FIT file
-            file_path = year_month_dir / f"{activity_id}.fit"
+            # Create filename: yyyymmdd_activity_name.fit
+            date_str = start_date.strftime('%Y%m%d')
+            filename = f"{date_str}_{sanitized_name}.fit"
+            file_path = year_month_dir / filename
             
             logger.info(f"Downloading FIT file for activity {activity_id} ({activity_type})")
             response = self._make_api_request(
