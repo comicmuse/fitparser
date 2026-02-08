@@ -254,19 +254,33 @@ curl -X DELETE https://www.strava.com/api/v3/push_subscriptions/SUBSCRIPTION_ID 
 
 ## File Organization
 
-Downloaded FIT files are organized by year and month:
+Downloaded FIT files are organized by year and month with standardized filenames:
 ```
 downloads/
 ├── 2026/
 │   ├── 01/
-│   │   ├── 12345.fit
-│   │   └── 12346.fit
+│   │   ├── 20260105_long_run.fit
+│   │   ├── 20260106_morning_jog.fit
+│   │   └── 20260110_track_workout_8x400m.fit
 │   └── 02/
-│       └── 12347.fit
+│       └── 20260215_5k_race_pr.fit
 └── 2027/
     └── 01/
-        └── 12348.fit
+        └── 20270120_easy_run.fit
 ```
+
+**Filename Format**: `yyyymmdd_activity_name.fit`
+- Date from activity start time
+- Activity name from Strava, sanitized:
+  - Lowercase
+  - Spaces converted to underscores
+  - Only alphanumeric characters and underscores
+  - Emojis and punctuation removed
+
+Examples:
+- "Long Run" → `20260105_long_run.fit`
+- "Morning Jog 🏃" → `20260106_morning_jog.fit`
+- "5K Race - PR!!!" → `20260215_5k_race_pr.fit`
 
 ## State Tracking
 
@@ -278,7 +292,7 @@ The `downloaded_activities.json` file tracks which activities have been download
     {
       "activity_id": 12345,
       "download_time": "2026-02-08T12:00:00Z",
-      "file_path": "downloads/2026/02/12345.fit"
+      "file_path": "downloads/2026/02/20260208_lunch_run.fit"
     }
   ]
 }
@@ -309,6 +323,130 @@ Health check endpoint. Returns:
 
 ### `GET /`
 Info page with available endpoints.
+
+## Testing the Integration
+
+### End-to-End Test
+
+Here's how to test the complete workflow in real life:
+
+#### 1. Complete OAuth Authorization
+
+```bash
+python strava_oauth.py
+```
+
+This will:
+- Open your browser to Strava
+- You click "Authorize"
+- Tokens are saved to `.env` automatically
+
+#### 2. Test Manual Download (Optional)
+
+Before setting up the webhook, test downloading a specific activity:
+
+```bash
+python strava_downloader.py ACTIVITY_ID
+```
+
+Replace `ACTIVITY_ID` with a real activity ID from your Strava account (you can find this in the URL when viewing an activity on Strava.com).
+
+Expected output:
+```
+Downloading activity 12345678...
+Downloading FIT file for activity 12345678 (Run)
+Successfully downloaded FIT file to downloads/2026/01/20260115_morning_run.fit
+Success! Downloaded to: downloads/2026/01/20260115_morning_run.fit
+```
+
+#### 3. Start the Webhook Server
+
+```bash
+python strava_webhook.py
+```
+
+Keep this running in a terminal.
+
+#### 4. Expose Webhook with ngrok (for testing)
+
+In a new terminal:
+```bash
+ngrok http 5000
+```
+
+Copy the HTTPS URL (e.g., `https://abc123.ngrok.io`).
+
+#### 5. Create Webhook Subscription
+
+```bash
+curl -X POST https://www.strava.com/api/v3/push_subscriptions \
+  -F client_id=YOUR_CLIENT_ID \
+  -F client_secret=YOUR_CLIENT_SECRET \
+  -F callback_url=https://YOUR_NGROK_URL/webhook \
+  -F verify_token=YOUR_VERIFY_TOKEN
+```
+
+You should see in your webhook server terminal:
+```
+Webhook verification request: mode=subscribe, verify_token=...
+Webhook verification successful
+```
+
+#### 6. Upload a Test Activity
+
+Create a test activity on Strava:
+- Option A: Go for a real run with your GPS watch/phone
+- Option B: Use Strava's website to manually create an activity
+- Option C: Import a FIT file to Strava
+
+#### 7. Verify Automatic Download
+
+Watch the webhook server terminal. Within seconds, you should see:
+```
+Received webhook event: {'aspect_type': 'create', 'object_id': 12345678, ...}
+Event: create activity (ID: 12345678, Owner: ..., Time: ...)
+Processing new activity creation: 12345678
+Starting async download for activity 12345678
+Async download thread started for activity 12345678
+Downloading FIT file for activity 12345678 (Run)
+Successfully downloaded activity 12345678 to downloads/2026/01/20260115_test_run.fit
+```
+
+#### 8. Check Downloaded File
+
+```bash
+ls -lh downloads/2026/01/
+```
+
+You should see your FIT file with the format: `20260115_test_run.fit`
+
+### What Gets Downloaded
+
+✅ **Downloaded:**
+- Activities of type "Run"
+- Activities of type "VirtualRun" (treadmill)
+- Activities that have original FIT files
+
+❌ **Not Downloaded:**
+- Activities without original FIT files (manually created activities)
+- Non-running activities (cycling, swimming, etc.)
+- Activities already downloaded (state tracking prevents duplicates)
+
+### Checking Webhook Status
+
+List active subscriptions:
+```bash
+curl -G https://www.strava.com/api/v3/push_subscriptions \
+  -d client_id=YOUR_CLIENT_ID \
+  -d client_secret=YOUR_CLIENT_SECRET
+```
+
+Delete a subscription (when testing is complete):
+```bash
+curl -X DELETE https://www.strava.com/api/v3/push_subscriptions/SUBSCRIPTION_ID \
+  -F client_id=YOUR_CLIENT_ID \
+  -F client_secret=YOUR_CLIENT_SECRET
+```
 
 ## Troubleshooting
 
