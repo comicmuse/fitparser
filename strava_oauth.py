@@ -17,8 +17,9 @@ from __future__ import annotations
 import os
 import sys
 import webbrowser
+import html
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 from typing import Optional
 import logging
 
@@ -85,13 +86,17 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             
+            # Escape error values to prevent XSS
+            safe_error = html.escape(auth_error)
+            safe_description = html.escape(error_description)
+            
             error_html = f"""
             <html>
             <head><title>Authorization Failed</title></head>
             <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
                 <h1 style="color: red;">✗ Authorization Failed</h1>
-                <p><strong>Error:</strong> {auth_error}</p>
-                <p><strong>Description:</strong> {error_description}</p>
+                <p><strong>Error:</strong> {safe_error}</p>
+                <p><strong>Description:</strong> {safe_description}</p>
                 <p>Please close this window and try again.</p>
             </body>
             </html>
@@ -130,15 +135,15 @@ def run_oauth_flow(
     authorization_code = None
     auth_error = None
     
-    # Build authorization URL
+    # Build authorization URL with proper URL encoding
     scope = "activity:read"
     auth_url = (
         f"https://www.strava.com/oauth/authorize"
-        f"?client_id={client_id}"
-        f"&redirect_uri={redirect_uri}"
+        f"?client_id={quote(str(client_id))}"
+        f"&redirect_uri={quote(redirect_uri)}"
         f"&response_type=code"
         f"&approval_prompt=force"
-        f"&scope={scope}"
+        f"&scope={quote(scope)}"
     )
     
     logger.info("=" * 60)
@@ -246,11 +251,15 @@ def main():
     # Validate redirect URI matches port
     if 'localhost' in redirect_uri:
         try:
-            uri_port = int(redirect_uri.split(':')[-1].rstrip('/'))
+            parsed = urlparse(redirect_uri)
+            uri_port = parsed.port
+            if uri_port is None:
+                # Default ports: 80 for http, 443 for https
+                uri_port = 80 if parsed.scheme == 'http' else 443
             if uri_port != port:
                 logger.warning(f"Port mismatch: OAUTH_REDIRECT_URI uses port {uri_port} but OAUTH_PORT is {port}")
                 logger.warning(f"Using port {port} from OAUTH_PORT")
-        except (ValueError, IndexError):
+        except (ValueError, AttributeError):
             pass
     
     # Run OAuth flow
