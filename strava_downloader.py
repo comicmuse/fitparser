@@ -374,13 +374,21 @@ class StravaClient:
                     # Check if we got redirected to login page or got HTML
                     content_type = response.headers.get('Content-Type', '')
                     if 'text/html' in content_type:
-                        # We got HTML, not a FIT file - authentication failed
-                        if attempt < max_retries - 1 and self.refresh_token:
-                            logger.info("Access token appears invalid, refreshing...")
-                            self.refresh_access_token()
-                            continue
+                        # We got HTML, not a FIT file - check what kind of error
+                        response_text = response.text.lower()
+                        
+                        # Try to distinguish between authentication failure and missing file
+                        if 'sign in' in response_text or 'log in' in response_text or 'login' in response_text:
+                            # Authentication issue
+                            if attempt < max_retries - 1 and self.refresh_token:
+                                logger.info("Authentication failed, refreshing token...")
+                                self.refresh_access_token()
+                                continue
+                            else:
+                                raise Exception(f"Authentication failed: Strava returned login page. OAuth token may be invalid or the export endpoint requires browser-based authentication.")
                         else:
-                            raise Exception(f"Failed to download FIT file: received HTML instead of binary file. This may indicate authentication issues or the activity doesn't have an original file.")
+                            # Likely missing file or other issue
+                            raise Exception(f"FIT file not available: Activity {activity_id} may not have an original file, or it may not be exportable.")
                     
                     # If unauthorized, try to refresh token
                     if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
