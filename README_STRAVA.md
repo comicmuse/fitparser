@@ -1,16 +1,19 @@
 # Strava Webhook Integration
 
-Automatically download FIT files from Strava when new running activities are uploaded.
+Detects and processes new running activities from Strava via webhook events.
+
+> **Note**: Due to Strava's web-only file export endpoint requiring browser cookies (not OAuth), automatic FIT file downloads are not currently possible. See [Known Limitations](#known-limitations) for workarounds.
 
 ## Overview
 
-This integration consists of:
+This integration provides:
 - **OAuth Tool** (`strava_oauth.py`) - Interactive script for OAuth2 authorization
 - **Webhook Receiver** (`strava_webhook.py`) - Flask server that receives activity events from Strava
-- **Strava Client** (`strava_downloader.py`) - Handles OAuth2 authentication and FIT file downloads
-- **Automatic Downloads** - Only downloads "Run" and "VirtualRun" activities with original FIT files
+- **Strava Client** (`strava_downloader.py`) - Handles OAuth2 authentication and activity management
+- **Activity Detection** - Automatically detects new "Run" and "VirtualRun" activities
+- **File Organization** - Structure: `downloads/{yyyy}/{mm}/yyyymmdd_activity_name.fit`
 
-Downloaded files are organized as: `downloads/{yyyy}/{mm}/{activity_id}.fit`
+The system is fully functional for activity detection and OAuth management. Manual or alternative download methods are required for FIT files (see limitations below).
 
 ## Prerequisites
 
@@ -590,6 +593,43 @@ The webhook approach is efficient:
 - 1 request to verify activity details
 - 1 request to download FIT file
 - = 2 requests per activity
+
+## Known Limitations
+
+### FIT File Download Limitation
+
+**Important**: Strava's `/activities/{id}/export_original` endpoint is part of the **web interface only** and requires browser session cookies, not OAuth tokens. This means:
+
+- The current implementation **cannot automatically download FIT files** using OAuth alone
+- Even with `activity:read_all` scope and browser-like headers, Strava returns a login page
+- The OAuth tokens work perfectly for Strava's official API endpoints (activity details, etc.) but not for file exports
+
+**Workarounds:**
+
+1. **Strava Bulk Export** (Recommended for historical data)
+   - Go to https://www.strava.com/athlete/delete_your_account
+   - Click "Get Started" under "Download or Delete Your Account"
+   - Request "Download your Strava data"
+   - Strava will email you a zip file with all your activities including original FIT files
+   - Extract and organize files as needed
+
+2. **Manual Download** (For new activities)
+   - Use this system to detect new activities via webhook
+   - Get notifications when new runs are uploaded
+   - Manually download FIT files from Strava's activity pages
+   - Place them in the `downloads/{yyyy}/{mm}/` directory structure
+
+3. **Activity Streams API** (Alternative data source)
+   - Use Strava's `/api/v3/activities/{id}/streams` endpoint
+   - Get GPS coordinates, heart rate, power, cadence data
+   - Note: Streams don't include all device-specific data from original FIT files
+
+4. **Browser Automation** (Advanced)
+   - Use Selenium or Playwright to automate actual browser login
+   - More complex setup, requires browser installation
+   - Can achieve true automation but fragile to Strava UI changes
+
+The webhook system and OAuth authentication components are fully functional and can be used as a foundation for any of these approaches.
 
 ## Need Help?
 
