@@ -343,23 +343,40 @@ class StravaClient:
             
             logger.info(f"Downloading FIT file for activity {activity_id} ({activity_type})")
             
-            # Use the web URL for export_original with access_token as query parameter
-            # The web endpoint requires the token as a query parameter, not in headers
+            # The export_original endpoint is a web-only feature that requires cookies
+            # We'll use a session with browser-like headers to access it
             export_url = f"https://www.strava.com/activities/{activity_id}/export_original"
             
             # Make authenticated request with retry logic
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    # Use access_token as a query parameter for web endpoint
-                    params = {'access_token': self.access_token}
-                    response = requests.get(export_url, params=params, timeout=30)
+                    # Create a session with browser-like headers
+                    session = requests.Session()
+                    session.headers.update({
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                    })
+                    
+                    # First, establish a session by visiting the activity page with OAuth token
+                    # This should set the necessary cookies
+                    auth_url = f"https://www.strava.com/activities/{activity_id}"
+                    auth_params = {'access_token': self.access_token}
+                    auth_response = session.get(auth_url, params=auth_params, timeout=30)
+                    
+                    # Now try to download the FIT file using the established session
+                    # The session should have the necessary cookies now
+                    response = session.get(export_url, timeout=30)
                     
                     # If unauthorized, try to refresh token
                     if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
                         logger.info("Access token expired, refreshing...")
                         self.refresh_access_token()
-                        # Continue to next iteration, which will use the refreshed token
                         continue
                     
                     response.raise_for_status()
