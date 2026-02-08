@@ -5,6 +5,7 @@ Automatically download FIT files from Strava when new running activities are upl
 ## Overview
 
 This integration consists of:
+- **OAuth Tool** (`strava_oauth.py`) - Interactive script for OAuth2 authorization
 - **Webhook Receiver** (`strava_webhook.py`) - Flask server that receives activity events from Strava
 - **Strava Client** (`strava_downloader.py`) - Handles OAuth2 authentication and FIT file downloads
 - **Automatic Downloads** - Only downloads "Run" and "VirtualRun" activities with original FIT files
@@ -63,7 +64,31 @@ WEBHOOK_PORT=5000
 
 You need to authorize the application to access your Strava data.
 
-#### Option A: Using Authorization Code Flow
+#### Option A: Automated OAuth Flow (Recommended)
+
+The easiest way is to use the automated OAuth script that handles everything for you:
+
+```bash
+python strava_oauth.py
+```
+
+This will:
+1. Open your browser to Strava's authorization page
+2. Start a local server to receive the callback
+3. Exchange the authorization code for tokens
+4. Save the tokens to your `.env` file automatically
+
+**Note**: Make sure your Strava application settings include `localhost` in the "Authorization Callback Domain" field (not the full URL, just `localhost`).
+
+If you need to use a different port than 8000, set it in your `.env` file:
+```bash
+OAUTH_REDIRECT_URI=http://localhost:8000
+OAUTH_PORT=8000
+```
+
+#### Option B: Manual Authorization Code Flow
+
+If you prefer to do it manually or the automated flow doesn't work:
 
 1. Open this URL in your browser (replace YOUR_CLIENT_ID):
 ```
@@ -100,7 +125,7 @@ save_tokens_to_env(
 print("Tokens saved to .env file!")
 ```
 
-#### Option B: Using Existing Tokens
+#### Option C: Using Existing Tokens
 
 If you already have access and refresh tokens, add them directly to `.env`:
 ```bash
