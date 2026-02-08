@@ -45,6 +45,11 @@ DOWNLOAD_BASE_DIR = os.getenv('DOWNLOAD_BASE_DIR', './downloads')
 STATE_FILE = os.getenv('STATE_FILE', './downloaded_activities.json')
 WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', '5000'))
 
+# Selenium options
+USE_SELENIUM = os.getenv('USE_SELENIUM', '').lower() == 'true'
+STRAVA_EMAIL = os.getenv('STRAVA_EMAIL')
+STRAVA_PASSWORD = os.getenv('STRAVA_PASSWORD')
+
 # Initialize Strava client (will be used by download threads)
 strava_client = None
 if CLIENT_ID and CLIENT_SECRET:
@@ -54,9 +59,12 @@ if CLIENT_ID and CLIENT_SECRET:
         access_token=ACCESS_TOKEN,
         refresh_token=REFRESH_TOKEN,
         download_base_dir=DOWNLOAD_BASE_DIR,
-        state_file=STATE_FILE
+        state_file=STATE_FILE,
+        use_selenium=USE_SELENIUM,
+        strava_email=STRAVA_EMAIL,
+        strava_password=STRAVA_PASSWORD
     )
-    logger.info("Strava client initialized")
+    logger.info(f"Strava client initialized (Selenium: {USE_SELENIUM})")
 else:
     logger.warning("Strava client not initialized - missing CLIENT_ID or CLIENT_SECRET")
 

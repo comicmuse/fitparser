@@ -23,6 +23,13 @@ from typing import Optional, Dict, Any, List
 
 import requests
 
+# Try to import Selenium support (optional dependency)
+try:
+    from strava_selenium_downloader import StravaSeleniumDownloader
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -94,7 +101,10 @@ class StravaClient:
         access_token: Optional[str] = None,
         refresh_token: Optional[str] = None,
         download_base_dir: str = "./downloads",
-        state_file: str = "./downloaded_activities.json"
+        state_file: str = "./downloaded_activities.json",
+        use_selenium: bool = False,
+        strava_email: Optional[str] = None,
+        strava_password: Optional[str] = None
     ):
         """
         Initialize Strava client.
@@ -106,6 +116,9 @@ class StravaClient:
             refresh_token: Refresh token for token renewal (optional)
             download_base_dir: Base directory for downloaded FIT files
             state_file: Path to JSON file tracking downloaded activities
+            use_selenium: Use Selenium browser automation for downloads
+            strava_email: Strava email for Selenium login (optional)
+            strava_password: Strava password for Selenium login (optional)
         """
         self.client_id = client_id
         self.client_secret = client_secret
@@ -113,6 +126,13 @@ class StravaClient:
         self.refresh_token = refresh_token
         self.download_base_dir = Path(download_base_dir)
         self.state_file = Path(state_file)
+        self.use_selenium = use_selenium and SELENIUM_AVAILABLE
+        self.strava_email = strava_email
+        self.strava_password = strava_password
+        
+        # Warn if Selenium requested but not available
+        if use_selenium and not SELENIUM_AVAILABLE:
+            logger.warning("Selenium requested but not available. Install with: pip install selenium webdriver-manager")
         
         # Create download directory if it doesn't exist
         self.download_base_dir.mkdir(parents=True, exist_ok=True)
@@ -293,6 +313,49 @@ class StravaClient:
         response = self._make_api_request('GET', f"activities/{activity_id}")
         return response.json()
     
+    def _download_with_selenium(self, activity_id: int, target_path: Path) -> bool:
+        """
+        Download FIT file using Selenium browser automation.
+        
+        Args:
+            activity_id: Strava activity ID
+            target_path: Where to save the downloaded file
+            
+        Returns:
+            True if download successful, False otherwise
+        """
+        if not SELENIUM_AVAILABLE:
+            logger.error("Selenium not available. Install with: pip install selenium webdriver-manager")
+            return False
+        
+        try:
+            # Create temp download directory
+            temp_dir = self.download_base_dir / 'temp_selenium'
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Initialize Selenium downloader
+            with StravaSeleniumDownloader(
+                download_dir=temp_dir,
+                headless=True,  # Run in headless mode by default
+                oauth_access_token=self.access_token
+            ) as downloader:
+                # Login
+                if not downloader.login(email=self.strava_email, password=self.strava_password):
+                    logger.error("Failed to login to Strava via Selenium")
+                    return False
+                
+                # Download file
+                if downloader.download_fit_file(activity_id, target_path):
+                    logger.info(f"Successfully downloaded via Selenium: {target_path}")
+                    return True
+                else:
+                    logger.error(f"Selenium download failed for activity {activity_id}")
+                    return False
+        
+        except Exception as e:
+            logger.error(f"Error in Selenium download: {e}")
+            return False
+    
     def download_fit_file(self, activity_id: int) -> Optional[Path]:
         """
         Download FIT file for an activity.
@@ -343,75 +406,79 @@ class StravaClient:
             
             logger.info(f"Downloading FIT file for activity {activity_id} ({activity_type})")
             
-            # The export_original endpoint is a web-only feature
-            # We'll use the access token as a query parameter with browser-like headers
-            export_url = f"https://www.strava.com/activities/{activity_id}/export_original"
-            
-            # Make authenticated request with retry logic
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    # Create a session with browser-like headers
-                    session = requests.Session()
-                    session.headers.update({
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'DNT': '1',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Sec-Fetch-User': '?1',
-                    })
-                    
-                    # Request the export with access token
-                    params = {'access_token': self.access_token}
-                    response = session.get(export_url, params=params, timeout=30, allow_redirects=True)
-                    
-                    # Check if we got redirected to login page or got HTML
-                    content_type = response.headers.get('Content-Type', '')
-                    if 'text/html' in content_type:
-                        # We got HTML, not a FIT file - check what kind of error
-                        response_text = response.text.lower()
+            # Use Selenium if enabled, otherwise fall back to requests
+            if self.use_selenium:
+                success = self._download_with_selenium(activity_id, file_path)
+                if not success:
+                    raise Exception(f"Selenium download failed for activity {activity_id}")
+            else:
+                # The export_original endpoint is a web-only feature
+                # We'll use the access token as a query parameter with browser-like headers
+                export_url = f"https://www.strava.com/activities/{activity_id}/export_original"
+                
+                # Make authenticated request with retry logic
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        # Create a session with browser-like headers
+                        session = requests.Session()
+                        session.headers.update({
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'DNT': '1',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1',
+                            'Sec-Fetch-Dest': 'document',
+                            'Sec-Fetch-Mode': 'navigate',
+                            'Sec-Fetch-Site': 'none',
+                            'Sec-Fetch-User': '?1',
+                        })
                         
-                        # Try to distinguish between authentication failure and missing file
-                        login_indicators = ('sign in', 'log in', 'login')
-                        if any(indicator in response_text for indicator in login_indicators):
-                            # Authentication issue
-                            if attempt < max_retries - 1 and self.refresh_token:
-                                logger.info("Authentication failed, refreshing token...")
-                                self.refresh_access_token()
-                                continue
+                        # Request the export with access token
+                        params = {'access_token': self.access_token}
+                        response = session.get(export_url, params=params, timeout=30, allow_redirects=True)
+                        
+                        # Check if we got redirected to login page or got HTML
+                        content_type = response.headers.get('Content-Type', '')
+                        if 'text/html' in content_type:
+                            # We got HTML, not a FIT file - check what kind of error
+                            response_text = response.text.lower()
+                            
+                            # Try to distinguish between authentication failure and missing file
+                            login_indicators = ('sign in', 'log in', 'login')
+                            if any(indicator in response_text for indicator in login_indicators):
+                                # Authentication issue - suggest Selenium
+                                raise Exception(
+                                    f"Authentication failed: Strava's export endpoint requires browser cookies. "
+                                    f"Use Selenium mode: set USE_SELENIUM=true and optionally STRAVA_EMAIL/STRAVA_PASSWORD"
+                                )
                             else:
-                                raise Exception(f"Authentication failed: Strava returned login page. OAuth token may be invalid or the export endpoint requires browser-based authentication.")
+                                # Likely missing file or other issue
+                                raise Exception(f"FIT file not available: Activity {activity_id} may not have an original file, or it may not be exportable.")
+                        
+                        # If unauthorized, try to refresh token
+                        if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
+                            logger.info("Access token expired, refreshing...")
+                            self.refresh_access_token()
+                            continue
+                        
+                        response.raise_for_status()
+                        break  # Success, exit retry loop
+                        
+                    except requests.exceptions.RequestException as e:
+                        if attempt < max_retries - 1:
+                            wait_time = min(2 ** attempt, 60)
+                            logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {e}")
+                            time.sleep(wait_time)
                         else:
-                            # Likely missing file or other issue
-                            raise Exception(f"FIT file not available: Activity {activity_id} may not have an original file, or it may not be exportable.")
-                    
-                    # If unauthorized, try to refresh token
-                    if response.status_code == 401 and self.refresh_token and attempt < max_retries - 1:
-                        logger.info("Access token expired, refreshing...")
-                        self.refresh_access_token()
-                        continue
-                    
-                    response.raise_for_status()
-                    break  # Success, exit retry loop
-                    
-                except requests.exceptions.RequestException as e:
-                    if attempt < max_retries - 1:
-                        wait_time = min(2 ** attempt, 60)
-                        logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {e}")
-                        time.sleep(wait_time)
-                    else:
-                        logger.error(f"Request failed after {max_retries} attempts: {e}")
-                        raise
-            
-            # Save file
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
+                            logger.error(f"Request failed after {max_retries} attempts: {e}")
+                            raise
+                
+                # Save file
+                with open(file_path, 'wb') as f:
+                    f.write(response.content)
             
             # Update state
             downloaded_activity = DownloadedActivity(
@@ -480,7 +547,12 @@ def save_tokens_to_env(access_token: str, refresh_token: str, env_file: str = ".
 if __name__ == '__main__':
     """
     Simple test/demo of the Strava client.
-    Run with: python strava_downloader.py
+    Run with: python strava_downloader.py <activity_id>
+    
+    Supports Selenium mode via environment variables:
+    - USE_SELENIUM=true: Enable browser automation
+    - STRAVA_EMAIL: Email for login (optional, uses OAuth if not provided)
+    - STRAVA_PASSWORD: Password for login (optional)
     """
     import sys
     from dotenv import load_dotenv
@@ -494,6 +566,11 @@ if __name__ == '__main__':
     download_base_dir = os.getenv('DOWNLOAD_BASE_DIR', './downloads')
     state_file = os.getenv('STATE_FILE', './downloaded_activities.json')
     
+    # Selenium options
+    use_selenium = os.getenv('USE_SELENIUM', '').lower() == 'true'
+    strava_email = os.getenv('STRAVA_EMAIL')
+    strava_password = os.getenv('STRAVA_PASSWORD')
+    
     if not client_id or not client_secret:
         print("Error: STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET must be set in .env file")
         sys.exit(1)
@@ -504,13 +581,18 @@ if __name__ == '__main__':
         access_token=access_token,
         refresh_token=refresh_token,
         download_base_dir=download_base_dir,
-        state_file=state_file
+        state_file=state_file,
+        use_selenium=use_selenium,
+        strava_email=strava_email,
+        strava_password=strava_password
     )
     
     if len(sys.argv) > 1:
         # Download specific activity
         activity_id = int(sys.argv[1])
         print(f"Downloading activity {activity_id}...")
+        if use_selenium:
+            print("Using Selenium browser automation...")
         result = client.download_fit_file(activity_id)
         if result:
             print(f"Success! Downloaded to: {result}")
@@ -519,3 +601,8 @@ if __name__ == '__main__':
     else:
         print("Usage: python strava_downloader.py <activity_id>")
         print("Or import and use StravaClient class in your code")
+        print()
+        print("For browser-based downloads, set in .env:")
+        print("  USE_SELENIUM=true")
+        print("  STRAVA_EMAIL=your@email.com  (optional)")
+        print("  STRAVA_PASSWORD=yourpassword (optional)")
