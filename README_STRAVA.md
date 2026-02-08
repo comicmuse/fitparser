@@ -64,6 +64,12 @@ WEBHOOK_PORT=5000
 
 You need to authorize the application to access your Strava data.
 
+**Important**: The application requests the `activity:read_all` scope, which allows:
+- Reading all your activities (public and private)
+- Downloading original uploaded files (FIT, GPX, TCX)
+
+This scope is required to download FIT files.
+
 #### Option A: Automated OAuth Flow (Recommended)
 
 The easiest way is to use the automated OAuth script that handles everything for you:
@@ -74,9 +80,10 @@ python strava_oauth.py
 
 This will:
 1. Open your browser to Strava's authorization page
-2. Start a local server to receive the callback
-3. Exchange the authorization code for tokens
-4. Save the tokens to your `.env` file automatically
+2. Request permission to "View data about your private activities"
+3. Start a local server to receive the callback
+4. Exchange the authorization code for tokens
+5. Save the tokens to your `.env` file automatically
 
 **Note**: Make sure your Strava application settings include `localhost` in the "Authorization Callback Domain" field (not the full URL, just `localhost`).
 
@@ -92,8 +99,10 @@ If you prefer to do it manually or the automated flow doesn't work:
 
 1. Open this URL in your browser (replace YOUR_CLIENT_ID):
 ```
-https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read
+https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all
 ```
+
+**Note**: The scope must be `activity:read_all` to download FIT files.
 
 2. Click "Authorize"
 
