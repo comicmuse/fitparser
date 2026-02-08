@@ -378,7 +378,8 @@ class StravaClient:
                         response_text = response.text.lower()
                         
                         # Try to distinguish between authentication failure and missing file
-                        if 'sign in' in response_text or 'log in' in response_text or 'login' in response_text:
+                        login_indicators = ('sign in', 'log in', 'login')
+                        if any(indicator in response_text for indicator in login_indicators):
                             # Authentication issue
                             if attempt < max_retries - 1 and self.refresh_token:
                                 logger.info("Authentication failed, refreshing token...")
