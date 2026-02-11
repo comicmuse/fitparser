@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}{{ run.workout_name or run.name }} - RunCoach{% endblock %}
+{% block content %}
+
+<p style="margin-bottom: 1rem;">
+  <a href="{{ url_for('main.index') }}">&larr; Back to runs</a>
+</p>
+
+<div class="card">
+  <h2>{{ run.workout_name or run.name }}</h2>
+  <div class="run-header">
+    <div class="metric">
+      <span class="label">Date</span>
+      <span class="value">{{ run.date }}</span>
+    </div>
+    {% if run.distance_m %}
+    <div class="metric">
+      <span class="label">Distance</span>
+      <span class="value">{{ "%.2f"|format(run.distance_m / 1000) }} km</span>
+    </div>
+    {% endif %}
+    {% if run.moving_time_s %}
+    <div class="metric">
+      <span class="label">Duration</span>
+      <span class="value">{{ (run.moving_time_s // 60) }}:{{ "%02d"|format(run.moving_time_s % 60) }}</span>
+    </div>
+    {% endif %}
+    {% if run.avg_power_w %}
+    <div class="metric">
+      <span class="label">Avg Power</span>
+      <span class="value">{{ run.avg_power_w|int }} W</span>
+    </div>
+    {% endif %}
+    {% if run.avg_hr %}
+    <div class="metric">
+      <span class="label">Avg HR</span>
+      <span class="value">{{ run.avg_hr|int }} bpm</span>
+    </div>
+    {% endif %}
+    {% if run.model_used %}
+    <div class="metric">
+      <span class="label">Model</span>
+      <span class="value" style="font-size: 0.85rem;">{{ run.model_used }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if commentary_html %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Coach Analysis</h2>
+    <form method="post" action="{{ url_for('main.analyze_run_route', run_id=run.id) }}">
+      <button type="submit" class="btn btn-sm" title="Re-analyze this run">Re-analyze</button>
+    </form>
+  </div>
+  <div class="commentary">
+    {{ commentary_html|safe }}
+  </div>
+</div>
+{% elif run.stage == 'parsed' %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <p style="color: var(--fg-muted); margin: 0;">Analysis pending.</p>
+    <form method="post" action="{{ url_for('main.analyze_run_route', run_id=run.id) }}">
+      <button type="submit" class="btn">Analyze Now</button>
+    </form>
+  </div>
+</div>
+{% elif run.stage == 'error' %}
+<div class="card">
+  <p style="color: var(--red);">Error: {{ run.error_message }}</p>
+</div>
+{% endif %}
+
+{% if run.prompt_tokens or run.completion_tokens %}
+<p style="color: var(--fg-muted); font-size: 0.8rem; margin-top: 0.5rem;">
+  Tokens: {{ run.prompt_tokens or 0 }} prompt + {{ run.completion_tokens or 0 }} completion
+  &middot; Analyzed {{ run.analyzed_at }}
+</p>
+{% endif %}
+
+{% endblock %}

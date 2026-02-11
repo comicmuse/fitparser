@@ -1,0 +1,12 @@
+services:
+  runcoach:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+    restart: unless-stopped

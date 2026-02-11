@@ -23,7 +23,7 @@
     },
     "hr_zone_definition": {
       "type": ["object", "null"],
-      "description": "Heart rate zone configuration",
+      "description": "Heart rate zone configuration. The parser automatically drops the first zone if it appears to be below resting HR (< 60 bpm), converting 6-zone systems to standard 5-zone models.",
       "properties": {
         "source": {
           "type": "string",
@@ -31,11 +31,11 @@
         },
         "system": {
           "type": "string",
-          "description": "Zone system name (e.g., 'Garmin_6_zone')"
+          "description": "Zone system name (e.g., 'Garmin_5_zone', 'Garmin_6_zone'). Typically 5 zones for standard Garmin HR zone models."
         },
         "zones": {
           "type": "object",
-          "description": "Zone definitions (Z1, Z2, etc.)",
+          "description": "Zone definitions (Z1, Z2, etc.). Standard 5-zone model: Z1=Recovery, Z2=Aerobic, Z3=Tempo, Z4=Threshold, Z5=Anaerobic",
           "patternProperties": {
             "^Z[0-9]+$": {
               "type": "object",

@@ -1,0 +1,26 @@
+[project]
+name = "runcoach"
+version = "0.1.0"
+description = "Automated running workout analysis with Stryd, Garmin FIT parsing, and GPT-4o coaching"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0",
+    "fitparse>=1.2.0",
+    "pyyaml>=6.0",
+    "openai>=1.0",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    "markdown>=3.5",
+]
+
+[project.scripts]
+runcoach = "runcoach.web:main"
+runcoach-pipeline = "runcoach.pipeline:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["runcoach", "runcoach.web"]
+py-modules = ["fit_to_yaml_blocks"]

@@ -240,6 +240,11 @@ def extract_hr_zones(ff, lthr_bpm: Optional[float] = None) -> Optional[dict]:
         # Sort by high_bpm ascending
         zones_raw.sort()
         
+        # If first zone boundary appears to be resting HR (typically < 60), skip it
+        # This converts 6-zone systems to 5-zone by dropping the "below resting HR" zone
+        if len(zones_raw) > 5 and zones_raw[0] < 60:
+            zones_raw = zones_raw[1:]
+        
         # Build contiguous zones
         zones = {}
         min_bpm = 0
@@ -472,7 +477,7 @@ def classify_block_type(step: dict, lap_index: int, total_laps: int) -> str:
       - if step["intensity"] hints: map accordingly
       - else: treat as "work" and let higher-level logic decide.
     """
-    intensity = (step.get("intensity") or "").lower()
+    intensity = str(step.get("intensity") or "").lower()
     step_name = (step.get("step_name") or step.get("custom_target_value_high") or "")
     step_text = str(step_name).lower()
 
@@ -799,130 +804,107 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     total_laps = len(laps)
     step_count = len(steps)
 
-    # Build a step-to-lap mapping that handles repeat structures
-    # Scan for repeat steps and build the full execution sequence
-    step_sequence = []
-    i = 0
-    while i < len(steps):
-        step = steps[i]
-        duration_type = str(step.get("duration_type") or "").lower()
-        
-        if "repeat" in duration_type:
-            # Found a repeat marker - figure out what to repeat
-            # The "repeat_steps" field tells us how many steps to repeat
-            # The "duration_step" field tells us which step to go back to
-            repeat_steps = step.get("repeat_steps", 2)
-            duration_step = step.get("duration_step")
-            
-            if duration_step is not None:
-                # duration_step is the step index to jump back to
-                repeat_block_start = int(duration_step)
-                repeat_block_end = i
-            else:
-                # Fallback: repeat the previous N steps
-                repeat_block_start = max(0, i - repeat_steps)
-                repeat_block_end = i
-            
-            repeat_block = list(range(repeat_block_start, repeat_block_end))
-            
-            # The repeat marker tells us to cycle through previous steps
-            # We need to figure out how many times based on remaining laps
-            # For now, we'll handle this dynamically when mapping laps
-            step_sequence.append(("repeat", repeat_block))
-            i += 1
-        else:
-            step_sequence.append(("step", i))
-            i += 1
-    
-    # Now map laps to steps, expanding repeats as needed
-    # Strategy: consume laps by matching them to step durations
-    lap_to_step = []
-    seq_idx = 0
-    
-    for lap_idx in range(len(laps)):
-        lap = laps[lap_idx]
-        lap_duration = lap.get("total_timer_time", 0)
-        
-        if seq_idx >= len(step_sequence):
-            # Ran out of step sequence, use last step
-            if lap_to_step:
-                lap_to_step.append(lap_to_step[-1])
-            else:
-                lap_to_step.append(len(steps) - 1)
-            continue
-        
-        seq_item_type, seq_item_data = step_sequence[seq_idx]
-        
-        if seq_item_type == "repeat":
-            # This is a repeat marker - it tells us to repeat the block
-            # But we need to look ahead to see when to exit the repeat
-            # For now, just skip the repeat marker and let the next lap decide
-            seq_idx += 1
-            # Re-process this lap with the next sequence item
-            if seq_idx < len(step_sequence):
-                seq_item_type, seq_item_data = step_sequence[seq_idx]
-        
-        if seq_item_type == "step":
-            step = steps[seq_item_data]
-            step_duration = step.get("duration_time", 0)
-            
-            # Check if this lap matches this step's duration (within 10 seconds)
-            if abs(lap_duration - step_duration) < 10:
-                # Match! Use this step for this lap
-                lap_to_step.append(seq_item_data)
-                
-                # Move to next step ONLY if the next item is not a repeat
-                # or if we're not in a repeat block
-                if seq_idx + 1 < len(step_sequence):
-                    next_type, next_data = step_sequence[seq_idx + 1]
-                    if next_type != "repeat":
-                        seq_idx += 1
-                    # else: stay on this step, the repeat will be processed next lap
+    # Build a step-to-lap mapping that handles repeat structures.
+    # When no workout steps exist (unstructured runs), skip step-mapping
+    # entirely and use position-based classification with empty step dicts.
+    lap_to_step: list[int] = []
+
+    if steps:
+        # Scan for repeat steps and build the full execution sequence
+        step_sequence = []
+        i = 0
+        while i < len(steps):
+            step = steps[i]
+            duration_type = str(step.get("duration_type") or "").lower()
+
+            if "repeat" in duration_type:
+                repeat_steps = step.get("repeat_steps", 2)
+                duration_step = step.get("duration_step")
+
+                if duration_step is not None:
+                    repeat_block_start = int(duration_step)
+                    repeat_block_end = i
                 else:
-                    seq_idx += 1
+                    repeat_block_start = max(0, i - repeat_steps)
+                    repeat_block_end = i
+
+                repeat_block = list(range(repeat_block_start, repeat_block_end))
+                step_sequence.append(("repeat", repeat_block))
+                i += 1
             else:
-                # Duration mismatch - might be in a repeat cycle
-                # Try to find a matching step by duration in the nearby steps
-                found = False
-                for check_idx in range(max(0, seq_idx - 5), min(len(step_sequence), seq_idx + 5)):
-                    if step_sequence[check_idx][0] == "step":
-                        check_step = steps[step_sequence[check_idx][1]]
-                        check_duration = check_step.get("duration_time", 0)
-                        if abs(lap_duration - check_duration) < 10:
-                            lap_to_step.append(step_sequence[check_idx][1])
-                            found = True
-                            break
-                
-                if not found:
-                    # Fallback: use current step
+                step_sequence.append(("step", i))
+                i += 1
+
+        # Now map laps to steps, expanding repeats as needed
+        seq_idx = 0
+
+        for lap_idx in range(len(laps)):
+            lap = laps[lap_idx]
+            lap_duration = lap.get("total_timer_time", 0)
+
+            if seq_idx >= len(step_sequence):
+                # Ran out of step sequence, reuse last mapped step
+                if lap_to_step:
+                    lap_to_step.append(lap_to_step[-1])
+                else:
+                    lap_to_step.append(0)
+                continue
+
+            seq_item_type, seq_item_data = step_sequence[seq_idx]
+
+            if seq_item_type == "repeat":
+                seq_idx += 1
+                if seq_idx < len(step_sequence):
+                    seq_item_type, seq_item_data = step_sequence[seq_idx]
+
+            if seq_item_type == "step":
+                step = steps[seq_item_data]
+                step_duration = step.get("duration_time", 0)
+
+                if abs(lap_duration - step_duration) < 10:
                     lap_to_step.append(seq_item_data)
-    
-    # Check if we need to exit repeat mode when we see enough laps
-    # The last non-repeat step should be the cooldown
-    # Adjust: if there are more steps after the repeat, we need to exit repeat mode
-    if len(step_sequence) > 1:
-        last_seq_item = step_sequence[-1]
-        if last_seq_item[0] == "step":
-            # There's a step after the repeat (likely cooldown)
-            # We need to figure out when to stop repeating and use that final step
-            # Count backwards from total laps to find when cooldown should start
-            cooldown_step_idx = last_seq_item[1]
-            cooldown_step = steps[cooldown_step_idx]
-            if cooldown_step.get("intensity") == "cooldown":
-                # Find last lap with significant duration (>30s)
-                last_real_lap_idx = len(laps) - 1
-                while last_real_lap_idx > 0:
-                    dur = laps[last_real_lap_idx].get("total_timer_time")
-                    if dur and float(dur) >= 30:
-                        break
-                    last_real_lap_idx -= 1
-                # Map that lap to cooldown step
-                if last_real_lap_idx < len(lap_to_step):
-                    lap_to_step[last_real_lap_idx] = cooldown_step_idx
-    
+
+                    if seq_idx + 1 < len(step_sequence):
+                        next_type, next_data = step_sequence[seq_idx + 1]
+                        if next_type != "repeat":
+                            seq_idx += 1
+                    else:
+                        seq_idx += 1
+                else:
+                    found = False
+                    for check_idx in range(max(0, seq_idx - 5), min(len(step_sequence), seq_idx + 5)):
+                        if step_sequence[check_idx][0] == "step":
+                            check_step = steps[step_sequence[check_idx][1]]
+                            check_duration = check_step.get("duration_time", 0)
+                            if abs(lap_duration - check_duration) < 10:
+                                lap_to_step.append(step_sequence[check_idx][1])
+                                found = True
+                                break
+
+                    if not found:
+                        lap_to_step.append(seq_item_data)
+
+        # Check if we need to exit repeat mode when we see enough laps
+        if len(step_sequence) > 1:
+            last_seq_item = step_sequence[-1]
+            if last_seq_item[0] == "step":
+                cooldown_step_idx = last_seq_item[1]
+                cooldown_step = steps[cooldown_step_idx]
+                if str(cooldown_step.get("intensity") or "").lower() == "cooldown":
+                    last_real_lap_idx = len(laps) - 1
+                    while last_real_lap_idx > 0:
+                        dur = laps[last_real_lap_idx].get("total_timer_time")
+                        if dur and float(dur) >= 30:
+                            break
+                        last_real_lap_idx -= 1
+                    if last_real_lap_idx < len(lap_to_step):
+                        lap_to_step[last_real_lap_idx] = cooldown_step_idx
+
     for i, lap in enumerate(laps):
-        step_idx = lap_to_step[i] if i < len(lap_to_step) else (len(steps) - 1)
-        step = steps[step_idx] if step_idx < len(steps) else {}
+        if steps and i < len(lap_to_step):
+            step = steps[lap_to_step[i]]
+        else:
+            step = {}
         block_type = classify_block_type(step, i, total_laps)
 
         start = lap.get("start_time")

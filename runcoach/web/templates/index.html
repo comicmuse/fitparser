@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}RunCoach - Runs{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Activity Log</h2>
+  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+    {{ stats.total_runs }} runs
+    {% if stats.pending_parse %} &middot; {{ stats.pending_parse }} pending parse{% endif %}
+    {% if stats.pending_analyze %} &middot; {{ stats.pending_analyze }} pending analysis{% endif %}
+    {% if stats.errors %} &middot; {{ stats.errors }} errors{% endif %}
+    {% if last_sync %}
+      &middot; Last sync: {{ last_sync.finished_at or last_sync.started_at }}
+    {% endif %}
+  </p>
+
+  {% if runs %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Name</th>
+        <th>Distance</th>
+        <th>Duration</th>
+        <th>Avg Power</th>
+        <th>Avg HR</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td>{{ run.date }}</td>
+        <td>
+          <a href="{{ url_for('main.run_detail', run_id=run.id) }}">{{ run.workout_name or run.name }}</a>
+        </td>
+        <td>
+          {% if run.distance_m %}
+            {{ "%.1f"|format(run.distance_m / 1000) }} km
+          {% else %}
+            &mdash;
+          {% endif %}
+        </td>
+        <td>
+          {% if run.moving_time_s %}
+            {{ (run.moving_time_s // 60) }}:{{ "%02d"|format(run.moving_time_s % 60) }}
+          {% else %}
+            &mdash;
+          {% endif %}
+        </td>
+        <td>
+          {% if run.avg_power_w %}
+            {{ run.avg_power_w|int }} W
+          {% else %}
+            &mdash;
+          {% endif %}
+        </td>
+        <td>
+          {% if run.avg_hr %}
+            {{ run.avg_hr|int }} bpm
+          {% else %}
+            &mdash;
+          {% endif %}
+        </td>
+        <td>
+          {% if run.stage == 'analyzed' %}
+            <span class="badge badge-green">Analyzed</span>
+          {% elif run.stage == 'parsed' %}
+            <span class="badge badge-blue">Parsed</span>
+          {% elif run.stage == 'synced' %}
+            <span class="badge badge-yellow">Synced</span>
+          {% elif run.stage == 'error' %}
+            <span class="badge badge-red" title="{{ run.error_message }}">Error</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--fg-muted);">No runs yet. Click <strong>Sync Now</strong> to fetch activities from Stryd.</p>
+  {% endif %}
+</div>
+
+{% endblock %}
