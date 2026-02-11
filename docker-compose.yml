@@ -4,8 +4,10 @@ services:
     ports:
       - "5000:5000"
     volumes:
+      # Mount your data directory - this persists activities, database, etc.
       - ./data:/app/data
     env_file:
+      # Create .env from .env.example and fill in your credentials
       - .env
     environment:
       - DATA_DIR=/app/data
