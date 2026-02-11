@@ -166,6 +166,7 @@
         {% if syncing is defined and syncing %}
           <span class="badge badge-yellow">Syncing...</span>
         {% endif %}
+        <button type="button" class="btn" onclick="toggleUploadForm()">Upload</button>
         <form action="/sync" method="post" style="display:inline">
           <button type="submit" class="btn btn-primary">Sync Now</button>
         </form>

@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stryd_activity_id INTEGER UNIQUE NOT NULL,
+    stryd_activity_id INTEGER UNIQUE,
     name TEXT,
     date TEXT NOT NULL,
     distance_m REAL,
@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS runs (
     synced_at TEXT NOT NULL,
     parsed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    is_manual_upload INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (
@@ -69,6 +70,65 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
+            # Migration: add is_manual_upload column if it doesn't exist
+            cursor = conn.execute("PRAGMA table_info(runs)")
+            columns = {row[1]: row for row in cursor.fetchall()}
+            if "is_manual_upload" not in columns:
+                conn.execute(
+                    "ALTER TABLE runs ADD COLUMN is_manual_upload INTEGER NOT NULL DEFAULT 0"
+                )
+            # Migration: allow NULL stryd_activity_id for manual uploads
+            # Check if stryd_activity_id has NOT NULL constraint (column index 3 is notnull flag)
+            if "stryd_activity_id" in columns and columns["stryd_activity_id"][3] == 1:
+                # Need to recreate the table to remove NOT NULL constraint
+                log.info("Migrating runs table to allow NULL stryd_activity_id")
+                conn.executescript("""
+                    PRAGMA foreign_keys=OFF;
+                    
+                    CREATE TABLE IF NOT EXISTS runs_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        stryd_activity_id INTEGER UNIQUE,
+                        name TEXT,
+                        date TEXT NOT NULL,
+                        distance_m REAL,
+                        moving_time_s INTEGER,
+                        fit_path TEXT,
+                        yaml_path TEXT,
+                        md_path TEXT,
+                        stage TEXT NOT NULL DEFAULT 'synced',
+                        error_message TEXT,
+                        avg_power_w REAL,
+                        avg_hr INTEGER,
+                        workout_name TEXT,
+                        commentary TEXT,
+                        analyzed_at TEXT,
+                        model_used TEXT,
+                        prompt_tokens INTEGER,
+                        completion_tokens INTEGER,
+                        synced_at TEXT NOT NULL,
+                        parsed_at TEXT,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        is_manual_upload INTEGER NOT NULL DEFAULT 0
+                    );
+                    
+                    INSERT INTO runs_new SELECT 
+                        id, stryd_activity_id, name, date, distance_m, moving_time_s,
+                        fit_path, yaml_path, md_path, stage, error_message,
+                        avg_power_w, avg_hr, workout_name, commentary, analyzed_at,
+                        model_used, prompt_tokens, completion_tokens, synced_at,
+                        parsed_at, created_at, updated_at, 
+                        COALESCE(is_manual_upload, 0)
+                    FROM runs;
+                    
+                    DROP TABLE runs;
+                    ALTER TABLE runs_new RENAME TO runs;
+                    
+                    CREATE INDEX IF NOT EXISTS idx_runs_date ON runs(date);
+                    CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
+                    
+                    PRAGMA foreign_keys=ON;
+                """)
 
     # ------ runs ------
 
@@ -114,6 +174,35 @@ class RunCoachDB:
                  distance_m, moving_time_s, now),
             )
             return cur.lastrowid
+
+    def insert_manual_run(
+        self,
+        name: str,
+        date: str,
+        fit_path: str,
+        distance_m: float | None = None,
+        moving_time_s: int | None = None,
+    ) -> int:
+        """Insert a manually uploaded run (no Stryd activity ID)."""
+        now = _now_iso()
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO runs
+                   (stryd_activity_id, name, date, fit_path,
+                    distance_m, moving_time_s, stage, synced_at, is_manual_upload)
+                   VALUES (NULL, ?, ?, ?, ?, ?, 'synced', ?, 1)""",
+                (name, date, fit_path, distance_m, moving_time_s, now),
+            )
+            return cur.lastrowid
+
+    def get_run_by_fit_path(self, fit_path: str) -> Optional[dict]:
+        """Get a run by its FIT file path."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM runs WHERE fit_path = ?",
+                (fit_path,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def update_parsed(
         self,

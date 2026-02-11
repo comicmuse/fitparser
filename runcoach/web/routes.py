@@ -10,6 +10,7 @@ from flask import (
     jsonify,
     redirect,
     render_template,
+    request,
     url_for,
 )
 import markdown as md
@@ -129,3 +130,117 @@ def status():
         last_sync=last_sync,
         **stats,
     )
+
+
+@bp.route("/upload", methods=["POST"])
+def upload():
+    """Handle manual FIT file upload."""
+    import re
+    from datetime import datetime
+    from pathlib import Path
+
+    from runcoach.parser import parse_and_write
+
+    config: Config = current_app.config["config"]
+    db = _db()
+
+    if "fit_file" not in request.files:
+        flash("No file provided")
+        return redirect(url_for("main.index"))
+
+    fit_file = request.files["fit_file"]
+    if not fit_file.filename:
+        flash("No file selected")
+        return redirect(url_for("main.index"))
+
+    if not fit_file.filename.lower().endswith(".fit"):
+        flash("File must be a .fit file")
+        return redirect(url_for("main.index"))
+
+    # Get activity name from form or derive from filename
+    activity_name = request.form.get("activity_name", "").strip()
+    if not activity_name:
+        activity_name = fit_file.filename.rsplit(".", 1)[0].replace("_", " ").title()
+
+    # Sanitize name for filesystem
+    clean_name = activity_name.lower().replace(" ", "_").replace("/", "_")
+    clean_name = re.sub(r"[^a-z0-9_-]", "", clean_name)
+
+    # Get date from form or use today
+    activity_date = request.form.get("activity_date", "")
+    if activity_date:
+        try:
+            dt = datetime.strptime(activity_date, "%Y-%m-%d")
+        except ValueError:
+            flash("Invalid date format")
+            return redirect(url_for("main.index"))
+    else:
+        dt = datetime.now()
+
+    date_str = dt.strftime("%Y-%m-%d")
+    date_prefix = dt.strftime("%Y%m%d")
+    dir_name = f"{date_prefix}_{clean_name}"
+
+    # Build directory: data/activities/YYYY/MM/YYYYMMDD_name/
+    activity_dir = (
+        config.activities_dir
+        / dt.strftime("%Y")
+        / dt.strftime("%m")
+        / dir_name
+    )
+    activity_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save FIT file
+    fit_path = activity_dir / f"{dir_name}.fit"
+    fit_file.save(str(fit_path))
+
+    # Store path relative to data_dir
+    fit_path_rel = str(fit_path.relative_to(config.data_dir))
+
+    # Check if already exists
+    if db.get_run_by_fit_path(fit_path_rel):
+        flash("A run with this file already exists")
+        return redirect(url_for("main.index"))
+
+    # Parse the FIT file immediately to get distance/duration
+    try:
+        yaml_path = parse_and_write(fit_path, timezone=config.timezone, manual_upload=True)
+        yaml_path_rel = str(yaml_path.relative_to(config.data_dir))
+
+        # Read back parsed summary for DB fields
+        import yaml as _yaml
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            parsed = _yaml.safe_load(f)
+
+        # Insert as manual run
+        run_id = db.insert_manual_run(
+            name=activity_name,
+            date=date_str,
+            fit_path=fit_path_rel,
+            distance_m=parsed.get("distance_km", 0) * 1000 if parsed.get("distance_km") else None,
+            moving_time_s=int(parsed.get("duration_min", 0) * 60) if parsed.get("duration_min") else None,
+        )
+
+        # Update as parsed
+        db.update_parsed(
+            run_id=run_id,
+            yaml_path=yaml_path_rel,
+            avg_power_w=parsed.get("avg_power"),
+            avg_hr=parsed.get("avg_hr"),
+            workout_name=parsed.get("workout_name"),
+        )
+
+        flash(f"Uploaded and parsed: {activity_name}")
+        return redirect(url_for("main.run_detail", run_id=run_id))
+
+    except Exception as e:
+        log.exception("Failed to parse uploaded FIT file: %s", e)
+        # Still insert the run even if parsing failed
+        run_id = db.insert_manual_run(
+            name=activity_name,
+            date=date_str,
+            fit_path=fit_path_rel,
+        )
+        db.update_error(run_id, f"Parse error: {e}")
+        flash(f"Uploaded but failed to parse: {e}")
+        return redirect(url_for("main.index"))

@@ -872,7 +872,9 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
                         seq_idx += 1
                 else:
                     found = False
-                    for check_idx in range(max(0, seq_idx - 5), min(len(step_sequence), seq_idx + 5)):
+                    # Only search FORWARD from current position to avoid matching 
+                    # already-consumed steps (like warmup step 0 for later tempo laps)
+                    for check_idx in range(seq_idx, min(len(step_sequence), seq_idx + 5)):
                         if step_sequence[check_idx][0] == "step":
                             check_step = steps[step_sequence[check_idx][1]]
                             check_duration = check_step.get("duration_time", 0)

@@ -2,6 +2,45 @@
 {% block title %}RunCoach - Runs{% endblock %}
 {% block content %}
 
+<div id="upload-form" class="card" style="display: none;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Upload FIT File</h2>
+    <button type="button" class="btn btn-sm" onclick="toggleUploadForm()">&times; Close</button>
+  </div>
+  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
+    Upload a run from a .fit file (for runs without Stryd sync)
+  </p>
+  <form action="{{ url_for('main.upload') }}" method="post" enctype="multipart/form-data">
+    <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+      <div style="flex: 2; min-width: 200px;">
+        <label style="display: block; font-size: 0.8rem; color: var(--fg-muted); margin-bottom: 0.25rem;">FIT File</label>
+        <input type="file" name="fit_file" accept=".fit" required
+               style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; color: var(--fg); width: 100%;">
+      </div>
+      <div style="flex: 1; min-width: 150px;">
+        <label style="display: block; font-size: 0.8rem; color: var(--fg-muted); margin-bottom: 0.25rem;">Activity Name (optional)</label>
+        <input type="text" name="activity_name" placeholder="e.g. Morning Run"
+               style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; color: var(--fg); width: 100%;">
+      </div>
+      <div style="flex: 0 0 auto;">
+        <label style="display: block; font-size: 0.8rem; color: var(--fg-muted); margin-bottom: 0.25rem;">Date (optional)</label>
+        <input type="date" name="activity_date"
+               style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; color: var(--fg);">
+      </div>
+      <div style="flex: 0 0 auto;">
+        <button type="submit" class="btn btn-primary">Upload</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleUploadForm() {
+  var form = document.getElementById('upload-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+
 <div class="card">
   <h2>Activity Log</h2>
   <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
@@ -33,6 +72,9 @@
         <td>{{ run.date }}</td>
         <td>
           <a href="{{ url_for('main.run_detail', run_id=run.id) }}">{{ run.workout_name or run.name }}</a>
+          {% if run.is_manual_upload %}
+            <span class="badge badge-blue" title="Manual upload">Manual</span>
+          {% endif %}
         </td>
         <td>
           {% if run.distance_m %}

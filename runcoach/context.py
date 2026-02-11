@@ -83,7 +83,23 @@ def build_weekly_context(
     total_distance_km = 0.0
     total_duration_min = 0.0
     total_rss = 0.0
+    
+    # First, find the most recent critical power from any run (including beyond 7 days)
+    # to use as fallback when individual runs don't have CP
     critical_power = None
+    for run in reversed(all_runs):  # Most recent first
+        if run.get("yaml_path"):
+            yaml_path = data_dir / run["yaml_path"]
+            if yaml_path.exists():
+                try:
+                    with open(yaml_path, "r", encoding="utf-8") as f:
+                        parsed = yaml.safe_load(f)
+                    cp = parsed.get("critical_power")
+                    if cp and cp > 0:
+                        critical_power = cp
+                        break
+                except Exception:
+                    continue
 
     for run in week_runs:
         yaml_path = data_dir / run["yaml_path"]
@@ -98,15 +114,18 @@ def build_weekly_context(
 
         dist = parsed.get("distance_km", 0) or 0
         dur = parsed.get("duration_min", 0) or 0
-        pwr = parsed.get("avg_power", 0) or 0
-        cp = parsed.get("critical_power", 0) or 0
+        pwr = parsed.get("avg_power") or 0
+        cp = parsed.get("critical_power") or critical_power or 0  # Use fallback CP
         hr = parsed.get("avg_hr", 0) or 0
         blocks = parsed.get("blocks", {})
 
-        if cp > 0:
-            critical_power = cp
+        # Update critical_power if this run has a valid one
+        if parsed.get("critical_power") and parsed.get("critical_power") > 0:
+            critical_power = parsed.get("critical_power")
 
-        rss = compute_rss(pwr, cp, dur) if cp > 0 else 0
+        # Compute RSS if we have power and CP
+        has_power = pwr > 0
+        rss = compute_rss(pwr, cp, dur) if (has_power and cp > 0) else None
 
         workout_type = _classify_workout_type(
             parsed.get("workout_name") or parsed.get("name") or run["name"],
@@ -121,27 +140,29 @@ def build_weekly_context(
             "duration_min": round(dur, 1),
             "avg_power_w": round(pwr, 0) if pwr else None,
             "avg_hr_bpm": round(hr, 0) if hr else None,
-            "rss": round(rss, 1),
+            "rss": round(rss, 1) if rss is not None else None,
+            "rss_note": None if has_power else "no power data",
         }
         activities.append(activity)
 
         total_distance_km += dist
         total_duration_min += dur
-        total_rss += rss
+        if rss is not None:
+            total_rss += rss
 
-    # Also compute a longer 28-day window for chronic training load
-    window_28_start = target - timedelta(days=28)
-    month_runs = [
+    # Also compute a longer 42-day window for chronic training load (Stryd RSB model)
+    window_42_start = target - timedelta(days=42)
+    chronic_runs = [
         r for r in all_runs
         if r.get("yaml_path")
-        and r["date"] >= window_28_start.isoformat()
+        and r["date"] >= window_42_start.isoformat()
         and r["date"] < target.isoformat()
         and r["stage"] in ("parsed", "analyzed")
     ]
 
-    monthly_rss = 0.0
-    monthly_run_count = 0
-    for run in month_runs:
+    chronic_rss = 0.0
+    chronic_run_count = 0
+    for run in chronic_runs:
         yaml_path = data_dir / run["yaml_path"]
         if not yaml_path.exists():
             continue
@@ -150,20 +171,24 @@ def build_weekly_context(
                 parsed = yaml.safe_load(f)
         except Exception:
             continue
-        pwr = parsed.get("avg_power", 0) or 0
-        cp = parsed.get("critical_power", 0) or 0
+        pwr = parsed.get("avg_power") or 0
+        cp = parsed.get("critical_power") or critical_power or 0  # Use fallback CP
         dur = parsed.get("duration_min", 0) or 0
-        if cp > 0:
-            monthly_rss += compute_rss(pwr, cp, dur)
-        monthly_run_count += 1
+        if pwr > 0 and cp > 0:
+            chronic_rss += compute_rss(pwr, cp, dur)
+        chronic_run_count += 1
 
-    # Acute Training Load (ATL) = 7-day average daily RSS
-    # Chronic Training Load (CTL) = 28-day average daily RSS
+    # Stryd RSB Model:
+    # ATL (Acute Training Load) = 7-day average daily RSS
+    # CTL (Chronic Training Load) = 42-day average daily RSS
+    # RSB (Running Stress Balance) = CTL - ATL (positive = fresh, negative = fatigued)
     atl = round(total_rss / 7, 1) if total_rss else 0
-    ctl = round(monthly_rss / 28, 1) if monthly_rss else 0
-    tsb = round(ctl - atl, 1)  # Training Stress Balance (positive = fresh)
+    ctl = round(chronic_rss / 42, 1) if chronic_rss else 0
+    rsb = round(ctl - atl, 1)  # Running Stress Balance (positive = fresh)
 
     rest_days = 7 - len(activities)
+    runs_with_power = sum(1 for a in activities if a.get("avg_power_w") is not None)
+    runs_without_power = len(activities) - runs_with_power
 
     context = {
         "training_context": {
@@ -171,22 +196,25 @@ def build_weekly_context(
             "days": 7,
             "summary": {
                 "total_runs": len(activities),
+                "runs_with_power_data": runs_with_power,
+                "runs_without_power_data": runs_without_power,
                 "rest_days": rest_days,
                 "total_distance_km": round(total_distance_km, 1),
                 "total_duration_min": round(total_duration_min, 1),
-                "total_rss": round(total_rss, 1),
-                "avg_rss_per_run": round(total_rss / len(activities), 1) if activities else 0,
+                "total_rss": round(total_rss, 1) if runs_with_power > 0 else None,
+                "avg_rss_per_run": round(total_rss / runs_with_power, 1) if runs_with_power > 0 else None,
+                "rss_note": None if runs_without_power == 0 else f"{runs_without_power} run(s) missing power data, RSS incomplete",
             },
             "training_load": {
                 "atl_7d_avg_daily_rss": atl,
-                "ctl_28d_avg_daily_rss": ctl,
-                "tsb_training_stress_balance": tsb,
-                "tsb_interpretation": (
-                    "fresh" if tsb > 10
-                    else "balanced" if tsb > -10
+                "ctl_42d_avg_daily_rss": ctl,
+                "rsb_running_stress_balance": rsb,
+                "rsb_interpretation": (
+                    "fresh" if rsb > 10
+                    else "balanced" if rsb > -10
                     else "fatigued"
                 ),
-                "runs_in_last_28d": monthly_run_count,
+                "runs_in_last_42d": chronic_run_count,
             },
             "activities": activities,
         }

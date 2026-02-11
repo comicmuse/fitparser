@@ -16,9 +16,24 @@ def parse_fit_file(fit_path: Path, timezone: str = "Europe/London") -> dict:
     return summary
 
 
-def parse_and_write(fit_path: Path, timezone: str = "Europe/London") -> Path:
-    """Parse a FIT file, write the YAML alongside it, return the YAML path."""
+def parse_and_write(
+    fit_path: Path,
+    timezone: str = "Europe/London",
+    manual_upload: bool = False,
+) -> Path:
+    """Parse a FIT file, write the YAML alongside it, return the YAML path.
+    
+    If manual_upload is True, adds a manual_upload annotation to the YAML.
+    """
     summary = parse_fit_file(fit_path, timezone=timezone)
+    
+    if manual_upload:
+        summary["manual_upload"] = True
+        summary["manual_upload_note"] = (
+            "This run was manually uploaded without Stryd sync. "
+            "Power data may be missing or incomplete."
+        )
+    
     yaml_path = fit_path.with_suffix(".yaml")
     with open(yaml_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(summary, f, sort_keys=False, allow_unicode=True)

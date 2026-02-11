@@ -36,7 +36,7 @@ something real to address or work on.
 You will receive two YAML documents separated by a "---" delimiter:
 
 1. **Training context** – a summary of the previous 7 days of training, including \
-running stress scores (RSS), training load (ATL/CTL/TSB), and a per-activity breakdown. \
+running stress scores (RSS), training load (ATL/CTL/RSB), and a per-activity breakdown. \
 Use this to contextualise your analysis: is the athlete fatigued or fresh? Is this \
 session consistent with recent training load? Are there any patterns to flag?
 
@@ -45,8 +45,8 @@ session consistent with recent training load? Are there any patterns to flag?
 RSS (Running Stress Score) is analogous to Stryd's RSS model: \
 RSS = (duration_h) * (avg_power / CP)^2 * 100. \
 ATL is the 7-day average daily RSS (acute load). \
-CTL is the 28-day average daily RSS (chronic load). \
-TSB = CTL - ATL (positive = fresh, negative = fatigued).
+CTL is the 42-day average daily RSS (chronic load). \
+RSB = CTL - ATL (Running Stress Balance: positive = fresh, negative = fatigued).
 
 Below is the JSON Schema that describes the workout YAML data format:
 
@@ -80,6 +80,14 @@ def analyze_run(
     """
     schema = _load_schema()
     system_msg = SYSTEM_PROMPT.format(schema=schema)
+
+    # Check if this is a manual upload and add a note to the prompt
+    if "manual_upload: true" in yaml_content:
+        system_msg += (
+            "\n\nNOTE: This run was manually uploaded and may not have Stryd power data. "
+            "Do not penalise or comment on missing power data for manual uploads. "
+            "Focus on HR, pace, and other available metrics instead."
+        )
 
     if context_yaml:
         user_msg = context_yaml.rstrip("\n") + "\n---\n" + yaml_content
