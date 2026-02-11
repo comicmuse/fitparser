@@ -2,6 +2,8 @@
 {% block title %}{{ run.workout_name or run.name }} - RunCoach{% endblock %}
 {% block content %}
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 <p style="margin-bottom: 1rem;">
   <a href="{{ url_for('main.index') }}">&larr; Back to runs</a>
 </p>
@@ -45,6 +47,150 @@
     {% endif %}
   </div>
 </div>
+
+{% if workout_data and workout_data.blocks %}
+<div class="card">
+  <h2>Workout Structure</h2>
+  
+  <!-- Block Timeline -->
+  <div style="margin-bottom: 1.5rem;">
+    <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">Block Timeline</h3>
+    <div style="display: flex; border-radius: 6px; overflow: hidden; height: 32px;">
+      {% set total_duration = namespace(value=0) %}
+      {% for key, block in workout_data.blocks.items() %}
+        {% if block.duration_min %}
+          {% set total_duration.value = total_duration.value + block.duration_min %}
+        {% endif %}
+      {% endfor %}
+      {% for key, block in workout_data.blocks.items() %}
+        {% if block.duration_min and total_duration.value > 0 %}
+          {% set pct = (block.duration_min / total_duration.value * 100) %}
+          {% set bg_color = '#58a6ff' if block.type == 'warmup' else '#f85149' if block.type == 'work' else '#3fb950' if block.type == 'cooldown' else '#8b949e' %}
+          <div style="width: {{ pct }}%; background: {{ bg_color }}; display: flex; align-items: center; justify-content: center; min-width: 20px;" 
+               title="{{ key }}: {{ block.duration_min|round(1) }} min, {{ block.avg_hr|int if block.avg_hr else '?' }} bpm">
+            <span style="font-size: 0.7rem; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px;">
+              {% if pct > 8 %}{{ block.duration_min|round(0)|int }}'{% endif %}
+            </span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div style="display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--fg-muted);">
+      <span><span style="display: inline-block; width: 12px; height: 12px; background: #58a6ff; border-radius: 2px; vertical-align: middle;"></span> Warmup</span>
+      <span><span style="display: inline-block; width: 12px; height: 12px; background: #f85149; border-radius: 2px; vertical-align: middle;"></span> Work</span>
+      <span><span style="display: inline-block; width: 12px; height: 12px; background: #8b949e; border-radius: 2px; vertical-align: middle;"></span> Float/Rest</span>
+      <span><span style="display: inline-block; width: 12px; height: 12px; background: #3fb950; border-radius: 2px; vertical-align: middle;"></span> Cooldown</span>
+    </div>
+  </div>
+
+  <!-- HR Zone Distribution -->
+  <div style="margin-bottom: 1.5rem;">
+    <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">HR Zone Distribution</h3>
+    <canvas id="hrZoneChart" style="max-height: 120px;"></canvas>
+  </div>
+
+  <!-- Block Cards -->
+  <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">Block Details</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
+    {% for key, block in workout_data.blocks.items() %}
+    <div class="block-card" style="
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      border-left: 4px solid {{ '#58a6ff' if block.type == 'warmup' else '#f85149' if block.type == 'work' else '#3fb950' if block.type == 'cooldown' else '#8b949e' }};
+    ">
+      <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem;">{{ key }}</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; font-size: 0.8rem; color: var(--fg-muted);">
+        <span>{{ block.duration_min|round(1) if block.duration_min else '?' }} min</span>
+        <span>{{ "%.2f"|format(block.distance_km) if block.distance_km else '?' }} km</span>
+        {% if block.avg_hr %}
+        <span style="color: {{ '#3fb950' if block.avg_hr < 140 else '#d29922' if block.avg_hr < 160 else '#f85149' }};">
+          {{ block.avg_hr|int }} bpm
+        </span>
+        {% endif %}
+        {% if block.avg_power %}
+        <span>{{ block.avg_power|int }} W</span>
+        {% endif %}
+      </div>
+      {% if block.hr_zones %}
+      <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.5rem;" title="HR Zones">
+        <div style="width: {{ block.hr_zones.Z1_pct }}%; background: #58a6ff;"></div>
+        <div style="width: {{ block.hr_zones.Z2_pct }}%; background: #3fb950;"></div>
+        <div style="width: {{ block.hr_zones.Z3_pct }}%; background: #d29922;"></div>
+        <div style="width: {{ block.hr_zones.Z4_pct }}%; background: #f0883e;"></div>
+        <div style="width: {{ block.hr_zones.Z5_pct }}%; background: #f85149;"></div>
+      </div>
+      {% endif %}
+      {% if block.target_power and block.target_power.pct_time_in_range is not none %}
+      <div style="margin-top: 0.5rem; font-size: 0.75rem;">
+        <span style="color: var(--fg-muted);">Power target:</span>
+        <span style="color: {{ '#3fb950' if block.target_power.pct_time_in_range > 80 else '#d29922' if block.target_power.pct_time_in_range > 50 else '#f85149' }};">
+          {{ block.target_power.pct_time_in_range|round(0)|int }}% in zone
+        </span>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+(function() {
+  // Aggregate HR zone data across all blocks
+  const blocks = {{ workout_data.blocks | tojson | safe }};
+  let z1 = 0, z2 = 0, z3 = 0, z4 = 0, z5 = 0;
+  let totalDuration = 0;
+  
+  for (const [key, block] of Object.entries(blocks)) {
+    const dur = block.duration_min || 0;
+    if (block.hr_zones && dur > 0) {
+      z1 += (block.hr_zones.Z1_pct || 0) * dur / 100;
+      z2 += (block.hr_zones.Z2_pct || 0) * dur / 100;
+      z3 += (block.hr_zones.Z3_pct || 0) * dur / 100;
+      z4 += (block.hr_zones.Z4_pct || 0) * dur / 100;
+      z5 += (block.hr_zones.Z5_pct || 0) * dur / 100;
+      totalDuration += dur;
+    }
+  }
+  
+  if (totalDuration > 0) {
+    const ctx = document.getElementById('hrZoneChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'],
+        datasets: [{
+          label: 'Time (min)',
+          data: [z1.toFixed(1), z2.toFixed(1), z3.toFixed(1), z4.toFixed(1), z5.toFixed(1)],
+          backgroundColor: ['#58a6ff', '#3fb950', '#d29922', '#f0883e', '#f85149'],
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Minutes', color: '#8b949e' },
+            grid: { color: '#30363d' },
+            ticks: { color: '#8b949e' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#8b949e' }
+          }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endif %}
 
 {% if commentary_html %}
 <div class="card">

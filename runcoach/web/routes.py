@@ -48,7 +48,10 @@ def index():
 
 @bp.route("/run/<int:run_id>")
 def run_detail(run_id: int):
+    import yaml as _yaml
+    
     db = _db()
+    config: Config = current_app.config["config"]
     run = db.get_run(run_id)
     if run is None:
         flash("Run not found")
@@ -61,7 +64,23 @@ def run_detail(run_id: int):
             extensions=["tables", "fenced_code"],
         )
 
-    return render_template("run_detail.html", run=run, commentary_html=commentary_html)
+    # Load YAML data for visualizations
+    workout_data = None
+    if run.get("yaml_path"):
+        yaml_path = config.data_dir / run["yaml_path"]
+        if yaml_path.exists():
+            try:
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    workout_data = _yaml.safe_load(f)
+            except Exception:
+                pass
+
+    return render_template(
+        "run_detail.html",
+        run=run,
+        commentary_html=commentary_html,
+        workout_data=workout_data,
+    )
 
 
 @bp.route("/sync", methods=["POST"])
