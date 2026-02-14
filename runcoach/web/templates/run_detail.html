@@ -124,10 +124,17 @@
       {% endif %}
       {% if block.target_power and block.target_power.pct_time_in_range is not none %}
       <div style="margin-top: 0.5rem; font-size: 0.75rem;">
-        <span style="color: var(--fg-muted);">Power target:</span>
-        <span style="color: {{ '#3fb950' if block.target_power.pct_time_in_range > 80 else '#d29922' if block.target_power.pct_time_in_range > 50 else '#f85149' }};">
-          {{ block.target_power.pct_time_in_range|round(0)|int }}% in zone
-        </span>
+        <span style="color: var(--fg-muted);">Power compliance</span>
+        <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.25rem;"
+             title="Below: {{ block.target_power.pct_time_below|round(0)|int }}% | In range: {{ block.target_power.pct_time_in_range|round(0)|int }}% | Above: {{ block.target_power.pct_time_above|round(0)|int }}%">
+          {% if block.target_power.pct_time_below %}
+          <div style="width: {{ block.target_power.pct_time_below }}%; background: #58a6ff;"></div>
+          {% endif %}
+          <div style="width: {{ block.target_power.pct_time_in_range }}%; background: #3fb950;"></div>
+          {% if block.target_power.pct_time_above %}
+          <div style="width: {{ block.target_power.pct_time_above }}%; background: #f85149;"></div>
+          {% endif %}
+        </div>
       </div>
       {% endif %}
     </div>

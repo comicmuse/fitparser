@@ -818,18 +818,22 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
             duration_type = str(step.get("duration_type") or "").lower()
 
             if "repeat" in duration_type:
-                repeat_steps = step.get("repeat_steps", 2)
+                repeat_count = step.get("repeat_steps", 2)
                 duration_step = step.get("duration_step")
 
                 if duration_step is not None:
                     repeat_block_start = int(duration_step)
                     repeat_block_end = i
                 else:
-                    repeat_block_start = max(0, i - repeat_steps)
+                    repeat_block_start = max(0, i - repeat_count)
                     repeat_block_end = i
 
                 repeat_block = list(range(repeat_block_start, repeat_block_end))
-                step_sequence.append(("repeat", repeat_block))
+                # The steps in repeat_block are already in step_sequence once,
+                # so expand (repeat_count - 1) more iterations inline
+                for _ in range(repeat_count - 1):
+                    for step_idx in repeat_block:
+                        step_sequence.append(("step", step_idx))
                 i += 1
             else:
                 step_sequence.append(("step", i))
@@ -902,12 +906,26 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
                     if last_real_lap_idx < len(lap_to_step):
                         lap_to_step[last_real_lap_idx] = cooldown_step_idx
 
+    # Track how many steps are in the programmed workout so we can detect
+    # extra/unprogrammed laps that go beyond the workout structure.
+    programmed_step_count = len(step_sequence) if steps else 0
+
     for i, lap in enumerate(laps):
+        beyond_workout = False
         if steps and i < len(lap_to_step):
+            # Check if this lap was mapped beyond the end of the programmed workout
+            # (i.e. by the "reuse last" fallback when seq_idx >= len(step_sequence))
+            if i >= programmed_step_count:
+                beyond_workout = True
             step = steps[lap_to_step[i]]
         else:
             step = {}
-        block_type = classify_block_type(step, i, total_laps)
+            beyond_workout = True
+
+        if beyond_workout:
+            block_type = "extra"
+        else:
+            block_type = classify_block_type(step, i, total_laps)
 
         start = lap.get("start_time")
         dur_s = lap.get("total_timer_time")
@@ -924,6 +942,8 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
             key = "warmup"
         elif block_type == "cooldown":
             key = "cooldown"
+        elif block_type == "extra":
+            key = f"extra_{i}"
         elif block_type == "float":
             key = f"float_{i}"  # you can re-label later (float_1, float_2...)
         else:  # work / other
