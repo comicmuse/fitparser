@@ -124,3 +124,7 @@ runcoach/
 - **pywebpush** / **py-vapid** for Web Push notifications
 - **Chart.js** for HR zone visualisation
 - **Docker** for deployment
+
+## Acknowledgements
+
+- **[strydcmd](strydcmd-src/)** — bundled command-line tool for connecting to the Stryd API and retrieving training data. Used internally for activity sync.
