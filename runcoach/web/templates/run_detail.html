@@ -235,6 +235,7 @@
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h2>Coach Analysis</h2>
     <form method="post" action="{{ url_for('main.analyze_run_route', run_id=run.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-sm" title="Re-analyze this run">Re-analyze</button>
     </form>
   </div>
@@ -247,6 +248,7 @@
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <p style="color: var(--fg-muted); margin: 0;">Analysis pending.</p>
     <form method="post" action="{{ url_for('main.analyze_run_route', run_id=run.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn">Analyze Now</button>
     </form>
   </div>

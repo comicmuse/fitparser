@@ -25,6 +25,7 @@ class Config:
     vapid_public_key: str = ""
     vapid_email: str = ""
     coach_profile_path: Path | None = None
+    secret_key: str = ""
 
     @property
     def db_path(self) -> Path:
@@ -40,6 +41,17 @@ class Config:
             load_dotenv(env_file)
         else:
             load_dotenv()  # loads .env from cwd
+
+        import secrets
+        secret_key = os.environ.get("SECRET_KEY", "")
+        if not secret_key:
+            import logging
+            logging.getLogger(__name__).warning(
+                "SECRET_KEY not set — generating a random key. "
+                "Sessions will not survive restarts. "
+                "Set SECRET_KEY in your .env for persistence."
+            )
+            secret_key = secrets.token_hex(32)
 
         return cls(
             stryd_email=os.environ.get("STRYD_EMAIL", ""),
@@ -62,4 +74,5 @@ class Config:
                 if os.environ.get("COACH_PROFILE")
                 else None
             ),
+            secret_key=secret_key,
         )

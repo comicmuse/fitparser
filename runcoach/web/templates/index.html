@@ -11,6 +11,7 @@
     Upload a run from a .fit file (for runs without Stryd sync)
   </p>
   <form action="{{ url_for('main.upload') }}" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
       <div style="flex: 2; min-width: 200px;">
         <label style="display: block; font-size: 0.8rem; color: var(--fg-muted); margin-bottom: 0.25rem;">FIT File</label>

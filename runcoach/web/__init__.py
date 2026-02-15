@@ -3,10 +3,13 @@ from __future__ import annotations
 import logging
 
 from flask import Flask
+from flask_wtf.csrf import CSRFProtect
 
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
 from runcoach.scheduler import Scheduler
+
+csrf = CSRFProtect()
 
 
 def create_app(config: Config | None = None) -> Flask:
@@ -17,9 +20,12 @@ def create_app(config: Config | None = None) -> Flask:
     db = RunCoachDB(config.db_path)
 
     app = Flask(__name__)
-    app.secret_key = "runcoach-dev-key"
+    app.secret_key = config.secret_key
+    app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
     app.config["config"] = config
     app.config["db"] = db
+
+    csrf.init_app(app)
 
     scheduler = Scheduler(config, db)
     app.config["scheduler"] = scheduler

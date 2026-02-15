@@ -282,6 +282,7 @@
   <link rel="manifest" href="/static/manifest.json">
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
   <meta name="theme-color" content="#0d1117">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -294,6 +295,7 @@
         {% endif %}
         <button type="button" class="btn" onclick="toggleUploadForm()">Upload</button>
         <form action="/sync" method="post" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-primary">Sync Now</button>
         </form>
       </div>

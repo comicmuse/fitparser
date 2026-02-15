@@ -14,6 +14,7 @@ from flask import (
     url_for,
 )
 import markdown as md
+import nh3
 
 from runcoach.analyzer import analyze_and_write
 from runcoach.config import Config
@@ -21,6 +22,42 @@ from runcoach.config import Config
 log = logging.getLogger(__name__)
 
 bp = Blueprint("main", __name__)
+
+# Tags and attributes that the markdown library legitimately produces.
+_ALLOWED_TAGS = {
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "p", "br", "hr",
+    "ul", "ol", "li",
+    "strong", "em", "b", "i", "u", "s", "del",
+    "a", "code", "pre",
+    "blockquote",
+    "table", "thead", "tbody", "tr", "th", "td",
+    "img",
+    "div", "span",
+    "sup", "sub",
+}
+_ALLOWED_ATTRIBUTES: dict[str, set[str]] = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    "td": {"align"},
+    "th": {"align"},
+}
+
+
+def _safe_markdown(text: str) -> str:
+    """Convert markdown to HTML and sanitize the output."""
+    raw_html = md.markdown(text, extensions=["tables", "fenced_code"])
+    return nh3.clean(
+        raw_html,
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRIBUTES,
+    )
+
+
+# FIT file magic: bytes 8–11 must be ".FIT" (ASCII 0x2E 0x46 0x49 0x54).
+_FIT_MAGIC = b".FIT"
+_FIT_MAGIC_OFFSET = 8
+_FIT_HEADER_MIN_SIZE = 12
 
 
 def _db():
@@ -145,10 +182,7 @@ def run_detail(run_id: int):
 
     commentary_html = ""
     if run.get("commentary"):
-        commentary_html = md.markdown(
-            run["commentary"],
-            extensions=["tables", "fenced_code"],
-        )
+        commentary_html = _safe_markdown(run["commentary"])
 
     # Load YAML data for visualizations
     workout_data = None
@@ -286,6 +320,13 @@ def push_subscribe():
     return jsonify(ok=True)
 
 
+# Exempt push_subscribe from CSRF — it's a JSON API called from the
+# service-worker/app.js, and Content-Type: application/json requests
+# don't originate from HTML forms.
+from runcoach.web import csrf  # noqa: E402
+csrf.exempt(push_subscribe)
+
+
 @bp.route("/upload", methods=["POST"])
 def upload():
     """Handle manual FIT file upload."""
@@ -309,6 +350,16 @@ def upload():
 
     if not fit_file.filename.lower().endswith(".fit"):
         flash("File must be a .fit file")
+        return redirect(url_for("main.index"))
+
+    # Validate FIT magic bytes before accepting the file
+    header = fit_file.read(_FIT_HEADER_MIN_SIZE)
+    fit_file.seek(0)
+    if (
+        len(header) < _FIT_HEADER_MIN_SIZE
+        or header[_FIT_MAGIC_OFFSET : _FIT_MAGIC_OFFSET + len(_FIT_MAGIC)] != _FIT_MAGIC
+    ):
+        flash("File does not appear to be a valid FIT file")
         return redirect(url_for("main.index"))
 
     # Get activity name from form or derive from filename
