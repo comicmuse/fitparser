@@ -48,6 +48,18 @@ ATL is the 7-day average daily RSS (acute load). \
 CTL is the 42-day average daily RSS (chronic load). \
 RSB = CTL - ATL (Running Stress Balance: positive = fresh, negative = fatigued).
 
+The training context may contain a **prescribed_workout** field showing \
+what the Stryd training plan prescribed for the day being analysed. \
+When present, compare the actual execution against the prescription: \
+did the athlete hit the target power zones, duration, and distance? \
+Were they under or over the planned stress? Call out meaningful deviations \
+(positive or negative) but avoid nitpicking minor differences.
+
+The training context may also contain **next_scheduled_workouts** listing \
+the next 1-2 upcoming sessions from the training plan. Use this to give \
+brief forward-looking advice: how should the athlete prepare or recover \
+for what's coming next? Keep this to 1-2 sentences at most.
+
 Below is the JSON Schema that describes the workout YAML data format:
 
 ```json

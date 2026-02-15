@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import datetime
@@ -106,3 +107,69 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
         raise
 
     return new_runs
+
+
+def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
+    """
+    Fetch planned workouts from the Stryd training calendar and store them.
+
+    Returns the number of workouts upserted.
+    """
+    from strydcmd.stryd_api import StrydAPI
+
+    stryd = StrydAPI(config.stryd_email, config.stryd_password)
+    stryd.authenticate()
+
+    workouts = stryd.get_planned_workouts(
+        days_ahead=30,
+        days_back=config.sync_lookback_days,
+    )
+    log.info("Stryd calendar returned %d planned workouts", len(workouts))
+
+    count = 0
+    for w in workouts:
+        # Skip deleted workouts
+        if w.get("deleted"):
+            continue
+
+        # Each workout entry has a nested "workout" dict with the plan details
+        plan = w.get("workout") or {}
+        title = plan.get("title") or w.get("name") or "Untitled"
+        description = plan.get("desc") or plan.get("description") or ""
+        workout_type = plan.get("type") or ""
+
+        # Date comes as ISO string like "2026-04-25T10:00:00Z"
+        date_raw = w.get("date") or ""
+        if not date_raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(date_raw.replace("Z", "+00:00"))
+            date_str = dt.strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            continue
+
+        duration_s = w.get("duration")  # seconds
+        distance_m = w.get("distance")  # metres
+        stress = w.get("stress")
+        activity_id = w.get("activity_id") or None
+
+        # Intensity zones as JSON string
+        zones = w.get("intensity_zones")
+        zones_str = json.dumps(zones) if zones else None
+
+        db.upsert_planned_workout(
+            date=date_str,
+            title=title,
+            description=description,
+            workout_type=workout_type,
+            duration_s=duration_s,
+            distance_m=distance_m,
+            stress=stress,
+            intensity_zones=zones_str,
+            activity_id=str(activity_id) if activity_id else None,
+            raw_json=json.dumps(w),
+        )
+        count += 1
+
+    log.info("Upserted %d planned workouts", count)
+    return count

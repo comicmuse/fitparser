@@ -7,7 +7,7 @@ from pathlib import Path
 
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
-from runcoach.sync import sync_new_activities
+from runcoach.sync import sync_new_activities, sync_planned_workouts
 from runcoach.parser import parse_and_write
 from runcoach.analyzer import analyze_and_write
 from runcoach.push import send_analysis_notification
@@ -28,7 +28,7 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
         return {"skipped": True}
 
     try:
-        summary = {"synced": 0, "parsed": 0, "analyzed": 0, "errors": 0}
+        summary = {"synced": 0, "parsed": 0, "analyzed": 0, "errors": 0, "planned": 0}
 
         # 1. Sync new activities from Stryd
         try:
@@ -37,6 +37,14 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
         except Exception as e:
             log.error("Sync stage failed: %s", e)
             summary["errors"] += 1
+
+        # 1b. Sync planned workouts from training calendar
+        try:
+            planned_count = sync_planned_workouts(config, db)
+            summary["planned"] = planned_count
+        except Exception as e:
+            log.error("Planned workouts sync failed: %s", e)
+            # Non-fatal: don't increment errors for this
 
         # 2. Parse all pending FIT files
         for run in db.get_pending_runs("synced"):
@@ -98,8 +106,8 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
                     summary["errors"] += 1
 
         log.info(
-            "Pipeline complete: synced=%d parsed=%d analyzed=%d errors=%d",
-            summary["synced"], summary["parsed"],
+            "Pipeline complete: synced=%d planned=%d parsed=%d analyzed=%d errors=%d",
+            summary["synced"], summary["planned"], summary["parsed"],
             summary["analyzed"], summary["errors"],
         )
         return summary

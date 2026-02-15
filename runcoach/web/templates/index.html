@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}RunCoach - Runs{% endblock %}
+{% block title %}RunCoach - Dashboard{% endblock %}
 {% block content %}
 
 <div id="upload-form" class="card" style="display: none;">
@@ -41,9 +41,13 @@ function toggleUploadForm() {
 }
 </script>
 
+{# ── Training Calendar ── #}
 <div class="card">
-  <h2>Activity Log</h2>
-  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+    <h2 style="margin-bottom: 0;">Training Calendar</h2>
+    <a href="{{ url_for('main.workouts') }}" class="btn btn-sm">View All</a>
+  </div>
+  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
     {{ stats.total_runs }} runs
     {% if stats.pending_parse %} &middot; {{ stats.pending_parse }} pending parse{% endif %}
     {% if stats.pending_analyze %} &middot; {{ stats.pending_analyze }} pending analysis{% endif %}
@@ -53,7 +57,56 @@ function toggleUploadForm() {
     {% endif %}
   </p>
 
-  {% if runs %}
+  {# Week labels #}
+  {% for week_idx in [0, 1] %}
+  <div style="margin-bottom: {{ '1rem' if week_idx == 0 else '0' }};">
+    <div style="font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 600;">
+      {% if week_idx == 0 %}Previous Week{% else %}This Week{% endif %}
+    </div>
+    <div class="cal-grid">
+      {% for day in calendar_days %}
+      {% if day.week == week_idx %}
+      <div class="cal-day {{ 'cal-today' if day.is_today }}{{ ' cal-past' if day.is_past and not day.is_today }}">
+        <div class="cal-day-header">
+          <span class="cal-weekday">{{ day.weekday }}</span>
+          <span class="cal-date">{{ day.day }}</span>
+        </div>
+        <div class="cal-day-body">
+          {% for run in day.actual %}
+          <a href="{{ url_for('main.run_detail', run_id=run.id) }}" class="cal-item cal-actual" title="{{ run.workout_name or run.name }}">
+            <span class="cal-item-dot" style="background: var(--green);"></span>
+            <span class="cal-item-text">{{ (run.workout_name or run.name)|truncate(20, True) }}</span>
+          </a>
+          {% endfor %}
+          {% for pw in day.planned %}
+          {% if not day.actual %}
+          <div class="cal-item cal-planned" title="{{ pw.title }}">
+            <span class="cal-item-dot" style="background: var(--accent);"></span>
+            <span class="cal-item-text">{{ pw.title|truncate(20, True) }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% if not day.actual and not day.planned %}
+          <div class="cal-item cal-rest">
+            <span style="color: var(--fg-muted); font-size: 0.7rem;">Rest</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Recent Runs ── #}
+{% if recent_runs %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 style="margin-bottom: 0;">Recent Runs</h2>
+    <a href="{{ url_for('main.workouts') }}?runs_page=1" class="btn btn-sm">View All</a>
+  </div>
   <div class="table-scroll">
   <table>
     <thead>
@@ -61,14 +114,12 @@ function toggleUploadForm() {
         <th>Date</th>
         <th>Name</th>
         <th>Distance</th>
-        <th>Duration</th>
         <th class="hide-mobile">Avg Power</th>
-        <th class="hide-mobile">Avg HR</th>
         <th>Status</th>
       </tr>
     </thead>
     <tbody>
-      {% for run in runs %}
+      {% for run in recent_runs %}
       <tr>
         <td>{{ run.date }}</td>
         <td>
@@ -84,23 +135,9 @@ function toggleUploadForm() {
             &mdash;
           {% endif %}
         </td>
-        <td>
-          {% if run.moving_time_s %}
-            {{ (run.moving_time_s // 60) }}:{{ "%02d"|format(run.moving_time_s % 60) }}
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
         <td class="hide-mobile">
           {% if run.avg_power_w %}
             {{ run.avg_power_w|int }} W
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if run.avg_hr %}
-            {{ run.avg_hr|int }} bpm
           {% else %}
             &mdash;
           {% endif %}
@@ -121,10 +158,8 @@ function toggleUploadForm() {
     </tbody>
   </table>
   </div>
-  {% else %}
-  <p style="color: var(--fg-muted);">No runs yet. Click <strong>Sync Now</strong> to fetch activities from Stryd.</p>
-  {% endif %}
 </div>
+{% endif %}
 
 {% if syncing is defined and syncing %}
 <script>

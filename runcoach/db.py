@@ -56,6 +56,26 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     auth TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS planned_workouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    workout_type TEXT,
+    duration_s REAL,
+    distance_m REAL,
+    stress REAL,
+    intensity_zones TEXT,
+    activity_id TEXT,
+    raw_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_planned_date_title
+    ON planned_workouts(date, title);
+CREATE INDEX IF NOT EXISTS idx_planned_date ON planned_workouts(date);
 """
 
 
@@ -374,3 +394,145 @@ class RunCoachDB:
                 "DELETE FROM push_subscriptions WHERE endpoint = ?",
                 (endpoint,),
             )
+
+    # ------ planned_workouts ------
+
+    def upsert_planned_workout(
+        self,
+        date: str,
+        title: str,
+        description: str | None = None,
+        workout_type: str | None = None,
+        duration_s: float | None = None,
+        distance_m: float | None = None,
+        stress: float | None = None,
+        intensity_zones: str | None = None,
+        activity_id: str | None = None,
+        raw_json: str | None = None,
+    ) -> int:
+        """Insert or update a planned workout (keyed on date + title)."""
+        now = _now_iso()
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO planned_workouts
+                   (date, title, description, workout_type, duration_s,
+                    distance_m, stress, intensity_zones, activity_id,
+                    raw_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(date, title) DO UPDATE SET
+                     description = excluded.description,
+                     workout_type = excluded.workout_type,
+                     duration_s = excluded.duration_s,
+                     distance_m = excluded.distance_m,
+                     stress = excluded.stress,
+                     intensity_zones = excluded.intensity_zones,
+                     activity_id = excluded.activity_id,
+                     raw_json = excluded.raw_json,
+                     updated_at = excluded.updated_at""",
+                (date, title, description, workout_type, duration_s,
+                 distance_m, stress, intensity_zones, activity_id,
+                 raw_json, now, now),
+            )
+            return cur.lastrowid
+
+    def get_planned_workout_for_date(self, date: str) -> list[dict]:
+        """Get all planned workouts for a given date."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM planned_workouts WHERE date = ? ORDER BY id",
+                (date,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_upcoming_planned_workouts(self, from_date: str, limit: int = 14) -> list[dict]:
+        """Get upcoming planned workouts from a date onwards."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM planned_workouts
+                   WHERE date >= ?
+                   ORDER BY date ASC
+                   LIMIT ?""",
+                (from_date, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_all_planned_workouts(self) -> list[dict]:
+        """Get all planned workouts ordered by date."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM planned_workouts ORDER BY date ASC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_planned_workouts_in_range(self, start_date: str, end_date: str) -> list[dict]:
+        """Get planned workouts within a date range [start, end)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM planned_workouts
+                   WHERE date >= ? AND date < ?
+                   ORDER BY date ASC""",
+                (start_date, end_date),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_past_planned_workouts(self, before_date: str, limit: int = 10, offset: int = 0) -> list[dict]:
+        """Get past planned workouts (before a date), most recent first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM planned_workouts
+                   WHERE date < ?
+                   ORDER BY date DESC
+                   LIMIT ? OFFSET ?""",
+                (before_date, limit, offset),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_past_planned_workouts(self, before_date: str) -> int:
+        with self._connect() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM planned_workouts WHERE date < ?",
+                (before_date,),
+            ).fetchone()[0]
+
+    def count_upcoming_planned_workouts(self, from_date: str) -> int:
+        with self._connect() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM planned_workouts WHERE date >= ?",
+                (from_date,),
+            ).fetchone()[0]
+
+    def get_upcoming_planned_workouts_paged(self, from_date: str, limit: int = 10, offset: int = 0) -> list[dict]:
+        """Get upcoming planned workouts with pagination."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM planned_workouts
+                   WHERE date >= ?
+                   ORDER BY date ASC
+                   LIMIT ? OFFSET ?""",
+                (from_date, limit, offset),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_runs_in_date_range(self, start_date: str, end_date: str) -> list[dict]:
+        """Get runs within a date range [start, end)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM runs
+                   WHERE date >= ? AND date < ?
+                   ORDER BY date ASC""",
+                (start_date, end_date),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_runs_paginated(self, limit: int = 10, offset: int = 0) -> list[dict]:
+        """Get all runs with pagination, most recent first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM runs ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_runs(self) -> int:
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]

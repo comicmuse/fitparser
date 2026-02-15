@@ -48,6 +48,37 @@
   </div>
 </div>
 
+{% if prescribed %}
+<div class="card" style="border-left: 3px solid #d29922;">
+  <h2 style="font-size: 1rem; color: #d29922;">Prescribed Workout</h2>
+  {% for pw in prescribed %}
+  <div style="margin-bottom: {{ '0.75rem' if not loop.last else '0' }};">
+    <div style="font-weight: 600; margin-bottom: 0.25rem;">{{ pw.title }}</div>
+    {% if pw.workout_type %}
+      <span class="badge badge-blue" style="margin-bottom: 0.5rem;">{{ pw.workout_type }}</span>
+    {% endif %}
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: var(--fg-muted); margin-bottom: 0.5rem;">
+      {% if pw.distance_m %}
+        <span>{{ "%.1f"|format(pw.distance_m / 1000) }} km planned</span>
+      {% endif %}
+      {% if pw.duration_s %}
+        <span>{{ (pw.duration_s|int // 60) }}:{{ "%02d"|format(pw.duration_s|int % 60) }} planned</span>
+      {% endif %}
+      {% if pw.stress %}
+        <span>Stress: {{ "%.0f"|format(pw.stress) }}</span>
+      {% endif %}
+    </div>
+    {% if pw.description %}
+      <details style="font-size: 0.82rem; color: var(--fg-muted);">
+        <summary style="cursor: pointer;">Workout description</summary>
+        <pre style="white-space: pre-wrap; margin-top: 0.5rem; font-family: inherit; line-height: 1.5;">{{ pw.description }}</pre>
+      </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if workout_data and workout_data.blocks %}
 <div class="card">
   <h2>Workout Structure</h2>

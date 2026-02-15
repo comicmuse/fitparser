@@ -33,15 +33,101 @@ def _scheduler():
 
 @bp.route("/")
 def index():
+    from datetime import date as _date, timedelta
+
     db = _db()
-    runs = db.get_all_runs()
+    today = _date.today()
+
+    # Build a 2-week calendar: previous Mon–Sun + current Mon–Sun
+    # Find Monday of the current week
+    current_monday = today - timedelta(days=today.weekday())
+    prev_monday = current_monday - timedelta(days=7)
+    next_sunday_plus1 = current_monday + timedelta(days=14)  # exclusive end
+
+    # Fetch planned workouts and actual runs for the 2-week window
+    cal_start = prev_monday.isoformat()
+    cal_end = next_sunday_plus1.isoformat()
+    planned = db.get_planned_workouts_in_range(cal_start, cal_end)
+    actual = db.get_runs_in_date_range(cal_start, cal_end)
+
+    # Index by date for easy template lookup
+    planned_by_date = {}
+    for pw in planned:
+        planned_by_date.setdefault(pw["date"], []).append(pw)
+    actual_by_date = {}
+    for run in actual:
+        actual_by_date.setdefault(run["date"], []).append(run)
+
+    # Generate calendar days
+    calendar_days = []
+    for i in range(14):
+        d = prev_monday + timedelta(days=i)
+        ds = d.isoformat()
+        calendar_days.append({
+            "date": ds,
+            "day": d.day,
+            "weekday": d.strftime("%a"),
+            "is_today": d == today,
+            "is_past": d < today,
+            "week": 0 if i < 7 else 1,
+            "planned": planned_by_date.get(ds, []),
+            "actual": actual_by_date.get(ds, []),
+        })
+
     stats = db.get_sync_stats()
     last_sync = db.get_last_sync()
+    recent_runs = db.get_runs_paginated(limit=5)
+
     return render_template(
         "index.html",
-        runs=runs,
+        calendar_days=calendar_days,
+        prev_monday=prev_monday,
+        current_monday=current_monday,
+        recent_runs=recent_runs,
         stats=stats,
         last_sync=last_sync,
+        syncing=_scheduler().is_syncing,
+    )
+
+
+@bp.route("/workouts")
+def workouts():
+    """Full paginated list of past and upcoming planned workouts."""
+    from datetime import date as _date
+
+    db = _db()
+    today = _date.today().isoformat()
+    per_page = 10
+
+    past_page = request.args.get("past_page", 1, type=int)
+    upcoming_page = request.args.get("upcoming_page", 1, type=int)
+
+    past_total = db.count_past_planned_workouts(today)
+    upcoming_total = db.count_upcoming_planned_workouts(today)
+
+    past = db.get_past_planned_workouts(today, limit=per_page, offset=(past_page - 1) * per_page)
+    upcoming = db.get_upcoming_planned_workouts_paged(today, limit=per_page, offset=(upcoming_page - 1) * per_page)
+
+    runs_page = request.args.get("runs_page", 1, type=int)
+    runs_total = db.count_runs()
+    runs = db.get_runs_paginated(limit=per_page, offset=(runs_page - 1) * per_page)
+
+    import math
+    return render_template(
+        "workouts.html",
+        past_workouts=past,
+        upcoming_workouts=upcoming,
+        runs=runs,
+        past_page=past_page,
+        past_pages=math.ceil(past_total / per_page),
+        past_total=past_total,
+        upcoming_page=upcoming_page,
+        upcoming_pages=math.ceil(upcoming_total / per_page),
+        upcoming_total=upcoming_total,
+        runs_page=runs_page,
+        runs_pages=math.ceil(runs_total / per_page),
+        runs_total=runs_total,
+        stats=db.get_sync_stats(),
         syncing=_scheduler().is_syncing,
     )
 
@@ -75,11 +161,15 @@ def run_detail(run_id: int):
             except Exception:
                 pass
 
+    # Load prescribed workout for this date
+    prescribed = db.get_planned_workout_for_date(run["date"])
+
     return render_template(
         "run_detail.html",
         run=run,
         commentary_html=commentary_html,
         workout_data=workout_data,
+        prescribed=prescribed,
     )
 
 

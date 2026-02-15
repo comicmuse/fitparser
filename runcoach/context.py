@@ -223,4 +223,48 @@ def build_weekly_context(
     if critical_power:
         context["training_context"]["critical_power_w"] = critical_power
 
+    # ---- Prescribed workout (from Stryd training plan) ----
+    planned = db.get_planned_workout_for_date(target.isoformat())
+    if planned:
+        prescriptions = []
+        for pw in planned:
+            rx: dict = {
+                "title": pw["title"],
+                "type": pw.get("workout_type") or None,
+            }
+            if pw.get("description"):
+                rx["description"] = pw["description"]
+            if pw.get("duration_s"):
+                rx["planned_duration_min"] = round(pw["duration_s"] / 60, 1)
+            if pw.get("distance_m"):
+                rx["planned_distance_km"] = round(pw["distance_m"] / 1000, 2)
+            if pw.get("stress"):
+                rx["planned_stress"] = round(pw["stress"], 1)
+            prescriptions.append(rx)
+        context["training_context"]["prescribed_workout"] = (
+            prescriptions[0] if len(prescriptions) == 1 else prescriptions
+        )
+
+    # ---- Next 2 upcoming scheduled workouts ----
+    next_day = (target + timedelta(days=1)).isoformat()
+    upcoming = db.get_upcoming_planned_workouts(from_date=next_day, limit=2)
+    if upcoming:
+        next_sessions = []
+        for pw in upcoming:
+            ns: dict = {
+                "date": pw["date"],
+                "title": pw["title"],
+                "type": pw.get("workout_type") or None,
+            }
+            if pw.get("description"):
+                ns["description"] = pw["description"]
+            if pw.get("duration_s"):
+                ns["planned_duration_min"] = round(pw["duration_s"] / 60, 1)
+            if pw.get("distance_m"):
+                ns["planned_distance_km"] = round(pw["distance_m"] / 1000, 2)
+            if pw.get("stress"):
+                ns["planned_stress"] = round(pw["stress"], 1)
+            next_sessions.append(ns)
+        context["training_context"]["next_scheduled_workouts"] = next_sessions
+
     return context
