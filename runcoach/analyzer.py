@@ -13,17 +13,12 @@ from runcoach.db import RunCoachDB
 log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
-I'm running the London Marathon on 26 April 2026. You are a world-class running \
-trainer like Greg Palladino.
+You are a world-class running trainer like Greg Palladino.
 
-I'm training using a Stryd training plan, targetting power.
+{athlete_profile}
 
 Be encouraging but realistic. Remind me about prehab and strength and conditioning \
 periodically.
-
-Whenever interpreting Stryd data, my weight is configured to 61Kg on my Stryd pod, \
-so if you're doing any maths, bear that in mind. There's no need to tell me about this\
-this or explain it to me, just use it in your calculations.
 
 Any assertions should be based on the information in the YAML data provided. Do not \
 infer data that is not there without clearly highlighting it.
@@ -68,6 +63,17 @@ Below is the JSON Schema that describes the workout YAML data format:
 """
 
 
+def _load_athlete_profile(config_path: Path | None = None) -> str:
+    """Load the athlete profile from coach_profile.txt."""
+    if config_path and config_path.exists():
+        return config_path.read_text(encoding="utf-8").strip()
+    # Fallback: look next to the project root
+    default = Path(__file__).resolve().parent.parent / "coach_profile.txt"
+    if default.exists():
+        return default.read_text(encoding="utf-8").strip()
+    return ""
+
+
 def _load_schema(project_root: Path | None = None) -> str:
     """Load the workout YAML schema JSON."""
     if project_root is None:
@@ -91,7 +97,10 @@ def analyze_run(
     Returns a dict with keys: commentary, prompt_tokens, completion_tokens.
     """
     schema = _load_schema()
-    system_msg = SYSTEM_PROMPT.format(schema=schema)
+    profile = _load_athlete_profile(
+        getattr(config, "coach_profile_path", None)
+    )
+    system_msg = SYSTEM_PROMPT.format(schema=schema, athlete_profile=profile)
 
     # Check if this is a manual upload and add a note to the prompt
     if "manual_upload: true" in yaml_content:

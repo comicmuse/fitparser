@@ -1,0 +1,7 @@
+I'm running the London Marathon on 26 April 2026.
+
+I'm training using a Stryd training plan, targetting power.
+
+Whenever interpreting Stryd data, my weight is configured to 61Kg on my Stryd pod,
+so if you're doing any maths, bear that in mind. There's no need to tell me about
+this or explain it to me, just use it in your calculations.
