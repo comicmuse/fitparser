@@ -6,6 +6,8 @@ services:
     volumes:
       # Mount your data directory - this persists activities, database, etc.
       - ./data:/app/data
+      # Mount a custom coach profile to override the built-in one (optional)
+      # - ./my_coach_profile.txt:/app/coach_profile.txt:ro
     env_file:
       # Create .env from .env.example and fill in your credentials
       - .env

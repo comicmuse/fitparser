@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir /opt/strydcmd/
 COPY pyproject.toml .
 COPY fit_to_yaml_blocks.py .
 COPY workout_yaml_schema.json .
+COPY coach_profile.txt .
 COPY runcoach/ runcoach/
 RUN pip install --no-cache-dir .
 

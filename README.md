@@ -55,6 +55,25 @@ All config is via environment variables (or `.env` file):
 | `VAPID_PRIVATE_KEY` | — | VAPID private key for push notifications |
 | `VAPID_PUBLIC_KEY` | — | VAPID public key for push notifications |
 | `VAPID_EMAIL` | — | Contact email embedded in push messages |
+| `COACH_PROFILE` | — | Path to a custom athlete profile file (overrides built-in `coach_profile.txt`) |
+
+### Athlete Profile (`coach_profile.txt`)
+
+The file `coach_profile.txt` in the project root contains athlete-specific information that is injected into the AI coaching prompt — your race goal, training approach, body weight, and any other context the coach should know. Edit this file to personalise the analysis.
+
+To override it in Docker without rebuilding the image, bind-mount your own file:
+
+```yaml
+# docker-compose.yml
+volumes:
+  - ./my_coach_profile.txt:/app/coach_profile.txt:ro
+```
+
+Or point to an alternative path via the `COACH_PROFILE` environment variable:
+
+```bash
+COACH_PROFILE=/app/data/coach_profile.txt
+```
 
 ## Push Notifications (VAPID Setup)
 
