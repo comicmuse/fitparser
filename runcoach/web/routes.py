@@ -38,13 +38,13 @@ def index():
     db = _db()
     today = _date.today()
 
-    # Build a 2-week calendar: previous Mon–Sun + current Mon–Sun
+    # Build a 3-week calendar: previous Mon–Sun + current Mon–Sun + next Mon–Sun
     # Find Monday of the current week
     current_monday = today - timedelta(days=today.weekday())
     prev_monday = current_monday - timedelta(days=7)
-    next_sunday_plus1 = current_monday + timedelta(days=14)  # exclusive end
+    next_sunday_plus1 = current_monday + timedelta(days=21)  # exclusive end (3 weeks)
 
-    # Fetch planned workouts and actual runs for the 2-week window
+    # Fetch planned workouts and actual runs for the 3-week window
     cal_start = prev_monday.isoformat()
     cal_end = next_sunday_plus1.isoformat()
     planned = db.get_planned_workouts_in_range(cal_start, cal_end)
@@ -60,7 +60,7 @@ def index():
 
     # Generate calendar days
     calendar_days = []
-    for i in range(14):
+    for i in range(21):
         d = prev_monday + timedelta(days=i)
         ds = d.isoformat()
         calendar_days.append({
@@ -69,7 +69,7 @@ def index():
             "weekday": d.strftime("%a"),
             "is_today": d == today,
             "is_past": d < today,
-            "week": 0 if i < 7 else 1,
+            "week": i // 7,  # 0 = prev, 1 = current, 2 = next
             "planned": planned_by_date.get(ds, []),
             "actual": actual_by_date.get(ds, []),
         })

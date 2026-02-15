@@ -58,10 +58,10 @@ function toggleUploadForm() {
   </p>
 
   {# Week labels #}
-  {% for week_idx in [0, 1] %}
-  <div style="margin-bottom: {{ '1rem' if week_idx == 0 else '0' }};">
+  {% for week_idx in [0, 1, 2] %}
+  <div style="margin-bottom: {{ '0' if week_idx == 2 else '1rem' }};">
     <div style="font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 600;">
-      {% if week_idx == 0 %}Previous Week{% else %}This Week{% endif %}
+      {% if week_idx == 0 %}Previous Week{% elif week_idx == 1 %}This Week{% else %}Next Week{% endif %}
     </div>
     <div class="cal-grid">
       {% for day in calendar_days %}
