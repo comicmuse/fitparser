@@ -65,6 +65,8 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
         # 3. Analyze all parsed runs with GPT-4o
         if not config.openai_api_key:
             log.warning("No OPENAI_API_KEY set, skipping analysis stage")
+        elif not config.openai_auto_analyse:
+            log.info("OPENAI_AUTO_ANALYSE is off, skipping automatic analysis (on-demand still available)")
         else:
             for run in db.get_pending_runs("parsed", date_from=config.analyze_from):
                 try:

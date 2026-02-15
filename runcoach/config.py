@@ -19,6 +19,7 @@ class Config:
     timezone: str = "Europe/London"
     flask_port: int = 5000
     flask_debug: bool = False
+    openai_auto_analyse: bool = True  # if False, skip auto-analysis in pipeline; on-demand still works
     analyze_from: str | None = None  # YYYY-MM-DD; only auto-analyze runs on or after this date
 
     @property
@@ -47,5 +48,6 @@ class Config:
             timezone=os.environ.get("TIMEZONE", "Europe/London"),
             flask_port=int(os.environ.get("FLASK_PORT", "5000")),
             flask_debug=os.environ.get("FLASK_DEBUG", "false").lower() in ("true", "1", "yes"),
+            openai_auto_analyse=os.environ.get("OPENAI_AUTO_ANALYSE", "true").lower() in ("true", "1", "yes"),
             analyze_from=os.environ.get("ANALYZE_FROM") or None,
         )
