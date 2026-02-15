@@ -148,6 +148,10 @@
       margin: 0.75rem 0;
     }
 
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    .hide-mobile { }
+
     footer {
       margin-top: 3rem;
       padding: 1rem 0;
@@ -156,7 +160,46 @@
       color: var(--fg-muted);
       border-top: 1px solid var(--border);
     }
+
+    #notif-banner {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    #notif-banner.show { display: flex; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .container { max-width: 100%; }
+      nav .nav-right { gap: 0.5rem; }
+      .btn { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
+      .run-header { gap: 1rem; }
+      .run-header .metric .value { font-size: 1rem; }
+      .card { padding: 1rem; }
+      .hide-mobile { display: none !important; }
+      .block-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; }
+    }
+
+    @media (max-width: 480px) {
+      .container { padding: 0 0.5rem; }
+      nav .nav-right { gap: 0.35rem; }
+      .btn { padding: 0.3rem 0.5rem; font-size: 0.75rem; }
+      .run-header { gap: 0.75rem; }
+      .card { padding: 0.75rem; margin-bottom: 1rem; }
+      th, td { padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+    }
   </style>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
   <nav>
@@ -175,6 +218,11 @@
   </nav>
 
   <div class="container">
+    <div id="notif-banner">
+      <span>Enable notifications to know when analyses are ready.</span>
+      <button class="btn btn-sm" onclick="subscribeToNotifications()">Enable</button>
+      <button class="btn btn-sm" onclick="dismissNotifBanner()" style="border:none;background:none;color:var(--fg-muted);cursor:pointer;">&times;</button>
+    </div>
     {% with messages = get_flashed_messages() %}
       {% for msg in messages %}
         <div class="flash">{{ msg }}</div>
@@ -186,5 +234,7 @@
   <footer>
     <div class="container">RunCoach &mdash; Marathon training analysis</div>
   </footer>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>

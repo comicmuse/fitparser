@@ -91,7 +91,7 @@
 
   <!-- Block Cards -->
   <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">Block Details</h3>
-  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
+  <div class="block-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
     {% for key, block in workout_data.blocks.items() %}
     <div class="block-card" style="
       background: var(--surface);
@@ -231,6 +231,21 @@
   Tokens: {{ run.prompt_tokens or 0 }} prompt + {{ run.completion_tokens or 0 }} completion
   &middot; Analyzed {{ run.analyzed_at }}
 </p>
+{% endif %}
+
+{% if run.stage == 'parsed' %}
+<script>
+(function() {
+  var poll = setInterval(function() {
+    fetch('/run/{{ run.id }}/status').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.stage === 'analyzed' || d.stage === 'error') {
+        clearInterval(poll);
+        location.reload();
+      }
+    }).catch(function() {});
+  }, 5000);
+})();
+</script>
 {% endif %}
 
 {% endblock %}

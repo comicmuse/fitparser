@@ -54,6 +54,7 @@ function toggleUploadForm() {
   </p>
 
   {% if runs %}
+  <div class="table-scroll">
   <table>
     <thead>
       <tr>
@@ -61,8 +62,8 @@ function toggleUploadForm() {
         <th>Name</th>
         <th>Distance</th>
         <th>Duration</th>
-        <th>Avg Power</th>
-        <th>Avg HR</th>
+        <th class="hide-mobile">Avg Power</th>
+        <th class="hide-mobile">Avg HR</th>
         <th>Status</th>
       </tr>
     </thead>
@@ -90,14 +91,14 @@ function toggleUploadForm() {
             &mdash;
           {% endif %}
         </td>
-        <td>
+        <td class="hide-mobile">
           {% if run.avg_power_w %}
             {{ run.avg_power_w|int }} W
           {% else %}
             &mdash;
           {% endif %}
         </td>
-        <td>
+        <td class="hide-mobile">
           {% if run.avg_hr %}
             {{ run.avg_hr|int }} bpm
           {% else %}
@@ -119,9 +120,21 @@ function toggleUploadForm() {
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <p style="color: var(--fg-muted);">No runs yet. Click <strong>Sync Now</strong> to fetch activities from Stryd.</p>
   {% endif %}
 </div>
 
+{% if syncing is defined and syncing %}
+<script>
+(function() {
+  var poll = setInterval(function() {
+    fetch('/status').then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.syncing) { clearInterval(poll); location.reload(); }
+    }).catch(function() {});
+  }, 10000);
+})();
+</script>
+{% endif %}
 {% endblock %}

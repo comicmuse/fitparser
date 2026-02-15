@@ -125,6 +125,15 @@ def analyze_run_route(run_id: int):
                     completion_tokens=result.get("completion_tokens"),
                 )
                 log.info("Analysis complete for run %s", run_id)
+                # Send push notification
+                try:
+                    from runcoach.push import send_analysis_notification
+                    send_analysis_notification(
+                        config, db, run["id"],
+                        run.get("workout_name") or run.get("name") or f"Run #{run_id}",
+                    )
+                except Exception as e:
+                    log.warning("Push notification failed: %s", e)
             except Exception as e:
                 log.exception("Analysis failed for run %s: %s", run_id, e)
                 db.update_error(run["id"], f"Analysis error: {e}")
@@ -149,6 +158,42 @@ def status():
         last_sync=last_sync,
         **stats,
     )
+
+
+@bp.route("/run/<int:run_id>/status")
+def run_status(run_id: int):
+    """Return JSON status of a single run (for polling)."""
+    db = _db()
+    run = db.get_run(run_id)
+    if run is None:
+        return jsonify(error="not found"), 404
+    return jsonify(
+        stage=run["stage"],
+        analyzed_at=run.get("analyzed_at"),
+    )
+
+
+@bp.route("/push/vapid-key")
+def vapid_key():
+    """Return the public VAPID key for push subscription."""
+    config: Config = current_app.config["config"]
+    return jsonify(vapid_public_key=config.vapid_public_key or None)
+
+
+@bp.route("/push/subscribe", methods=["POST"])
+def push_subscribe():
+    """Store a push subscription from the client."""
+    db = _db()
+    data = request.get_json(silent=True)
+    if not data or not data.get("endpoint") or not data.get("keys"):
+        return jsonify(error="Invalid subscription data"), 400
+
+    db.save_push_subscription(
+        endpoint=data["endpoint"],
+        p256dh=data["keys"]["p256dh"],
+        auth=data["keys"]["auth"],
+    )
+    return jsonify(ok=True)
 
 
 @bp.route("/upload", methods=["POST"])

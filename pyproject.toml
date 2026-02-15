@@ -11,6 +11,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "requests>=2.31",
     "markdown>=3.5",
+    "pywebpush>=2.0.0",
+    "py-vapid>=1.9.0",
 ]
 
 [project.scripts]

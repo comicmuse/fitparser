@@ -48,6 +48,14 @@ CREATE TABLE IF NOT EXISTS sync_log (
 
 CREATE INDEX IF NOT EXISTS idx_runs_date ON runs(date);
 CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -335,3 +343,34 @@ class RunCoachDB:
             "pending_analyze": pending_analyze,
             "errors": errors,
         }
+
+    # ------ push_subscriptions ------
+
+    def save_push_subscription(
+        self, endpoint: str, p256dh: str, auth: str
+    ) -> None:
+        """Save or update a push subscription."""
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(endpoint) DO UPDATE SET
+                     p256dh = excluded.p256dh,
+                     auth = excluded.auth""",
+                (endpoint, p256dh, auth, now),
+            )
+
+    def get_all_push_subscriptions(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT endpoint, p256dh, auth FROM push_subscriptions"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_push_subscription(self, endpoint: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM push_subscriptions WHERE endpoint = ?",
+                (endpoint,),
+            )
