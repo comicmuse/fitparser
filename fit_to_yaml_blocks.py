@@ -27,6 +27,8 @@ from typing import List, Optional, Dict, Any
 
 from fitparse import FitFile
 
+from runcoach.context import compute_rss
+
 
 # ---------- Data structures ----------
 
@@ -994,6 +996,14 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     distance_km_total = None if total_distance_m is None else total_distance_m / 1000.0
     duration_min_total = None if total_timer_s is None else total_timer_s / 60.0
 
+    # Prefer computed session avg power from record samples over FIT session message field
+    _session_avg_power = session_avg_power if session_avg_power is not None else avg_power_session
+    _session_rss = (
+        _round(compute_rss(_session_avg_power, critical_power, duration_min_total), 1)
+        if _session_avg_power and critical_power and duration_min_total
+        else None
+    )
+
     # Build the top-level summary dictionary (without blocks yet)
     summary: Dict[str, Any] = {
         "source_file": str(path),
@@ -1023,6 +1033,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         "recovery_time_min": recovery_time_min,
         "recovery_time_readable": recovery_time_readable,
         "critical_power": critical_power,
+        "session_rss": _session_rss,
         "avg_temperature": avg_temperature,
         "baseline_humidity": baseline_humidity,
         "actual_weight": _round(actual_weight, 1) if actual_weight is not None else None,
