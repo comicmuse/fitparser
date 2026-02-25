@@ -673,7 +673,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     vo2_max = None
     recovery_time_min = None
     critical_power = None
-    avg_temperature = None
+#    avg_temperature = None
     baseline_humidity = None
     
 
@@ -703,7 +703,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         critical_power = critical_power or d.get("CP")
         
         # Environmental conditions
-        avg_temperature = avg_temperature or d.get("avg_temperature")
+#        avg_temperature = avg_temperature or d.get("avg_temperature")
         baseline_humidity = baseline_humidity or d.get("Baseline Humidity")
 
     # VO2 max sometimes lives in a vendor message: unknown_140 field 7
@@ -1023,7 +1023,7 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         "recovery_time_min": recovery_time_min,
         "recovery_time_readable": recovery_time_readable,
         "critical_power": critical_power,
-        "avg_temperature": avg_temperature,
+ #       "avg_temperature": avg_temperature,
         "baseline_humidity": baseline_humidity,
         "actual_weight": _round(actual_weight, 1) if actual_weight is not None else None,
         "resting_hr": resting_hr,

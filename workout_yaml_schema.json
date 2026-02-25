@@ -139,10 +139,6 @@
       "type": ["number", "null"],
       "description": "Critical power (watts)"
     },
-    "avg_temperature": {
-      "type": ["number", "null"],
-      "description": "Average temperature (Celsius)"
-    },
     "baseline_humidity": {
       "type": ["number", "null"],
       "description": "Baseline humidity percentage"
