@@ -1,0 +1,80 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    🚀 CI/CD QUICK REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  BEFORE FIRST PUSH - DO THIS ONCE:
+
+    1. Enable write permissions:
+       → https://github.com/comicmuse/fitparser/settings/actions
+       → Select: "Read and write permissions"
+       → Save
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧪 TEST LOCALLY (OPTIONAL):
+
+    ./test-ci-build.sh
+
+    This builds and health checks the Docker image locally.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 COMMIT AND PUSH:
+
+    # Stage all changes
+    git add .github/ .dockerignore Dockerfile README.md test-ci-build.sh
+
+    # Commit with pre-written message
+    git commit -F .git-commit-message.txt
+
+    # Push to trigger CI
+    git push origin main
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👀 WATCH THE WORKFLOW:
+
+    https://github.com/comicmuse/fitparser/actions
+
+    Expected: ~8-12 minutes
+    - Test job: 3-4 min
+    - Build-and-Deploy job: 5-8 min
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ AFTER SUCCESS:
+
+    # Pull the published image
+    docker pull ghcr.io/comicmuse/runcoach:latest
+
+    # Run it
+    docker run -d -p 5000:5000 \
+      -v $(pwd)/data:/app/data \
+      -e SECRET_KEY="your-secret" \
+      -e OPENAI_API_KEY="sk-your-key" \
+      ghcr.io/comicmuse/runcoach:latest
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ IF IT FAILS:
+
+    1. Check workflow logs in Actions tab
+    2. Read .github/CI_SETUP.md troubleshooting section
+    3. Common issues:
+       • Forgot to enable write permissions
+       • Tests failing (run pytest locally)
+       • Health check timeout (container logs)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION:
+
+    CI_IMPLEMENTATION.md     Quick start guide
+    .github/CI_SETUP.md      Complete documentation
+    test-ci-build.sh         Local testing script
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 COST: $0.00 (public repo = free unlimited CI)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,5 +1,7 @@
 # RunCoach
 
+[![CI/CD](https://github.com/comicmuse/fitparser/actions/workflows/ci.yml/badge.svg)](https://github.com/comicmuse/fitparser/actions/workflows/ci.yml)
+
 Automated running workout analysis — syncs activities from [Stryd](https://www.stryd.com/), parses Garmin FIT files into structured YAML blocks, and generates AI coaching commentary using OpenAI.
 
 Installable as a **Progressive Web App (PWA)** on Android (or any browser) with push notifications when new analyses are ready.

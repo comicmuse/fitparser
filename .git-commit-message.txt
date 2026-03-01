@@ -1,0 +1,33 @@
+Add GitHub Actions CI/CD pipeline
+
+Implements automated testing and Docker image deployment:
+- Run pytest with 109 tests (69% coverage) on every push to main
+- Build Docker image with BuildKit cache
+- Health check container before publishing
+- Push to ghcr.io/comicmuse/runcoach:latest
+- Add CI/CD status badge to README
+
+Changes:
+- New: .github/workflows/ci.yml - Main CI/CD workflow
+- New: .dockerignore - Exclude unnecessary files from Docker builds
+- New: .github/CI_SETUP.md - Complete setup documentation
+- New: test-ci-build.sh - Local CI validation script
+- Modified: Dockerfile - Make strydcmd optional for CI builds
+- Modified: README.md - Add CI/CD status badge
+
+The workflow has two jobs:
+1. Test - Install dependencies and run pytest with coverage
+2. Build-and-Deploy - Build Docker image, health check, push to GHCR
+
+Docker build strategy handles missing strydcmd-src/ (in .gitignore) by
+conditionally installing it only if present. This allows CI to build
+without Stryd integration while production builds still work.
+
+Health check validates the container by starting it and polling the
+/status endpoint, ensuring only working images are published.
+
+Prerequisites:
+- Enable "Read and write permissions" in repo Actions settings
+- This is the only manual step required
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>

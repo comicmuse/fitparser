@@ -1,0 +1,55 @@
+# Virtual environment
+.venv
+venv
+*.venv
+
+# Git
+.git
+.gitignore
+.github
+
+# Claude Code
+.claude
+
+# Runtime data (will be mounted as volume)
+data/
+downloaded_activities.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.tox/
+.nox/
+tests/
+
+# Documentation
+*.md
+docs/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
