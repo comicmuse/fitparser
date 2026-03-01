@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 runcoach = "runcoach.web:main"
 runcoach-pipeline = "runcoach.pipeline:main"
+runcoach-cli = "runcoach.cli:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -27,4 +28,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["runcoach", "runcoach.web"]
-py-modules = ["fit_to_yaml_blocks"]

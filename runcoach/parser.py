@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from fit_to_yaml_blocks import build_blocks_from_fit
+from runcoach.fit_parser import build_blocks_from_fit
 
 log = logging.getLogger(__name__)
 
