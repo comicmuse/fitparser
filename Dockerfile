@@ -1,5 +1,8 @@
 FROM python:3.13-slim
 
+# Update base packages to patch security vulnerabilities (e.g., glibc CVEs)
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy everything first (strydcmd-src may or may not exist)
