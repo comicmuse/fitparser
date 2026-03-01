@@ -1,0 +1,350 @@
+"""Unit tests for runcoach.context module."""
+
+from __future__ import annotations
+
+import pytest
+from datetime import date, timedelta
+from pathlib import Path
+import yaml
+
+from runcoach.context import compute_rss, build_weekly_context, _classify_workout_type
+from runcoach.db import RunCoachDB
+
+
+class TestComputeRSS:
+    """Tests for RSS calculation."""
+
+    def test_compute_rss_normal(self):
+        """Test standard RSS calculation."""
+        # RSS = (duration_s / 3600) * (avg_power / CP)^2 * 100
+        # Example: 60 min at 200W with CP=250W
+        # RSS = 1 * (200/250)^2 * 100 = 1 * 0.64 * 100 = 64
+        rss = compute_rss(avg_power=200, critical_power=250, duration_min=60)
+        assert rss == pytest.approx(64.0, rel=0.01)
+
+    def test_compute_rss_zero_cp(self):
+        """Test RSS calculation with zero critical power."""
+        rss = compute_rss(avg_power=200, critical_power=0, duration_min=60)
+        assert rss == 0.0
+
+    def test_compute_rss_negative_cp(self):
+        """Test RSS calculation with negative critical power."""
+        rss = compute_rss(avg_power=200, critical_power=-100, duration_min=60)
+        assert rss == 0.0
+
+    def test_compute_rss_zero_power(self):
+        """Test RSS calculation with zero average power."""
+        rss = compute_rss(avg_power=0, critical_power=250, duration_min=60)
+        assert rss == 0.0
+
+    def test_compute_rss_high_intensity(self):
+        """Test RSS calculation at high intensity (above CP)."""
+        # 30 min at 300W with CP=250W
+        # RSS = 0.5 * (300/250)^2 * 100 = 0.5 * 1.44 * 100 = 72
+        rss = compute_rss(avg_power=300, critical_power=250, duration_min=30)
+        assert rss == pytest.approx(72.0, rel=0.01)
+
+    def test_compute_rss_low_intensity(self):
+        """Test RSS calculation at low intensity (below CP)."""
+        # 120 min at 150W with CP=250W
+        # RSS = 2 * (150/250)^2 * 100 = 2 * 0.36 * 100 = 72
+        rss = compute_rss(avg_power=150, critical_power=250, duration_min=120)
+        assert rss == pytest.approx(72.0, rel=0.01)
+
+
+class TestClassifyWorkoutType:
+    """Tests for workout type classification."""
+
+    def test_classify_recovery(self):
+        """Test classification of recovery runs."""
+        assert _classify_workout_type("recovery run", {}) == "easy/recovery"
+        assert _classify_workout_type("Easy Run", {}) == "easy/recovery"
+        assert _classify_workout_type("ez aerobic", {}) == "easy/recovery"
+
+    def test_classify_long_run(self):
+        """Test classification of long runs."""
+        assert _classify_workout_type("Long Run", {}) == "long run"
+        assert _classify_workout_type("Sunday long run", {}) == "long run"
+
+    def test_classify_tempo(self):
+        """Test classification of tempo runs."""
+        assert _classify_workout_type("HM Power Tempo", {}) == "tempo"
+        assert _classify_workout_type("tempo workout", {}) == "tempo"
+
+    def test_classify_intervals(self):
+        """Test classification of interval workouts."""
+        assert _classify_workout_type("interval workout", {}) == "intervals"
+        assert _classify_workout_type("supra-threshold interval workout", {}) == "intervals"
+
+    def test_classify_threshold(self):
+        """Test classification of threshold workouts."""
+        assert _classify_workout_type("threshold run", {}) == "threshold"
+        assert _classify_workout_type("near-threshold workout", {}) == "threshold"
+
+    def test_classify_race(self):
+        """Test classification of races."""
+        assert _classify_workout_type("marathon race", {}) == "race"
+        assert _classify_workout_type("Race day", {}) == "race"
+
+    def test_classify_test(self):
+        """Test classification of test workouts."""
+        assert _classify_workout_type("CP estimation test", {}) == "test"
+        assert _classify_workout_type("testing run", {}) == "test"
+
+    def test_classify_structured_with_blocks(self):
+        """Test classification based on block structure."""
+        blocks = {
+            "block_1": {"type": "warmup"},
+            "block_2": {"type": "active"},
+            "block_3": {"type": "cooldown"},
+        }
+        assert _classify_workout_type("unknown workout", blocks) == "structured"
+
+    def test_classify_fallback(self):
+        """Test fallback classification."""
+        assert _classify_workout_type("morning jog", {}) == "run"
+
+
+class TestBuildWeeklyContext:
+    """Tests for weekly context building."""
+
+    def test_build_weekly_context_empty_db(self, temp_db, tmp_path):
+        """Test context building with no runs in database."""
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=tmp_path,
+            db=temp_db,
+        )
+
+        assert "training_context" in context
+        tc = context["training_context"]
+
+        # Should have structure even with no data
+        assert tc["days"] == 7
+        assert tc["summary"]["total_runs"] == 0
+        assert tc["summary"]["rest_days"] == 7
+        assert tc["summary"]["total_distance_km"] == 0.0
+        assert tc["summary"]["total_duration_min"] == 0.0
+
+        # Training load should be zero
+        assert tc["training_load"]["atl_7d_avg_daily_rss"] == 0
+        assert tc["training_load"]["ctl_42d_avg_daily_rss"] == 0
+        assert tc["training_load"]["rsb_running_stress_balance"] == 0
+
+        # Activities list should be empty
+        assert tc["activities"] == []
+
+    def test_build_weekly_context_with_runs(self, temp_db, tmp_path):
+        """Test context building with runs in the 7-day window."""
+        # Create a data directory structure
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create a sample YAML file
+        yaml_dir = data_dir / "activities" / "2026" / "02"
+        yaml_dir.mkdir(parents=True)
+        yaml_path = yaml_dir / "20260225_test_run" / "20260225_test_run.yaml"
+        yaml_path.parent.mkdir(parents=True)
+
+        sample_yaml = {
+            "date": "2026-02-25",
+            "name": "Test Run",
+            "distance_km": 10.0,
+            "duration_min": 50.0,
+            "avg_power": 200,
+            "avg_hr": 150,
+            "critical_power": 250,
+            "blocks": {
+                "block_1": {"type": "warmup"},
+                "block_2": {"type": "active"},
+            }
+        }
+        with open(yaml_path, "w") as f:
+            yaml.dump(sample_yaml, f)
+
+        # Insert run into database
+        temp_db.insert_run(
+            stryd_activity_id=12345,
+            name="Test Run",
+            date="2026-02-25",
+            distance_m=10000,
+            moving_time_s=3000,
+            fit_path="activities/2026/02/20260225_test_run/20260225_test_run.fit",
+        )
+
+        # Update to parsed stage with yaml_path
+        runs = temp_db.get_all_runs()
+        temp_db.update_parsed(
+            run_id=runs[0]["id"],
+            yaml_path="activities/2026/02/20260225_test_run/20260225_test_run.yaml",
+            avg_power_w=200,
+            avg_hr=150,
+            workout_name="Test Run",
+        )
+
+        # Build context for one week after the run
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+        )
+
+        tc = context["training_context"]
+
+        # Should have one run in the window
+        assert tc["summary"]["total_runs"] == 1
+        assert tc["summary"]["rest_days"] == 6
+        assert tc["summary"]["total_distance_km"] == 10.0
+        assert tc["summary"]["total_duration_min"] == 50.0
+
+        # Check RSS calculation: (50/60) * (200/250)^2 * 100 = 0.833 * 0.64 * 100 = 53.3
+        expected_rss = (50/60) * (200/250)**2 * 100
+        assert tc["summary"]["total_rss"] == pytest.approx(expected_rss, rel=0.1)
+
+        # Check activities
+        assert len(tc["activities"]) == 1
+        activity = tc["activities"][0]
+        assert activity["name"] == "Test Run"
+        assert activity["distance_km"] == 10.0
+        assert activity["duration_min"] == 50.0
+        assert activity["avg_power_w"] == 200
+        assert activity["avg_hr_bpm"] == 150
+
+        # Training load
+        # ATL = total_rss / 7 (7-day average)
+        # CTL = total_rss / 42 (42-day average, but we only have 1 run)
+        # Since the run is within the 42-day window, it contributes to CTL
+        # but CTL is averaged over 42 days, so CTL = total_rss / 42
+        atl = tc["training_load"]["atl_7d_avg_daily_rss"]
+        ctl = tc["training_load"]["ctl_42d_avg_daily_rss"]
+        assert atl > 0
+        # CTL should be less than ATL since it's averaged over more days
+        assert ctl < atl
+        assert tc["training_load"]["rsb_running_stress_balance"] == pytest.approx(ctl - atl, rel=0.1)
+
+    def test_build_weekly_context_excludes_future_runs(self, temp_db, tmp_path):
+        """Test that runs on or after the target date are excluded."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create YAML for a run on the target date
+        yaml_dir = data_dir / "activities" / "2026" / "03"
+        yaml_dir.mkdir(parents=True)
+        yaml_path = yaml_dir / "20260301_future_run" / "20260301_future_run.yaml"
+        yaml_path.parent.mkdir(parents=True)
+
+        sample_yaml = {
+            "date": "2026-03-01",
+            "name": "Future Run",
+            "distance_km": 5.0,
+            "duration_min": 25.0,
+            "avg_power": 180,
+            "critical_power": 250,
+        }
+        with open(yaml_path, "w") as f:
+            yaml.dump(sample_yaml, f)
+
+        temp_db.insert_run(
+            stryd_activity_id=12346,
+            name="Future Run",
+            date="2026-03-01",
+            distance_m=5000,
+            moving_time_s=1500,
+            fit_path="activities/2026/03/20260301_future_run/20260301_future_run.fit",
+        )
+
+        runs = temp_db.get_all_runs()
+        temp_db.update_parsed(
+            run_id=runs[0]["id"],
+            yaml_path="activities/2026/03/20260301_future_run/20260301_future_run.yaml",
+            avg_power_w=180,
+            avg_hr=None,
+            workout_name="Future Run",
+        )
+
+        # Build context for the same date as the run
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+        )
+
+        # Run on target date should be excluded
+        assert context["training_context"]["summary"]["total_runs"] == 0
+        assert context["training_context"]["activities"] == []
+
+    def test_build_weekly_context_with_planned_workout(self, temp_db, tmp_path):
+        """Test context includes prescribed workout when available."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Insert a planned workout for the target date
+        temp_db.upsert_planned_workout(
+            date="2026-03-01",
+            title="Tempo Run",
+            description="30 min at tempo pace",
+            workout_type="tempo",
+            duration_s=1800,
+            distance_m=6000,
+            stress=75.0,
+        )
+
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+        )
+
+        tc = context["training_context"]
+
+        # Should have prescribed workout
+        assert "prescribed_workout" in tc
+        pw = tc["prescribed_workout"]
+        assert pw["title"] == "Tempo Run"
+        assert pw["type"] == "tempo"
+        assert pw["planned_duration_min"] == 30.0
+        assert pw["planned_distance_km"] == 6.0
+        assert pw["planned_stress"] == 75.0
+
+    def test_build_weekly_context_with_upcoming_workouts(self, temp_db, tmp_path):
+        """Test context includes next 2 scheduled workouts."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Insert upcoming planned workouts
+        temp_db.upsert_planned_workout(
+            date="2026-03-02",
+            title="Recovery Run",
+            workout_type="recovery",
+            duration_s=2400,
+            distance_m=5000,
+        )
+
+        temp_db.upsert_planned_workout(
+            date="2026-03-03",
+            title="Interval Workout",
+            workout_type="intervals",
+            duration_s=3600,
+            distance_m=8000,
+        )
+
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+        )
+
+        tc = context["training_context"]
+
+        # Should have next scheduled workouts
+        assert "next_scheduled_workouts" in tc
+        next_workouts = tc["next_scheduled_workouts"]
+        assert len(next_workouts) == 2
+
+        assert next_workouts[0]["date"] == "2026-03-02"
+        assert next_workouts[0]["title"] == "Recovery Run"
+        assert next_workouts[0]["type"] == "recovery"
+
+        assert next_workouts[1]["date"] == "2026-03-03"
+        assert next_workouts[1]["title"] == "Interval Workout"
+        assert next_workouts[1]["type"] == "intervals"

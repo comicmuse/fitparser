@@ -39,9 +39,30 @@ runcoach
 
 # Run full pipeline manually (sync + parse + analyze)
 runcoach-pipeline
+```
 
-# Docker deployment
+### Docker Deployment
+```bash
+# Build the Docker image
+docker compose build
+
+# Start the container (builds automatically if needed)
 docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop the container
+docker compose down
+
+# Rebuild and restart after code changes
+docker compose up -d --build
+```
+
+**Note:** Ensure your user is in the `docker` group to run Docker commands without sudo:
+```bash
+sudo usermod -aG docker $USER
+# Then log out and back in for the change to take effect
 ```
 
 ### Testing Individual Components
@@ -65,6 +86,54 @@ runcoach-cli analyze --file path/to/file.yaml
 # Analyze all YAML files in a directory
 runcoach-cli analyze --directory path/to/dir/
 ```
+
+### Running Tests
+
+The project includes comprehensive unit tests with pytest. Always run tests before committing changes.
+
+```bash
+# Install test dependencies (first time only)
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run all tests with verbose output
+pytest -v
+
+# Run tests with coverage report
+pytest --cov=runcoach --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_context.py
+
+# Run specific test function
+pytest tests/test_context.py::TestComputeRSS::test_compute_rss_normal
+
+# Run tests quietly (less output)
+pytest -q
+
+# Generate HTML coverage report
+pytest --cov=runcoach --cov-report=html
+# Open htmlcov/index.html in browser to view detailed coverage
+```
+
+**Test Structure:**
+- `tests/test_context.py` - Training context and RSS calculations (92% coverage)
+- `tests/test_db.py` - Database CRUD operations (96% coverage)
+- `tests/test_analyzer.py` - AI analysis with mocked OpenAI (96% coverage)
+- `tests/test_fit_parser.py` - FIT file parsing (83% coverage)
+- `tests/test_web.py` - Flask web UI routes and pages (49% coverage)
+- `tests/conftest.py` - Shared fixtures (temp databases, mock clients, sample files)
+
+**Current Coverage:** 69% overall (109 tests passing)
+
+**Testing Best Practices:**
+- External APIs (OpenAI, Stryd) are mocked to avoid costs and rate limits
+- Tests use temporary databases and directories (`tmp_path` fixture)
+- Real FIT/YAML files from `data/activities/` are used for integration tests
+- All timestamps use ISO 8601 format like production code
 
 ## Architecture
 

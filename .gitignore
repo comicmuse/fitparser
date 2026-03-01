@@ -13,6 +13,11 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
 # Secrets
 .env
 
