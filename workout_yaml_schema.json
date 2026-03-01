@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Garmin Structured Workout Summary",
-  "description": "Schema for YAML output from fit_to_yaml_blocks.py - a block-based summary of structured workouts from Garmin FIT files",
+  "description": "Schema for YAML output from runcoach.fit_parser - a block-based summary of structured workouts from Garmin FIT files",
   "type": "object",
   "required": [
     "source_file",

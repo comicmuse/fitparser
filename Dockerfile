@@ -9,7 +9,6 @@ RUN pip install --no-cache-dir /opt/strydcmd/
 
 # Install runcoach and dependencies
 COPY pyproject.toml .
-COPY fit_to_yaml_blocks.py .
 COPY workout_yaml_schema.json .
 COPY coach_profile.txt .
 COPY runcoach/ runcoach/

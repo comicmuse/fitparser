@@ -1,25 +1,17 @@
-#!/usr/bin/env python3
 """
-Convert a Garmin structured workout FIT file into a block-based YAML summary.
+Core module for RunCoach FIT file parsing.
 
-- Assumes the FIT file comes from a structured workout (e.g. Stryd → Garmin).
-- Maps workout steps to laps by index (step 0 → lap 0, etc.).
-- For each block/lap:
-    - duration, distance, avg HR, avg power
-    - if step has power target: % time below / in / above target band
-- Outputs YAML to stdout (or to a file if you uncomment the write section).
+Converts Garmin structured workout FIT files into block-based YAML summaries
+with power targets, HR zones, and running dynamics.
 
-This is designed as a starting point:
-- You can tweak block naming/classification logic.
-- You can plug it into Home Assistant / Pyscript later.
+Main public API:
+    - build_blocks_from_fit(fit_path, tz_name) -> dict
 """
 
 from __future__ import annotations
 
-import sys
 import math
 import statistics
-import yaml
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1205,31 +1197,3 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     summary["session_hr_zones"] = session_hr_zones
 
     return summary
-
-
-# ---------- CLI entrypoint ----------
-
-def main(argv: List[str]) -> None:
-    if len(argv) < 2:
-        print(f"Usage: {argv[0]} ACTIVITY.fit [Europe/London]", file=sys.stderr)
-        sys.exit(1)
-
-    fit_path = Path(argv[1])
-    if not fit_path.exists():
-        print(f"File not found: {fit_path}", file=sys.stderr)
-        sys.exit(1)
-
-    tz_name = argv[2] if len(argv) > 2 else "Europe/London"
-
-    summary = build_blocks_from_fit(fit_path, tz_name=tz_name)
-
-    # Write to YAML file alongside the FIT file
-    out_path = fit_path.with_suffix(".yaml")
-    with open(out_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(summary, f, sort_keys=False, allow_unicode=True)
-    print(f"Wrote {out_path}", file=sys.stderr)
-
-
-if __name__ == "__main__":
-    main(sys.argv)
-
