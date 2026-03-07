@@ -15,16 +15,29 @@ NC='\033[0m' # No Color
 IMAGE_NAME="runcoach-ci-test"
 CONTAINER_NAME="runcoach-ci-test"
 
+# Check if we need sudo for Docker
+DOCKER_CMD="docker"
+if ! docker ps >/dev/null 2>&1; then
+    if sudo docker ps >/dev/null 2>&1; then
+        DOCKER_CMD="sudo docker"
+        echo "ℹ️  Using sudo for Docker commands (user not in docker group)"
+        echo ""
+    else
+        echo -e "${RED}✗ Docker is not accessible. Please install Docker or add user to docker group.${NC}"
+        exit 1
+    fi
+fi
+
 # Clean up any existing test containers
 echo "🧹 Cleaning up any existing test containers..."
-docker stop $CONTAINER_NAME 2>/dev/null || true
-docker rm $CONTAINER_NAME 2>/dev/null || true
-docker rmi $IMAGE_NAME 2>/dev/null || true
+$DOCKER_CMD stop $CONTAINER_NAME 2>/dev/null || true
+$DOCKER_CMD rm $CONTAINER_NAME 2>/dev/null || true
+$DOCKER_CMD rmi $IMAGE_NAME 2>/dev/null || true
 
 # Build the Docker image (like CI does)
 echo ""
 echo "🐳 Building Docker image (without strydcmd, like CI)..."
-docker build -t $IMAGE_NAME .
+$DOCKER_CMD build -t $IMAGE_NAME .
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Docker build successful${NC}"
@@ -36,7 +49,7 @@ fi
 # Start the container (like CI does)
 echo ""
 echo "🚀 Starting container for health check..."
-docker run -d \
+$DOCKER_CMD run -d \
     --name $CONTAINER_NAME \
     -p 5000:5000 \
     -e SECRET_KEY="ci-test-secret-key-not-for-production" \
@@ -55,7 +68,7 @@ fi
 # Wait for Flask to start
 echo ""
 echo "⏳ Waiting for Flask server to start..."
-timeout 60 bash -c 'until docker logs runcoach-ci-test 2>&1 | grep -q "Running on"; do sleep 2; done'
+timeout 60 bash -c "until $DOCKER_CMD logs runcoach-ci-test 2>&1 | grep -q 'Running on'; do sleep 2; done"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Flask server started${NC}"
@@ -63,9 +76,9 @@ else
     echo -e "${RED}✗ Flask server failed to start${NC}"
     echo ""
     echo "Container logs:"
-    docker logs $CONTAINER_NAME
-    docker stop $CONTAINER_NAME
-    docker rm $CONTAINER_NAME
+    $DOCKER_CMD logs $CONTAINER_NAME
+    $DOCKER_CMD stop $CONTAINER_NAME
+    $DOCKER_CMD rm $CONTAINER_NAME
     exit 1
 fi
 
@@ -91,17 +104,17 @@ if [ -z "$HEALTH_OK" ]; then
     echo -e "${RED}✗ Health check failed after 10 attempts${NC}"
     echo ""
     echo "Container logs:"
-    docker logs $CONTAINER_NAME
-    docker stop $CONTAINER_NAME
-    docker rm $CONTAINER_NAME
+    $DOCKER_CMD logs $CONTAINER_NAME
+    $DOCKER_CMD stop $CONTAINER_NAME
+    $DOCKER_CMD rm $CONTAINER_NAME
     exit 1
 fi
 
 # Clean up
 echo ""
 echo "🧹 Cleaning up test container..."
-docker stop $CONTAINER_NAME
-docker rm $CONTAINER_NAME
+$DOCKER_CMD stop $CONTAINER_NAME
+$DOCKER_CMD rm $CONTAINER_NAME
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
