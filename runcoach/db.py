@@ -96,6 +96,18 @@ CREATE TABLE IF NOT EXISTS unifiedpush_subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_unifiedpush_user ON unifiedpush_subscriptions(user_id);
+
+CREATE TABLE IF NOT EXISTS expo_push_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    platform TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_expo_push_user ON expo_push_tokens(user_id);
 """
 
 
@@ -654,4 +666,46 @@ class RunCoachDB:
             conn.execute(
                 "DELETE FROM unifiedpush_subscriptions WHERE endpoint = ?",
                 (endpoint,),
+            )
+
+    # ------ expo_push_tokens ------
+
+    def save_expo_push_token(
+        self, user_id: int, token: str, platform: str
+    ) -> None:
+        """Save or update an Expo push token."""
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO expo_push_tokens (user_id, token, platform, created_at, last_used)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(token) DO UPDATE SET
+                     last_used = excluded.last_used,
+                     platform = excluded.platform""",
+                (user_id, token, platform, now, now),
+            )
+
+    def get_all_expo_push_tokens(self) -> list[dict]:
+        """Get all Expo push tokens (for sending notifications)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM expo_push_tokens"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_expo_push_tokens_for_user(self, user_id: int) -> list[dict]:
+        """Get all Expo push tokens for a specific user."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM expo_push_tokens WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_expo_push_token(self, token: str) -> None:
+        """Delete an Expo push token."""
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM expo_push_tokens WHERE token = ?",
+                (token,),
             )

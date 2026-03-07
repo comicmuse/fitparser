@@ -23,3 +23,4 @@ htmlcov/
 
 # Docker build artifact
 strydcmd-src/
+node_modules

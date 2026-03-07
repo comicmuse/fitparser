@@ -72,9 +72,17 @@ def format_run_for_api(run: dict, include_yaml: bool = False) -> dict:
     if include_yaml and run["yaml_path"]:
         try:
             yaml_path = Path(run["yaml_path"])
+            # If path is relative, make it relative to data directory
+            if not yaml_path.is_absolute():
+                config: Config = current_app.config["RUNCOACH_CONFIG"]
+                yaml_path = config.data_dir / yaml_path
+
             if yaml_path.exists():
                 with open(yaml_path) as f:
                     result["yaml_data"] = yaml.safe_load(f)
+            else:
+                log.warning(f"YAML file not found for run {run['id']}: {yaml_path}")
+                result["yaml_data"] = None
         except Exception as e:
             log.error(f"Failed to load YAML for run {run['id']}: {e}")
             result["yaml_data"] = None
@@ -394,27 +402,39 @@ def sync_status():
 @require_auth
 def register_push():
     """
-    Register UnifiedPush subscription.
+    Register push notification subscription (Expo or UnifiedPush).
 
     POST /api/v1/push/register
     Headers: Authorization: Bearer <access_token>
-    Body: {"endpoint": "https://ntfy.sh/up-12345", "topic": "up-12345"}
+    Body:
+      - Expo: {"token": "ExponentPushToken[xxx]", "platform": "android"}
+      - UnifiedPush: {"endpoint": "https://ntfy.sh/up-12345", "topic": "up-12345"}
     Response: {"message": "Push subscription registered"}
     """
     data = request.get_json()
-    if not data or "endpoint" not in data or "topic" not in data:
-        return jsonify({"error": "Missing endpoint or topic"}), 400
+    if not data:
+        return jsonify({"error": "Missing request body"}), 400
 
-    endpoint = data["endpoint"]
-    topic = data["topic"]
     user_id = request.user_id
-
     db = get_db()
-    db.save_unifiedpush_subscription(user_id, endpoint, topic)
 
-    log.info(f"Registered UnifiedPush subscription for user {user_id}: {topic}")
+    # Handle Expo push token
+    if "token" in data:
+        token = data["token"]
+        platform = data.get("platform", "unknown")
+        db.save_expo_push_token(user_id, token, platform)
+        log.info(f"Registered Expo push token for user {user_id} on {platform}")
+        return jsonify({"message": "Push subscription registered"}), 201
 
-    return jsonify({"message": "Push subscription registered"}), 201
+    # Handle UnifiedPush subscription
+    if "endpoint" in data and "topic" in data:
+        endpoint = data["endpoint"]
+        topic = data["topic"]
+        db.save_unifiedpush_subscription(user_id, endpoint, topic)
+        log.info(f"Registered UnifiedPush subscription for user {user_id}: {topic}")
+        return jsonify({"message": "Push subscription registered"}), 201
+
+    return jsonify({"error": "Missing token (Expo) or endpoint/topic (UnifiedPush)"}), 400
 
 
 @api_bp.route("/push/unregister", methods=["POST"])

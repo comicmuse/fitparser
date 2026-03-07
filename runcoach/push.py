@@ -1,4 +1,4 @@
-"""Web Push and UnifiedPush notification helpers for RunCoach."""
+"""Web Push, UnifiedPush, and Expo push notification helpers for RunCoach."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def send_analysis_notification(
 ) -> int:
     """
     Send a push notification to all subscribers that a run analysis is ready.
-    Supports both Web Push (VAPID) and UnifiedPush.
+    Supports Web Push (VAPID), UnifiedPush, and Expo push notifications.
 
     Returns the number of notifications sent successfully.
     """
@@ -97,6 +97,9 @@ def send_analysis_notification(
 
     # Send UnifiedPush notifications
     total_sent += _send_unifiedpush_notifications(db, run_id, run_name)
+
+    # Send Expo push notifications
+    total_sent += _send_expo_push_notifications(db, run_id, run_name)
 
     return total_sent
 
@@ -206,3 +209,75 @@ def _send_unifiedpush_notifications(
         log.info("Sent %d UnifiedPush notifications for run %d (%s)", sent, run_id, run_name)
 
     return sent
+
+
+def _send_expo_push_notifications(
+    db: "RunCoachDB",
+    run_id: int,
+    run_name: str,
+) -> int:
+    """Send Expo push notifications."""
+    tokens = db.get_all_expo_push_tokens()
+    if not tokens:
+        log.debug("No Expo push tokens registered")
+        return 0
+
+    # Prepare push messages
+    messages = []
+    for token_data in tokens:
+        messages.append({
+            "to": token_data["token"],
+            "title": "Analysis Ready ✅",
+            "body": f"Your run \"{run_name}\" has been analyzed",
+            "data": {
+                "type": "analysis_complete",
+                "run_id": run_id,
+                "run_name": run_name,
+                "url": f"runcoach://run/{run_id}",
+            },
+            "sound": "default",
+            "priority": "high",
+            "channelId": "default",
+        })
+
+    # Send to Expo Push API
+    try:
+        response = requests.post(
+            "https://exp.host/--/api/v2/push/send",
+            json=messages,
+            headers={
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip, deflate",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        # Parse response to count successes
+        result = response.json()
+        data = result.get("data", [])
+        sent = sum(1 for item in data if item.get("status") == "ok")
+
+        # Log any errors
+        errors = [item for item in data if item.get("status") == "error"]
+        if errors:
+            log.warning(f"Expo push errors: {errors}")
+
+            # Remove invalid tokens
+            for i, item in enumerate(data):
+                if item.get("status") == "error" and item.get("details", {}).get("error") == "DeviceNotRegistered":
+                    try:
+                        db.delete_expo_push_token(messages[i]["to"])
+                        log.info(f"Removed invalid Expo token: {messages[i]['to'][:20]}...")
+                    except Exception:
+                        pass
+
+        if sent > 0:
+            log.info("Sent %d Expo push notifications for run %d (%s)", sent, run_id, run_name)
+
+        return sent
+
+    except requests.RequestException as e:
+        log.error(f"Failed to send Expo push notifications: {e}")
+        return 0
