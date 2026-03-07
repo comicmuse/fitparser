@@ -348,3 +348,166 @@ class TestBuildWeeklyContext:
         assert next_workouts[1]["date"] == "2026-03-03"
         assert next_workouts[1]["title"] == "Interval Workout"
         assert next_workouts[1]["type"] == "intervals"
+
+    def test_build_weekly_context_with_cp_change(self, temp_db, tmp_path):
+        """Test context detects and reports CP changes."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create a run before the target date with CP=200
+        run_dir_1 = data_dir / "run1"
+        run_dir_1.mkdir()
+        yaml_file_1 = run_dir_1 / "run1.yaml"
+        yaml_file_1.write_text(
+            "date: '2026-02-25'\n"
+            "workout_name: Test Run 1\n"
+            "distance_km: 5.0\n"
+            "duration_min: 30.0\n"
+            "avg_power: 180\n"
+            "avg_hr: 145\n"
+            "critical_power: 200\n"
+            "blocks: {}\n"
+        )
+
+        temp_db.insert_run(
+            stryd_activity_id=1,
+            name="Test Run 1",
+            date="2026-02-25",
+            fit_path="run1/run1.fit",
+        )
+        temp_db.update_parsed(
+            run_id=1,
+            yaml_path="run1/run1.yaml",
+            avg_power_w=180,
+            avg_hr=145,
+            workout_name="Test Run 1",
+        )
+
+        # Build context for a run on 2026-03-01 with NEW CP=210
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+            current_cp=210,  # New CP value
+        )
+
+        tc = context["training_context"]
+
+        # Should have current CP
+        assert tc["critical_power_w"] == 210
+
+        # Should detect CP change
+        assert "cp_update" in tc
+        cp_update = tc["cp_update"]
+        assert cp_update["previous_cp_w"] == 200
+        assert cp_update["current_cp_w"] == 210
+        assert cp_update["change_w"] == 10
+        assert cp_update["change_pct"] == 5.0
+        assert "increased from 200W to 210W" in cp_update["note"]
+
+    def test_build_weekly_context_with_cp_decrease(self, temp_db, tmp_path):
+        """Test context detects CP decreases."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create a run before the target date with CP=210
+        run_dir_1 = data_dir / "run1"
+        run_dir_1.mkdir()
+        yaml_file_1 = run_dir_1 / "run1.yaml"
+        yaml_file_1.write_text(
+            "date: '2026-02-25'\n"
+            "workout_name: Test Run 1\n"
+            "distance_km: 5.0\n"
+            "duration_min: 30.0\n"
+            "avg_power: 190\n"
+            "avg_hr: 145\n"
+            "critical_power: 210\n"
+            "blocks: {}\n"
+        )
+
+        temp_db.insert_run(
+            stryd_activity_id=1,
+            name="Test Run 1",
+            date="2026-02-25",
+            fit_path="run1/run1.fit",
+        )
+        temp_db.update_parsed(
+            run_id=1,
+            yaml_path="run1/run1.yaml",
+            avg_power_w=190,
+            avg_hr=145,
+            workout_name="Test Run 1",
+        )
+
+        # Build context for a run on 2026-03-01 with DECREASED CP=200
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+            current_cp=200,  # Decreased CP value
+        )
+
+        tc = context["training_context"]
+
+        # Should have current CP
+        assert tc["critical_power_w"] == 200
+
+        # Should detect CP change
+        assert "cp_update" in tc
+        cp_update = tc["cp_update"]
+        assert cp_update["previous_cp_w"] == 210
+        assert cp_update["current_cp_w"] == 200
+        assert cp_update["change_w"] == -10
+        assert cp_update["change_pct"] == pytest.approx(-4.76, rel=0.01)
+        assert "decreased from 210W to 200W" in cp_update["note"]
+
+    def test_build_weekly_context_no_cp_change(self, temp_db, tmp_path):
+        """Test context when CP stays the same."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create a run before the target date with CP=200
+        run_dir_1 = data_dir / "run1"
+        run_dir_1.mkdir()
+        yaml_file_1 = run_dir_1 / "run1.yaml"
+        yaml_file_1.write_text(
+            "date: '2026-02-25'\n"
+            "workout_name: Test Run 1\n"
+            "distance_km: 5.0\n"
+            "duration_min: 30.0\n"
+            "avg_power: 180\n"
+            "avg_hr: 145\n"
+            "critical_power: 200\n"
+            "blocks: {}\n"
+        )
+
+        temp_db.insert_run(
+            stryd_activity_id=1,
+            name="Test Run 1",
+            date="2026-02-25",
+            fit_path="run1/run1.fit",
+        )
+        temp_db.update_parsed(
+            run_id=1,
+            yaml_path="run1/run1.yaml",
+            avg_power_w=180,
+            avg_hr=145,
+            workout_name="Test Run 1",
+        )
+
+        # Build context for a run on 2026-03-01 with SAME CP=200
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+            current_cp=200,  # Same CP value
+        )
+
+        tc = context["training_context"]
+
+        # Should have current CP
+        assert tc["critical_power_w"] == 200
+
+        # Should NOT have cp_update since it didn't change
+        assert "cp_update" not in tc
+

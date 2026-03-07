@@ -58,9 +58,16 @@ def build_weekly_context(
     run_date: str,
     data_dir: Path,
     db: RunCoachDB,
+    current_cp: float | None = None,
 ) -> dict:
     """
     Build a weekly training context summary for the 7 days before run_date.
+
+    Args:
+        run_date: The date of the run being analyzed (YYYY-MM-DD)
+        data_dir: Path to the data directory
+        db: Database instance
+        current_cp: The CP from the current run being analyzed (if available)
 
     Returns a dict suitable for YAML serialisation.
     """
@@ -83,12 +90,12 @@ def build_weekly_context(
     total_distance_km = 0.0
     total_duration_min = 0.0
     total_rss = 0.0
-    
-    # First, find the most recent critical power from any run (including beyond 7 days)
-    # to use as fallback when individual runs don't have CP
-    critical_power = None
+
+    # Find the most recent CP from runs BEFORE the target date (previous CP)
+    # This helps us detect if CP changed with the current run
+    previous_cp = None
     for run in reversed(all_runs):  # Most recent first
-        if run.get("yaml_path"):
+        if run.get("yaml_path") and run["date"] < target.isoformat():
             yaml_path = data_dir / run["yaml_path"]
             if yaml_path.exists():
                 try:
@@ -96,10 +103,20 @@ def build_weekly_context(
                         parsed = yaml.safe_load(f)
                     cp = parsed.get("critical_power")
                     if cp and cp > 0:
-                        critical_power = cp
+                        previous_cp = cp
                         break
                 except Exception:
                     continue
+
+    # Use current CP if provided, otherwise fall back to previous CP
+    critical_power = current_cp if current_cp else previous_cp
+
+    # Track if CP changed between previous and current
+    cp_changed = False
+    cp_change_amount = 0
+    if previous_cp and current_cp and previous_cp != current_cp:
+        cp_changed = True
+        cp_change_amount = current_cp - previous_cp
 
     for run in week_runs:
         yaml_path = data_dir / run["yaml_path"]
@@ -115,13 +132,13 @@ def build_weekly_context(
         dist = parsed.get("distance_km", 0) or 0
         dur = parsed.get("duration_min", 0) or 0
         pwr = parsed.get("avg_power") or 0
-        cp = parsed.get("critical_power") or critical_power or 0  # Use fallback CP
+        # Use the run's own CP if available, otherwise use previous_cp
+        cp = parsed.get("critical_power") or previous_cp or 0
         hr = parsed.get("avg_hr", 0) or 0
         blocks = parsed.get("blocks", {})
 
-        # Update critical_power if this run has a valid one
-        if parsed.get("critical_power") and parsed.get("critical_power") > 0:
-            critical_power = parsed.get("critical_power")
+        # Note: We don't update previous_cp here since we're looking at historical runs
+        # The previous_cp should stay fixed as the CP before the target date
 
         # Use Stryd RSS if available (most accurate), otherwise calculate it
         stryd_rss = parsed.get("stryd_rss")
@@ -187,9 +204,9 @@ def build_weekly_context(
         if stryd_rss is not None:
             chronic_rss += stryd_rss
         else:
-            # Fall back to calculated RSS
+            # Fall back to calculated RSS using previous_cp
             pwr = parsed.get("avg_power") or 0
-            cp = parsed.get("critical_power") or critical_power or 0
+            cp = parsed.get("critical_power") or previous_cp or 0
             dur = parsed.get("duration_min", 0) or 0
             if pwr > 0 and cp > 0:
                 chronic_rss += compute_rss(pwr, cp, dur)
@@ -239,6 +256,16 @@ def build_weekly_context(
 
     if critical_power:
         context["training_context"]["critical_power_w"] = critical_power
+
+    # Add CP change information if detected
+    if cp_changed:
+        context["training_context"]["cp_update"] = {
+            "previous_cp_w": previous_cp,
+            "current_cp_w": current_cp,
+            "change_w": cp_change_amount,
+            "change_pct": round((cp_change_amount / previous_cp * 100), 1) if previous_cp else 0,
+            "note": f"Critical Power {'increased' if cp_change_amount > 0 else 'decreased'} from {previous_cp}W to {current_cp}W"
+        }
 
     # ---- Prescribed workout (from Stryd training plan) ----
     planned = db.get_planned_workout_for_date(target.isoformat())

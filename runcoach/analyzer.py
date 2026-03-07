@@ -152,9 +152,15 @@ def analyze_and_write(
         try:
             parsed = yaml.safe_load(yaml_content)
             run_date = parsed.get("date")
+            current_cp = parsed.get("critical_power")
             if run_date:
                 from runcoach.context import build_weekly_context
-                context = build_weekly_context(run_date, config.data_dir, db)
+                context = build_weekly_context(
+                    run_date,
+                    config.data_dir,
+                    db,
+                    current_cp=current_cp,
+                )
                 context_yaml = yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
         except Exception:
             log.exception("Failed to build training context, proceeding without it")
