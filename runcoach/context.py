@@ -123,9 +123,18 @@ def build_weekly_context(
         if parsed.get("critical_power") and parsed.get("critical_power") > 0:
             critical_power = parsed.get("critical_power")
 
-        # Compute RSS if we have power and CP
+        # Use Stryd RSS if available (most accurate), otherwise calculate it
+        stryd_rss = parsed.get("stryd_rss")
         has_power = pwr > 0
-        rss = compute_rss(pwr, cp, dur) if (has_power and cp > 0) else None
+        if stryd_rss is not None:
+            rss = stryd_rss
+            rss_source = "Stryd"
+        elif has_power and cp > 0:
+            rss = compute_rss(pwr, cp, dur)
+            rss_source = "calculated"
+        else:
+            rss = None
+            rss_source = None
 
         workout_type = _classify_workout_type(
             parsed.get("workout_name") or parsed.get("name") or run["name"],
@@ -142,6 +151,7 @@ def build_weekly_context(
             "avg_hr_bpm": round(hr, 0) if hr else None,
             "rss": round(rss, 1) if rss is not None else None,
             "rss_note": None if has_power else "no power data",
+            "rss_source": rss_source,
         }
         activities.append(activity)
 
@@ -171,11 +181,18 @@ def build_weekly_context(
                 parsed = yaml.safe_load(f)
         except Exception:
             continue
-        pwr = parsed.get("avg_power") or 0
-        cp = parsed.get("critical_power") or critical_power or 0  # Use fallback CP
-        dur = parsed.get("duration_min", 0) or 0
-        if pwr > 0 and cp > 0:
-            chronic_rss += compute_rss(pwr, cp, dur)
+
+        # Prefer Stryd RSS if available
+        stryd_rss = parsed.get("stryd_rss")
+        if stryd_rss is not None:
+            chronic_rss += stryd_rss
+        else:
+            # Fall back to calculated RSS
+            pwr = parsed.get("avg_power") or 0
+            cp = parsed.get("critical_power") or critical_power or 0
+            dur = parsed.get("duration_min", 0) or 0
+            if pwr > 0 and cp > 0:
+                chronic_rss += compute_rss(pwr, cp, dur)
         chronic_run_count += 1
 
     # Stryd RSB Model:

@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS runs (
     parsed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    is_manual_upload INTEGER NOT NULL DEFAULT 0
+    is_manual_upload INTEGER NOT NULL DEFAULT 0,
+    stryd_rss REAL
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (
@@ -105,6 +106,12 @@ class RunCoachDB:
                 conn.execute(
                     "ALTER TABLE runs ADD COLUMN is_manual_upload INTEGER NOT NULL DEFAULT 0"
                 )
+            # Migration: add stryd_rss column if it doesn't exist
+            if "stryd_rss" not in columns:
+                conn.execute(
+                    "ALTER TABLE runs ADD COLUMN stryd_rss REAL"
+                )
+
             # Migration: allow NULL stryd_activity_id for manual uploads
             # Check if stryd_activity_id has NOT NULL constraint (column index 3 is notnull flag)
             if "stryd_activity_id" in columns and columns["stryd_activity_id"][3] == 1:
@@ -137,16 +144,18 @@ class RunCoachDB:
                         parsed_at TEXT,
                         created_at TEXT NOT NULL DEFAULT (datetime('now')),
                         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-                        is_manual_upload INTEGER NOT NULL DEFAULT 0
+                        is_manual_upload INTEGER NOT NULL DEFAULT 0,
+                        stryd_rss REAL
                     );
                     
-                    INSERT INTO runs_new SELECT 
+                    INSERT INTO runs_new SELECT
                         id, stryd_activity_id, name, date, distance_m, moving_time_s,
                         fit_path, yaml_path, md_path, stage, error_message,
                         avg_power_w, avg_hr, workout_name, commentary, analyzed_at,
                         model_used, prompt_tokens, completion_tokens, synced_at,
-                        parsed_at, created_at, updated_at, 
-                        COALESCE(is_manual_upload, 0)
+                        parsed_at, created_at, updated_at,
+                        COALESCE(is_manual_upload, 0),
+                        NULL
                     FROM runs;
                     
                     DROP TABLE runs;
@@ -190,16 +199,17 @@ class RunCoachDB:
         fit_path: str,
         distance_m: float | None = None,
         moving_time_s: int | None = None,
+        stryd_rss: float | None = None,
     ) -> int:
         now = _now_iso()
         with self._connect() as conn:
             cur = conn.execute(
                 """INSERT INTO runs
                    (stryd_activity_id, name, date, fit_path,
-                    distance_m, moving_time_s, stage, synced_at)
-                   VALUES (?, ?, ?, ?, ?, ?, 'synced', ?)""",
+                    distance_m, moving_time_s, stage, synced_at, stryd_rss)
+                   VALUES (?, ?, ?, ?, ?, ?, 'synced', ?, ?)""",
                 (stryd_activity_id, name, date, fit_path,
-                 distance_m, moving_time_s, now),
+                 distance_m, moving_time_s, now, stryd_rss),
             )
             return cur.lastrowid
 

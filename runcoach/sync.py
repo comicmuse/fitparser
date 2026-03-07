@@ -51,6 +51,7 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
             timestamp = activity.get("timestamp", 0)
             distance = activity.get("distance")
             moving_time = activity.get("moving_time")
+            stryd_rss = activity.get("stress")  # Stryd's Running Stress Score
 
             dt = datetime.fromtimestamp(timestamp)
             date_str = dt.strftime("%Y-%m-%d")
@@ -89,6 +90,7 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
                 fit_path=fit_path_rel,
                 distance_m=distance,
                 moving_time_s=int(moving_time) if moving_time else None,
+                stryd_rss=stryd_rss,
             )
 
             new_runs.append({"id": run_id, "name": name, "date": date_str})

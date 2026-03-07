@@ -50,7 +50,12 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
         for run in db.get_pending_runs("synced"):
             try:
                 fit_path = config.data_dir / run["fit_path"]
-                yaml_path = parse_and_write(fit_path, timezone=config.timezone)
+                stryd_rss = run.get("stryd_rss")
+                yaml_path = parse_and_write(
+                    fit_path,
+                    timezone=config.timezone,
+                    stryd_rss=stryd_rss,
+                )
                 yaml_path_rel = str(yaml_path.relative_to(config.data_dir))
 
                 # Read back parsed summary for DB fields
