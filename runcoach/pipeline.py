@@ -51,10 +51,19 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
             try:
                 fit_path = config.data_dir / run["fit_path"]
                 stryd_rss = run.get("stryd_rss")
+
+                # Get planned workout title for this date to use full name (FIT truncates at 32 chars)
+                planned_workout_title = None
+                if run.get("date"):
+                    planned_workouts = db.get_planned_workout_for_date(run["date"])
+                    if planned_workouts:
+                        planned_workout_title = planned_workouts[0]["title"]
+
                 yaml_path = parse_and_write(
                     fit_path,
                     timezone=config.timezone,
                     stryd_rss=stryd_rss,
+                    planned_workout_title=planned_workout_title,
                 )
                 yaml_path_rel = str(yaml_path.relative_to(config.data_dir))
 

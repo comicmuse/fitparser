@@ -409,7 +409,18 @@ def upload():
 
     # Parse the FIT file immediately to get distance/duration
     try:
-        yaml_path = parse_and_write(fit_path, timezone=config.timezone, manual_upload=True)
+        # Get planned workout title for this date to use full name (FIT truncates at 32 chars)
+        planned_workout_title = None
+        planned_workouts = db.get_planned_workout_for_date(date_str)
+        if planned_workouts:
+            planned_workout_title = planned_workouts[0]["title"]
+
+        yaml_path = parse_and_write(
+            fit_path,
+            timezone=config.timezone,
+            manual_upload=True,
+            planned_workout_title=planned_workout_title,
+        )
         yaml_path_rel = str(yaml_path.relative_to(config.data_dir))
 
         # Read back parsed summary for DB fields
