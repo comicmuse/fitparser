@@ -51,5 +51,8 @@ docs/
 .env.*
 !.env.example
 
+# Stryd CLI (installed from GitHub, not local copy)
+strydcmd-src/
+
 # Logs
 *.log

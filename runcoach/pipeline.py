@@ -31,20 +31,26 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
         summary = {"synced": 0, "parsed": 0, "analyzed": 0, "errors": 0, "planned": 0}
 
         # 1. Sync new activities from Stryd
-        try:
-            new_runs = sync_new_activities(config, db)
-            summary["synced"] = len(new_runs)
-        except Exception as e:
-            log.error("Sync stage failed: %s", e)
-            summary["errors"] += 1
+        if not config.stryd_email or not config.stryd_password:
+            log.info("Stryd credentials not configured, skipping sync")
+        else:
+            try:
+                new_runs = sync_new_activities(config, db)
+                summary["synced"] = len(new_runs)
+            except Exception as e:
+                log.error("Sync stage failed: %s", e)
+                summary["errors"] += 1
 
         # 1b. Sync planned workouts from training calendar
-        try:
-            planned_count = sync_planned_workouts(config, db)
-            summary["planned"] = planned_count
-        except Exception as e:
-            log.error("Planned workouts sync failed: %s", e)
-            # Non-fatal: don't increment errors for this
+        if not config.stryd_email or not config.stryd_password:
+            pass  # Already logged above
+        else:
+            try:
+                planned_count = sync_planned_workouts(config, db)
+                summary["planned"] = planned_count
+            except Exception as e:
+                log.error("Planned workouts sync failed: %s", e)
+                # Non-fatal: don't increment errors for this
 
         # 2. Parse all pending FIT files
         for run in db.get_pending_runs("synced"):

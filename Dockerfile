@@ -1,23 +1,14 @@
 FROM python:3.13-slim
 
-# Update base packages to patch security vulnerabilities (e.g., glibc CVEs)
-RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Update base packages and install git (needed to pip install strydcmd from GitHub)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends git && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy everything first (strydcmd-src may or may not exist)
+# Copy application source
 COPY . .
 
-# Install strydcmd if present (for production builds with Stryd integration)
-# In CI, strydcmd-src/ won't exist in the repo - that's fine for health checks
-RUN if [ -d strydcmd-src ] && [ -f strydcmd-src/pyproject.toml ]; then \
-      pip install --no-cache-dir ./strydcmd-src/ && \
-      echo "✓ Stryd integration enabled"; \
-    else \
-      echo "⚠ Stryd integration disabled (strydcmd-src not found - this is expected in CI)"; \
-    fi
-
-# Install runcoach and dependencies
+# Install runcoach and all dependencies (including strydcmd from GitHub)
 RUN pip install --no-cache-dir .
 
 # Data volume for activities, database, etc.

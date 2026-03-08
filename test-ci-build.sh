@@ -36,7 +36,7 @@ $DOCKER_CMD rmi $IMAGE_NAME 2>/dev/null || true
 
 # Build the Docker image (like CI does)
 echo ""
-echo "🐳 Building Docker image (without strydcmd, like CI)..."
+echo "🐳 Building Docker image..."
 $DOCKER_CMD build -t $IMAGE_NAME .
 
 if [ $? -eq 0 ]; then
@@ -108,6 +108,21 @@ if [ -z "$HEALTH_OK" ]; then
     $DOCKER_CMD stop $CONTAINER_NAME
     $DOCKER_CMD rm $CONTAINER_NAME
     exit 1
+fi
+
+# Check for ERROR lines in container logs
+echo ""
+echo "🔍 Checking container logs for errors..."
+ERROR_LINES=$($DOCKER_CMD logs $CONTAINER_NAME 2>&1 | grep -c "ERROR" || true)
+if [ "$ERROR_LINES" -gt 0 ]; then
+    echo -e "${RED}✗ Found $ERROR_LINES ERROR line(s) in container logs:${NC}"
+    $DOCKER_CMD logs $CONTAINER_NAME 2>&1 | grep "ERROR"
+    echo ""
+    $DOCKER_CMD stop $CONTAINER_NAME
+    $DOCKER_CMD rm $CONTAINER_NAME
+    exit 1
+else
+    echo -e "${GREEN}✓ No errors in container logs${NC}"
 fi
 
 # Clean up
