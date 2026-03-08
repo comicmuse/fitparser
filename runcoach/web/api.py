@@ -328,12 +328,16 @@ def analyze_run(run_id: int):
     from runcoach.analyzer import analyze_run as do_analysis
     import threading
 
+    # Capture Flask app context for background thread
+    app = current_app._get_current_object()
+
     def analyze_task():
-        try:
-            config: Config = current_app.config["RUNCOACH_CONFIG"]
-            do_analysis(run_id, config, db)
-        except Exception as e:
-            log.error(f"Analysis failed for run {run_id}: {e}")
+        with app.app_context():
+            try:
+                config: Config = app.config["RUNCOACH_CONFIG"]
+                do_analysis(run_id, config, db)
+            except Exception as e:
+                log.error(f"Analysis failed for run {run_id}: {e}")
 
     thread = threading.Thread(target=analyze_task, daemon=True)
     thread.start()
