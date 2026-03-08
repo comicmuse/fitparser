@@ -499,34 +499,73 @@ def unregister_push():
 @require_auth
 def test_push():
     """
-    Send a test push notification.
+    Send a test push notification to all registered devices.
 
     POST /api/v1/push/test
     Headers: Authorization: Bearer <access_token>
-    Response: {"message": "Test notification sent"}
+    Response: {"message": "Test notification sent to X devices"}
     """
     user_id = request.user_id
-
     db = get_db()
-    subscriptions = db.get_unifiedpush_subscriptions_for_user(user_id)
 
-    if not subscriptions:
-        return jsonify({"error": "No push subscriptions found"}), 404
+    total_sent = 0
 
-    # Send test notification
-    from runcoach.push import UnifiedPushNotifier
+    # Test UnifiedPush subscriptions
+    unifiedpush_subs = db.get_unifiedpush_subscriptions_for_user(user_id)
+    if unifiedpush_subs:
+        from runcoach.push import UnifiedPushNotifier
+        notifier = UnifiedPushNotifier()
 
-    notifier = UnifiedPushNotifier()
+        for sub in unifiedpush_subs:
+            try:
+                success = notifier.send_notification(
+                    topic=sub["topic"],
+                    title="Test Notification 🔔",
+                    message="RunCoach push notifications are working!",
+                    click_url="runcoach://home",
+                )
+                if success:
+                    total_sent += 1
+            except Exception as e:
+                log.error(f"Failed to send UnifiedPush test notification: {e}")
 
-    for sub in subscriptions:
+    # Test Expo push tokens
+    expo_tokens = db.get_expo_push_tokens_for_user(user_id)
+    if expo_tokens:
+        import requests
+
+        messages = []
+        for token_data in expo_tokens:
+            messages.append({
+                "to": token_data["token"],
+                "title": "Test Notification 🔔",
+                "body": "RunCoach push notifications are working!",
+                "data": {
+                    "type": "test",
+                    "url": "runcoach://home",
+                },
+                "sound": "default",
+                "priority": "high",
+            })
+
         try:
-            notifier.send_notification(
-                topic=sub["topic"],
-                title="Test Notification",
-                message="RunCoach push notifications are working!",
-                click_url="runcoach://home",
+            response = requests.post(
+                "https://exp.host/--/api/v2/push/send",
+                json=messages,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
             )
+            response.raise_for_status()
+            result = response.json()
+            data = result.get("data", [])
+            total_sent += sum(1 for item in data if item.get("status") == "ok")
         except Exception as e:
-            log.error(f"Failed to send test notification: {e}")
+            log.error(f"Failed to send Expo test notification: {e}")
 
-    return jsonify({"message": "Test notification sent"}), 200
+    if total_sent == 0:
+        return jsonify({"error": "No push subscriptions found or all failed"}), 404
+
+    return jsonify({"message": f"Test notification sent to {total_sent} device(s)"}), 200
