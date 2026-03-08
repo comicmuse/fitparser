@@ -325,7 +325,7 @@ def analyze_run(run_id: int):
         return jsonify({"error": f"Run must be in 'parsed' stage (currently '{run['stage']}')"}), 400
 
     # Trigger analysis asynchronously
-    from runcoach.analyzer import analyze_run as do_analysis
+    from runcoach.analyzer import analyze_and_write
     import threading
 
     # Capture Flask app context for background thread
@@ -335,9 +335,39 @@ def analyze_run(run_id: int):
         with app.app_context():
             try:
                 config: Config = app.config["RUNCOACH_CONFIG"]
-                do_analysis(run_id, config, db)
+
+                # Re-fetch run data within the app context
+                fresh_run = db.get_run(run_id)
+                if not fresh_run:
+                    log.error(f"Run {run_id} not found during analysis")
+                    return
+
+                yaml_path = config.data_dir / fresh_run["yaml_path"]
+                md_path, result = analyze_and_write(yaml_path, config, db=db)
+
+                # Update database with results
+                md_path_rel = str(md_path.relative_to(config.data_dir))
+                db.update_analyzed(
+                    run_id=fresh_run["id"],
+                    md_path=md_path_rel,
+                    commentary=result["commentary"],
+                    model_used=config.openai_model,
+                    prompt_tokens=result.get("prompt_tokens"),
+                    completion_tokens=result.get("completion_tokens"),
+                )
+                log.info(f"Analysis complete for run {run_id}")
+
+                # Send push notification
+                try:
+                    from runcoach.push import send_analysis_notification
+                    run_name = fresh_run.get("workout_name") or fresh_run.get("name") or f"Run #{run_id}"
+                    send_analysis_notification(config, db, fresh_run["id"], run_name)
+                except Exception as e:
+                    log.warning(f"Push notification failed: {e}")
+
             except Exception as e:
-                log.error(f"Analysis failed for run {run_id}: {e}")
+                log.exception(f"Analysis failed for run {run_id}")  # Use log.exception for full traceback
+                db.update_error(run_id, f"Analysis error: {e}")
 
     thread = threading.Thread(target=analyze_task, daemon=True)
     thread.start()
