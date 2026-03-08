@@ -94,7 +94,7 @@ def build_weekly_context(
     # Find the most recent CP from runs BEFORE the target date (previous CP)
     # This helps us detect if CP changed with the current run
     previous_cp = None
-    for run in reversed(all_runs):  # Most recent first
+    for run in sorted(all_runs, key=lambda r: r["date"], reverse=True):  # Most recent first
         if run.get("yaml_path") and run["date"] < target.isoformat():
             yaml_path = data_dir / run["yaml_path"]
             if yaml_path.exists():
