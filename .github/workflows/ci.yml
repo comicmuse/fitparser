@@ -112,6 +112,17 @@ jobs:
           docker logs runcoach-test
           exit 1
 
+      - name: Check container logs for errors
+        run: |
+          echo "Checking container logs for ERROR lines..."
+          ERROR_LINES=$(docker logs runcoach-test 2>&1 | grep -c "ERROR" || true)
+          if [ "$ERROR_LINES" -gt 0 ]; then
+            echo "Found $ERROR_LINES ERROR line(s) in container logs:"
+            docker logs runcoach-test 2>&1 | grep "ERROR"
+            exit 1
+          fi
+          echo "✓ No errors in container logs"
+
       - name: Stop test container
         if: always()
         run: |

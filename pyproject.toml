@@ -17,6 +17,7 @@ dependencies = [
     "nh3>=0.2.14",
     "pyjwt>=2.8.0",
     "werkzeug>=3.0",
+    "strydcmd @ git+https://github.com/comicmuse/strydcmd.git",
 ]
 
 [project.scripts]
