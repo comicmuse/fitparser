@@ -476,6 +476,15 @@ class RunCoachDB:
             )
             return cur.lastrowid
 
+    def delete_planned_workout(self, date: str, title: str) -> bool:
+        """Delete a planned workout by date and title. Returns True if deleted."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM planned_workouts WHERE date = ? AND title = ?",
+                (date, title),
+            )
+            return cur.rowcount > 0
+
     def get_planned_workout_for_date(self, date: str) -> list[dict]:
         """Get all planned workouts for a given date."""
         with self._connect() as conn:

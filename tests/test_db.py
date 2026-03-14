@@ -457,6 +457,44 @@ class TestPlannedWorkouts:
         assert in_range[0]["date"] == "2026-03-05"
         assert in_range[1]["date"] == "2026-03-10"
 
+    def test_delete_planned_workout(self, temp_db):
+        """Test deleting a planned workout by date and title."""
+        temp_db.upsert_planned_workout(
+            date="2026-03-01",
+            title="Long Run",
+            workout_type="long",
+            duration_s=3600,
+        )
+
+        # Verify it exists
+        workouts = temp_db.get_planned_workout_for_date("2026-03-01")
+        assert len(workouts) == 1
+
+        # Delete it
+        deleted = temp_db.delete_planned_workout("2026-03-01", "Long Run")
+        assert deleted is True
+
+        # Verify it is gone
+        workouts = temp_db.get_planned_workout_for_date("2026-03-01")
+        assert workouts == []
+
+    def test_delete_planned_workout_not_found(self, temp_db):
+        """Test deleting a non-existent workout returns False."""
+        deleted = temp_db.delete_planned_workout("2026-03-01", "Nonexistent Run")
+        assert deleted is False
+
+    def test_delete_planned_workout_only_matching(self, temp_db):
+        """Test that delete only removes the matching workout, not others on the same date."""
+        temp_db.upsert_planned_workout(date="2026-03-01", title="AM Run")
+        temp_db.upsert_planned_workout(date="2026-03-01", title="PM Run")
+
+        deleted = temp_db.delete_planned_workout("2026-03-01", "AM Run")
+        assert deleted is True
+
+        remaining = temp_db.get_planned_workout_for_date("2026-03-01")
+        assert len(remaining) == 1
+        assert remaining[0]["title"] == "PM Run"
+
 
 class TestPushSubscriptions:
     """Tests for push_subscriptions table operations."""
