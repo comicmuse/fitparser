@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from runcoach.config import Config
@@ -115,20 +115,29 @@ def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
     """
     Fetch planned workouts from the Stryd training calendar and store them.
 
+    Removes any locally stored planned workouts within the sync date range
+    that are no longer present in Stryd's response (moved or deleted).
+
     Returns the number of workouts upserted.
     """
+    from datetime import timedelta
+
     from strydcmd.stryd_api import StrydAPI
 
     stryd = StrydAPI(config.stryd_email, config.stryd_password)
     stryd.authenticate()
 
+    days_ahead = 30
     workouts = stryd.get_planned_workouts(
-        days_ahead=30,
+        days_ahead=days_ahead,
         days_back=config.sync_lookback_days,
     )
     log.info("Stryd calendar returned %d planned workouts", len(workouts))
 
-    count = 0
+    # Build a set of active (date, title) keys from Stryd's response
+    active_keys: set[tuple[str, str]] = set()
+    active_workouts: list[dict] = []
+
     for w in workouts:
         # Skip deleted workouts
         if w.get("deleted"):
@@ -137,8 +146,6 @@ def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
         # Each workout entry has a nested "workout" dict with the plan details
         plan = w.get("workout") or {}
         title = plan.get("title") or w.get("name") or "Untitled"
-        description = plan.get("desc") or plan.get("description") or ""
-        workout_type = plan.get("type") or ""
 
         # Date comes as ISO string like "2026-04-25T10:00:00Z"
         date_raw = w.get("date") or ""
@@ -149,6 +156,33 @@ def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
             date_str = dt.strftime("%Y-%m-%d")
         except (ValueError, TypeError):
             continue
+
+        active_keys.add((date_str, title))
+        active_workouts.append((w, plan, title, date_str))
+
+    # Determine the sync date range used by the API call
+    today = datetime.now(timezone.utc).date()
+    range_start = (today - timedelta(days=config.sync_lookback_days)).strftime("%Y-%m-%d")
+    range_end = (today + timedelta(days=days_ahead + 1)).strftime("%Y-%m-%d")
+
+    # Remove local workouts in that range that are no longer in Stryd
+    local_workouts = db.get_planned_workouts_in_range(range_start, range_end)
+    removed = 0
+    for lw in local_workouts:
+        key = (lw["date"], lw["title"])
+        if key not in active_keys:
+            if db.delete_planned_workout(lw["date"], lw["title"]):
+                removed += 1
+                log.info("Removed stale planned workout: %s on %s", lw["title"], lw["date"])
+
+    if removed:
+        log.info("Removed %d stale planned workout(s)", removed)
+
+    # Upsert all active workouts
+    count = 0
+    for w, plan, title, date_str in active_workouts:
+        description = plan.get("desc") or plan.get("description") or ""
+        workout_type = plan.get("type") or ""
 
         duration_s = w.get("duration")  # seconds
         distance_m = w.get("distance")  # metres
