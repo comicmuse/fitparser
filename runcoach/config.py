@@ -24,7 +24,6 @@ class Config:
     vapid_private_key: str = ""
     vapid_public_key: str = ""
     vapid_email: str = ""
-    coach_profile_path: Path | None = None
     secret_key: str = ""
 
     @property
@@ -69,10 +68,5 @@ class Config:
             vapid_private_key=os.environ.get("VAPID_PRIVATE_KEY", ""),
             vapid_public_key=os.environ.get("VAPID_PUBLIC_KEY", ""),
             vapid_email=os.environ.get("VAPID_EMAIL", ""),
-            coach_profile_path=(
-                Path(os.environ["COACH_PROFILE"])
-                if os.environ.get("COACH_PROFILE")
-                else None
-            ),
             secret_key=secret_key,
         )

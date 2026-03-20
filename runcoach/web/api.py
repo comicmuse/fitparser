@@ -569,3 +569,46 @@ def test_push():
         return jsonify({"error": "No push subscriptions found or all failed"}), 404
 
     return jsonify({"message": f"Test notification sent to {total_sent} device(s)"}), 200
+
+
+# ------ Athlete Profile ------
+
+@api_bp.route("/athlete/profile", methods=["GET"])
+@require_auth
+def get_athlete_profile():
+    """
+    Get the athlete profile for the authenticated user.
+
+    GET /api/v1/athlete/profile
+    Headers: Authorization: Bearer <access_token>
+    Response: {"profile": "..."}
+    """
+    db = get_db()
+    user_id = request.user_id
+    profile = db.get_athlete_profile(user_id)
+    return jsonify({"profile": profile}), 200
+
+
+@api_bp.route("/athlete/profile", methods=["PUT"])
+@require_auth
+def update_athlete_profile():
+    """
+    Update the athlete profile for the authenticated user.
+
+    PUT /api/v1/athlete/profile
+    Headers: Authorization: Bearer <access_token>
+    Body: {"profile": "..."}
+    Response: {"profile": "..."}
+    """
+    data = request.get_json()
+    if data is None or "profile" not in data:
+        return jsonify({"error": "Missing 'profile' field"}), 400
+
+    profile_text = data["profile"]
+    if not isinstance(profile_text, str):
+        return jsonify({"error": "'profile' must be a string"}), 400
+
+    db = get_db()
+    user_id = request.user_id
+    db.update_athlete_profile(user_id, profile_text.strip())
+    return jsonify({"profile": profile_text.strip()}), 200

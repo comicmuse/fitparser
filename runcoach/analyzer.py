@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
@@ -63,14 +62,12 @@ Below is the JSON Schema that describes the workout YAML data format:
 """
 
 
-def _load_athlete_profile(config_path: Path | None = None) -> str:
-    """Load the athlete profile from coach_profile.txt."""
-    if config_path and config_path.exists():
-        return config_path.read_text(encoding="utf-8").strip()
-    # Fallback: look next to the project root
-    default = Path(__file__).resolve().parent.parent / "coach_profile.txt"
-    if default.exists():
-        return default.read_text(encoding="utf-8").strip()
+def _load_athlete_profile(db: RunCoachDB | None = None) -> str:
+    """Load the athlete profile from the database (default user)."""
+    if db is not None:
+        user_id = db.get_default_user_id()
+        if user_id is not None:
+            return db.get_athlete_profile(user_id)
     return ""
 
 
@@ -88,6 +85,7 @@ def analyze_run(
     yaml_content: str,
     config: Config,
     context_yaml: str | None = None,
+    db: RunCoachDB | None = None,
 ) -> dict:
     """
     Send YAML workout data to the LLM for coaching analysis.
@@ -97,9 +95,7 @@ def analyze_run(
     Returns a dict with keys: commentary, prompt_tokens, completion_tokens.
     """
     schema = _load_schema()
-    profile = _load_athlete_profile(
-        getattr(config, "coach_profile_path", None)
-    )
+    profile = _load_athlete_profile(db)
     system_msg = SYSTEM_PROMPT.format(schema=schema, athlete_profile=profile)
 
     # Check if this is a manual upload and add a note to the prompt
@@ -165,7 +161,7 @@ def analyze_and_write(
         except Exception:
             log.exception("Failed to build training context, proceeding without it")
 
-    result = analyze_run(yaml_content, config, context_yaml=context_yaml)
+    result = analyze_run(yaml_content, config, context_yaml=context_yaml, db=db)
 
     md_path = yaml_path.with_suffix(".md")
     md_path.write_text(result["commentary"], encoding="utf-8")

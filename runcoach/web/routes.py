@@ -460,3 +460,27 @@ def upload():
         db.update_error(run_id, f"Parse error: {e}")
         flash(f"Uploaded but failed to parse: {e}")
         return redirect(url_for("main.index"))
+
+
+@bp.route("/athlete-profile", methods=["GET"])
+def athlete_profile():
+    """Display the athlete profile page."""
+    db = _db()
+    user_id = db.get_default_user_id()
+    profile = db.get_athlete_profile(user_id) if user_id else ""
+    return render_template("athlete_profile.html", profile=profile)
+
+
+@bp.route("/athlete-profile", methods=["POST"])
+def athlete_profile_save():
+    """Save the athlete profile."""
+    db = _db()
+    user_id = db.get_default_user_id()
+    if user_id is None:
+        flash("No user account found. Cannot save profile.")
+        return redirect(url_for("main.athlete_profile"))
+
+    profile_text = request.form.get("profile", "").strip()
+    db.update_athlete_profile(user_id, profile_text)
+    flash("Athlete profile saved.")
+    return redirect(url_for("main.athlete_profile"))

@@ -18,27 +18,27 @@ from runcoach.analyzer import (
 class TestLoadAthleteProfile:
     """Tests for loading athlete profile."""
 
-    def test_load_athlete_profile_custom_path(self, tmp_path):
-        """Test loading profile from custom path."""
-        profile_path = tmp_path / "custom_profile.txt"
-        profile_path.write_text("Custom athlete profile")
+    def test_load_athlete_profile_with_db(self, temp_db):
+        """Test loading profile from database."""
+        user_id = temp_db.get_default_user_id()
+        assert user_id is not None
+        temp_db.update_athlete_profile(user_id, "My custom athlete profile")
 
-        profile = _load_athlete_profile(profile_path)
-        assert profile == "Custom athlete profile"
+        profile = _load_athlete_profile(temp_db)
+        assert profile == "My custom athlete profile"
 
-    def test_load_athlete_profile_default(self):
-        """Test loading profile from default location."""
-        # This will try to load the actual coach_profile.txt if it exists
-        profile = _load_athlete_profile()
-        # Should return a string (empty or with content)
-        assert isinstance(profile, str)
+    def test_load_athlete_profile_no_db(self):
+        """Test loading profile without database returns empty string."""
+        profile = _load_athlete_profile(None)
+        assert profile == ""
 
-    def test_load_athlete_profile_nonexistent(self, tmp_path):
-        """Test loading profile from nonexistent path."""
-        profile_path = tmp_path / "nonexistent.txt"
-        profile = _load_athlete_profile(profile_path)
-        # Should fall back to default or return empty
-        assert isinstance(profile, str)
+    def test_load_athlete_profile_empty_profile(self, temp_db):
+        """Test loading profile when profile is empty in DB."""
+        user_id = temp_db.get_default_user_id()
+        temp_db.update_athlete_profile(user_id, "")
+
+        profile = _load_athlete_profile(temp_db)
+        assert profile == ""
 
 
 class TestLoadSchema:

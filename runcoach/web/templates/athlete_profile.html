@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Athlete Profile — RunCoach{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom:1.5rem;">Athlete Profile</h1>
+
+<div class="card">
+  <p style="color:var(--fg-muted);margin-bottom:1rem;font-size:0.9rem;">
+    This text is injected into the AI coaching prompt for every analysis. Include your
+    race goals, training approach, body weight for Stryd calculations, and any other
+    context the coach should know.
+  </p>
+
+  <form method="post" action="{{ url_for('main.athlete_profile_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="margin-bottom:1rem;">
+      <textarea
+        name="profile"
+        id="profile"
+        rows="18"
+        style="
+          width:100%;
+          background:var(--bg);
+          color:var(--fg);
+          border:1px solid var(--border);
+          border-radius:6px;
+          padding:0.75rem;
+          font-family:inherit;
+          font-size:0.95rem;
+          line-height:1.6;
+          resize:vertical;
+        "
+        placeholder="e.g. I'm training for the London Marathon on 26 April 2026…"
+      >{{ profile }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Profile</button>
+    <a href="{{ url_for('main.index') }}" class="btn" style="margin-left:0.5rem;">Cancel</a>
+  </form>
+</div>
+{% endblock %}

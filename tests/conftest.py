@@ -25,6 +25,9 @@ def temp_db(tmp_path):
     """Create a temporary database for testing."""
     db_path = tmp_path / "test.db"
     db = RunCoachDB(db_path)
+    # Ensure a default user exists (mirrors production setup)
+    from runcoach.auth import hash_password
+    db.ensure_default_user("athlete", hash_password("test-password"))
     return db
 
 

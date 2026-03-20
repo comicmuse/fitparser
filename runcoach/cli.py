@@ -17,6 +17,7 @@ from pathlib import Path
 from runcoach.parser import parse_and_write
 from runcoach.analyzer import analyze_and_write
 from runcoach.config import Config
+from runcoach.db import RunCoachDB
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,7 +66,7 @@ def parse_directory(directory: Path, timezone: str, pattern: str = "*.fit") -> N
             log.error("Failed to parse %s: %s", fit_path, e)
 
 
-def analyze_file(yaml_path: Path, config: Config) -> None:
+def analyze_file(yaml_path: Path, config: Config, db: RunCoachDB | None = None) -> None:
     """Analyze a single parsed YAML file."""
     if not yaml_path.exists():
         log.error("File not found: %s", yaml_path)
@@ -77,14 +78,14 @@ def analyze_file(yaml_path: Path, config: Config) -> None:
 
     log.info("Analyzing %s...", yaml_path)
     try:
-        md_path = analyze_and_write(yaml_path, config)
+        md_path, _ = analyze_and_write(yaml_path, config, db=db)
         log.info("Wrote %s", md_path)
     except Exception as e:
         log.error("Failed to analyze %s: %s", yaml_path, e)
         sys.exit(1)
 
 
-def analyze_directory(directory: Path, config: Config, pattern: str = "*.yaml") -> None:
+def analyze_directory(directory: Path, config: Config, db: RunCoachDB | None = None, pattern: str = "*.yaml") -> None:
     """Analyze all YAML files in a directory (non-recursive)."""
     if not directory.exists() or not directory.is_dir():
         log.error("Directory not found: %s", directory)
@@ -99,7 +100,7 @@ def analyze_directory(directory: Path, config: Config, pattern: str = "*.yaml") 
 
     for yaml_path in yaml_files:
         try:
-            analyze_file(yaml_path, config)
+            analyze_file(yaml_path, config, db=db)
         except Exception as e:
             log.error("Failed to analyze %s: %s", yaml_path, e)
 
@@ -201,11 +202,12 @@ def main() -> None:
             sys.exit(1)
 
         config = Config.from_env()
+        db = RunCoachDB(config.db_path)
 
         if args.file:
-            analyze_file(args.file, config)
+            analyze_file(args.file, config, db=db)
         else:
-            analyze_directory(args.directory, config, args.pattern)
+            analyze_directory(args.directory, config, db=db, pattern=args.pattern)
 
 
 if __name__ == "__main__":

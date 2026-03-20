@@ -185,7 +185,7 @@ Main public API: `build_blocks_from_fit(fit_path, tz_name)` returns a summary di
 
 ### AI Analysis (`analyzer.py`)
 Sends training context + workout YAML to OpenAI with:
-- System prompt based on `coach_profile.txt` (athlete-specific context)
+- System prompt including athlete profile loaded from the `users` table in the database
 - `workout_yaml_schema.json` for structured data format
 - Special handling for manual uploads (no power data penalty)
 
@@ -206,7 +206,6 @@ All config via environment variables (see `config.py`):
 - `ANALYZE_FROM`: Only auto-analyze runs on/after this date (YYYY-MM-DD)
 - `DATA_DIR`: Root for activities, database, outputs (default: `data/`)
 - `SYNC_INTERVAL_HOURS`: Background sync interval (default: 6)
-- `COACH_PROFILE`: Path to custom athlete profile (overrides `coach_profile.txt`)
 
 ### Directory Structure
 ```
@@ -255,10 +254,12 @@ Uses Web Push (VAPID) for analysis completion alerts:
 
 ## Athlete Profile
 
-Edit `coach_profile.txt` to customize AI coaching:
+The athlete profile is stored in the `athlete_profile` column of the `users` table in the database. It is managed via the **Athlete Profile** page in the web UI (`/athlete-profile`) or via the mobile API (`GET/PUT /api/v1/athlete/profile`).
+
+The profile text is injected into the OpenAI system prompt for every analysis. Include:
 - Race goals and dates
 - Training approach (e.g., Stryd power-based)
 - Body weight (for Stryd power calculations)
 - Any context the AI coach should consider
 
-This is injected into the system prompt for every analysis.
+On first startup, the profile is automatically seeded from `coach_profile.txt` if it exists.

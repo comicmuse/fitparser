@@ -293,6 +293,7 @@
         {% if syncing is defined and syncing %}
           <span class="badge badge-yellow">Syncing...</span>
         {% endif %}
+        <a href="{{ url_for('main.athlete_profile') }}" class="btn">Athlete Profile</a>
         <button type="button" class="btn" onclick="toggleUploadForm()">Upload</button>
         <form action="/sync" method="post" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

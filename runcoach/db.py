@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    last_login TEXT
+    last_login TEXT,
+    athlete_profile TEXT
 );
 
 CREATE TABLE IF NOT EXISTS unifiedpush_subscriptions (
@@ -197,6 +198,25 @@ class RunCoachDB:
                     
                     PRAGMA foreign_keys=ON;
                 """)
+
+            # Migration: add athlete_profile column to users if missing
+            cursor = conn.execute("PRAGMA table_info(users)")
+            user_columns = {row[1] for row in cursor.fetchall()}
+            if "athlete_profile" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN athlete_profile TEXT")
+                # Seed from coach_profile.txt if the default user exists and profile is null
+                seed_path = Path(__file__).resolve().parent.parent / "coach_profile.txt"
+                if seed_path.exists():
+                    try:
+                        seed_text = seed_path.read_text(encoding="utf-8").strip()
+                        conn.execute(
+                            """UPDATE users SET athlete_profile = ?
+                               WHERE athlete_profile IS NULL AND id = (SELECT MIN(id) FROM users)""",
+                            (seed_text,),
+                        )
+                        log.info("Seeded athlete_profile from coach_profile.txt")
+                    except Exception:
+                        log.exception("Failed to seed athlete_profile from coach_profile.txt")
 
     # ------ runs ------
 
@@ -635,6 +655,30 @@ class RunCoachDB:
         if user:
             return user["id"]
         return self.create_user(username, password_hash)
+
+    def get_athlete_profile(self, user_id: int) -> str:
+        """Return the athlete profile text for a user (empty string if not set)."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT athlete_profile FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        if row and row[0]:
+            return row[0]
+        return ""
+
+    def update_athlete_profile(self, user_id: int, profile_text: str) -> None:
+        """Update the athlete profile text for a user."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET athlete_profile = ? WHERE id = ?",
+                (profile_text, user_id),
+            )
+
+    def get_default_user_id(self) -> int | None:
+        """Return the ID of the first (default) user, or None if no users exist."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
+        return row[0] if row else None
 
     # ------ unifiedpush_subscriptions ------
 
