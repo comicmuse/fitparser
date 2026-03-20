@@ -143,6 +143,15 @@ class RunCoachDB:
                 conn.execute(
                     "ALTER TABLE runs ADD COLUMN stryd_rss REAL"
                 )
+            # Migration: add garmin_connect_id and strava_activity_id columns
+            if "garmin_connect_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE runs ADD COLUMN garmin_connect_id TEXT"
+                )
+            if "strava_activity_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE runs ADD COLUMN strava_activity_id TEXT"
+                )
 
             # Migration: allow NULL stryd_activity_id for manual uploads
             # Check if stryd_activity_id has NOT NULL constraint (column index 3 is notnull flag)
@@ -199,9 +208,11 @@ class RunCoachDB:
                     PRAGMA foreign_keys=ON;
                 """)
 
-            # Migration: add athlete_profile column to users if missing
+            # Migration: add athlete_profile and stryd_athlete_id columns to users if missing
             cursor = conn.execute("PRAGMA table_info(users)")
             user_columns = {row[1] for row in cursor.fetchall()}
+            if "stryd_athlete_id" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN stryd_athlete_id TEXT")
             if "athlete_profile" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN athlete_profile TEXT")
                 # Seed from coach_profile.txt if the default user exists and profile is null
@@ -665,6 +676,22 @@ class RunCoachDB:
         if row and row[0]:
             return row[0]
         return ""
+
+    def get_stryd_athlete_id(self, user_id: int) -> str | None:
+        """Return the Stryd athlete UUID for a user, or None if not set."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT stryd_athlete_id FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        return row[0] if row and row[0] else None
+
+    def update_stryd_athlete_id(self, user_id: int, stryd_athlete_id: str) -> None:
+        """Update the Stryd athlete UUID for a user."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET stryd_athlete_id = ? WHERE id = ?",
+                (stryd_athlete_id, user_id),
+            )
 
     def update_athlete_profile(self, user_id: int, profile_text: str) -> None:
         """Update the athlete profile text for a user."""

@@ -6,16 +6,17 @@
   <title>{% block title %}RunCoach{% endblock %}</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --border: #30363d;
-      --fg: #e6edf3;
-      --fg-muted: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #79c0ff;
-      --green: #3fb950;
-      --yellow: #d29922;
-      --red: #f85149;
+      --bg: #faf9f7;
+      --surface: #ffffff;
+      --border: #e5e2dd;
+      --fg: #1c1917;
+      --fg-muted: #57534e;
+      --accent: #ea580c;
+      --accent-hover: #c2410c;
+      --accent-light: #fff7ed;
+      --green: #16a34a;
+      --yellow: #d97706;
+      --red: #dc2626;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -30,8 +31,9 @@
     .container { max-width: 960px; margin: 0 auto; padding: 0 1rem; }
 
     nav {
-      background: var(--surface);
+      background: #fff;
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
       padding: 0.75rem 0;
       margin-bottom: 1.5rem;
     }
@@ -40,7 +42,8 @@
       align-items: center;
       justify-content: space-between;
     }
-    nav .brand { font-weight: 700; font-size: 1.1rem; color: var(--fg); }
+    nav .brand { font-weight: 800; font-size: 1.2rem; color: var(--accent); letter-spacing: -0.02em; }
+    nav .brand:hover { color: var(--accent-hover); text-decoration: none; }
     nav .nav-right { display: flex; align-items: center; gap: 1rem; }
 
     .btn {
@@ -52,15 +55,17 @@
       color: var(--fg);
       font-size: 0.85rem;
       cursor: pointer;
+      font-family: inherit;
     }
-    .btn:hover { border-color: var(--fg-muted); text-decoration: none; }
+    .btn:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
     .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
     .btn-primary {
-      background: #238636;
-      border-color: #2ea043;
+      background: var(--accent);
+      border-color: var(--accent);
       color: #fff;
+      font-weight: 600;
     }
-    .btn-primary:hover { background: #2ea043; }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
 
     .badge {
       display: inline-block;
@@ -69,15 +74,15 @@
       font-size: 0.75rem;
       font-weight: 600;
     }
-    .badge-green { background: #23382e; color: var(--green); }
-    .badge-yellow { background: #3d2e00; color: var(--yellow); }
-    .badge-red { background: #3d1a1a; color: var(--red); }
-    .badge-blue { background: #1a2e40; color: var(--accent); }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-red { background: #fee2e2; color: #b91c1c; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
 
     .flash {
-      background: #1a2e40;
-      border: 1px solid var(--accent);
-      color: var(--accent);
+      background: var(--accent-light);
+      border: 1px solid #fed7aa;
+      color: #7c2d00;
       padding: 0.5rem 1rem;
       border-radius: 6px;
       margin-bottom: 1rem;
@@ -100,14 +105,15 @@
       color: var(--fg-muted);
       font-weight: 600;
     }
-    tr:hover { background: var(--surface); }
+    tr:hover { background: var(--accent-light); }
 
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 1.25rem;
       margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.04);
     }
     .card h2 { margin-bottom: 0.75rem; font-size: 1.1rem; }
 
@@ -139,7 +145,7 @@
     .commentary p { margin-bottom: 0.75rem; }
     .commentary ul, .commentary ol { margin: 0.5rem 0 0.75rem 1.5rem; }
     .commentary code {
-      background: var(--bg);
+      background: #f3f4f6;
       padding: 0.15rem 0.4rem;
       border-radius: 4px;
       font-size: 0.9em;
@@ -151,6 +157,68 @@
     .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
     .hide-mobile { }
+
+    /* ── Hero Banner ── */
+    .hero {
+      background: linear-gradient(135deg, #1c1917 0%, #7c2d00 38%, #ea580c 68%, #fed7aa 100%);
+      margin-top: -1.5rem;
+      margin-bottom: 1.75rem;
+      padding: 2.25rem 0 2rem;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 20px,
+        rgba(255,255,255,0.012) 20px,
+        rgba(255,255,255,0.012) 40px
+      );
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
+    .hero-heading {
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .hero-sub {
+      font-size: 0.9rem;
+      margin-top: 0.35rem;
+      opacity: 0.8;
+    }
+    .hero-stats { display: flex; gap: 2rem; }
+    .hero-stat { text-align: center; }
+    .hero-stat-num {
+      display: block;
+      font-size: 1.9rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .hero-stat-label {
+      display: block;
+      font-size: 0.7rem;
+      opacity: 0.75;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 0.15rem;
+    }
 
     /* ── Calendar Grid ── */
     .cal-grid {
@@ -183,7 +251,7 @@
     .cal-day-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
     .cal-item {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 4px;
       font-size: 0.68rem;
       line-height: 1.2;
@@ -198,8 +266,8 @@
     }
     .cal-item-text {
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      word-break: break-word;
+      line-height: 1.3;
     }
     .cal-planned .cal-item-text { color: var(--fg-muted); }
 
@@ -216,12 +284,12 @@
       border-radius: 4px;
     }
     .pagination a {
-      background: var(--bg);
+      background: var(--surface);
       border: 1px solid var(--border);
       color: var(--accent);
       text-decoration: none;
     }
-    .pagination a:hover { border-color: var(--fg-muted); }
+    .pagination a:hover { border-color: var(--accent); }
     .pagination .current {
       background: var(--accent);
       color: #fff;
@@ -240,8 +308,8 @@
 
     #notif-banner {
       display: none;
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: var(--accent-light);
+      border: 1px solid #fed7aa;
       border-radius: 6px;
       padding: 0.5rem 1rem;
       margin-bottom: 1rem;
@@ -268,6 +336,10 @@
       .cal-date { font-size: 0.65rem; }
       .cal-item { font-size: 0.6rem; }
       .cal-item-dot { width: 5px; height: 5px; }
+      .hero-inner { flex-direction: column; align-items: flex-start; gap: 1rem; }
+      .hero-stats { gap: 1.25rem; }
+      .hero-stat-num { font-size: 1.4rem; }
+      .hero-heading { font-size: 1.5rem; }
     }
 
     @media (max-width: 480px) {
@@ -277,11 +349,13 @@
       .run-header { gap: 0.75rem; }
       .card { padding: 0.75rem; margin-bottom: 1rem; }
       th, td { padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+      .hero { padding: 1.5rem 0 1.25rem; }
+      .hero-stats { gap: 1rem; }
     }
   </style>
   <link rel="manifest" href="/static/manifest.json">
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-  <meta name="theme-color" content="#0d1117">
+  <meta name="theme-color" content="#ea580c">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
@@ -302,6 +376,8 @@
       </div>
     </div>
   </nav>
+
+  {% block hero %}{% endblock %}
 
   <div class="container">
     <div id="notif-banner">

@@ -198,12 +198,17 @@ def run_detail(run_id: int):
     # Load prescribed workout for this date
     prescribed = db.get_planned_workout_for_date(run["date"])
 
+    # Stryd athlete UUID for external link
+    default_uid = db.get_default_user_id()
+    stryd_athlete_id = db.get_stryd_athlete_id(default_uid) if default_uid else None
+
     return render_template(
         "run_detail.html",
         run=run,
         commentary_html=commentary_html,
         workout_data=workout_data,
         prescribed=prescribed,
+        stryd_athlete_id=stryd_athlete_id,
     )
 
 

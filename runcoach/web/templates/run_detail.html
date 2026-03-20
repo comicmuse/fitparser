@@ -3,6 +3,7 @@
 {% block content %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
 <p style="margin-bottom: 1rem;">
   <a href="{{ url_for('main.index') }}">&larr; Back to runs</a>
@@ -46,6 +47,37 @@
     </div>
     {% endif %}
   </div>
+  {% if run.stryd_activity_id or run.strava_activity_id or run.garmin_connect_id %}
+  <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
+    {% if run.stryd_activity_id and stryd_athlete_id %}
+    <a href="https://www.stryd.com/powercenter/athletes/{{ stryd_athlete_id }}/profile/entries/activities/{{ run.stryd_activity_id }}" target="_blank" rel="noopener"
+       class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 0.3rem;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      Stryd
+    </a>
+    {% elif run.stryd_activity_id %}
+    <a href="https://www.stryd.com/activities/{{ run.stryd_activity_id }}" target="_blank" rel="noopener"
+       class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 0.3rem;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      Stryd
+    </a>
+    {% endif %}
+    {% if run.strava_activity_id %}
+    <a href="https://www.strava.com/activities/{{ run.strava_activity_id }}" target="_blank" rel="noopener"
+       class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 0.3rem; color: #fc4c02; border-color: #fc4c02;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+      Strava
+    </a>
+    {% endif %}
+    {% if run.garmin_connect_id %}
+    <a href="https://connect.garmin.com/modern/activity/{{ run.garmin_connect_id }}" target="_blank" rel="noopener"
+       class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 0.3rem; color: #1a8a5a; border-color: #1a8a5a;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+      Garmin Connect
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
 {% if prescribed %}
@@ -133,24 +165,27 @@
     ">
       <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem;">{{ key }}</div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; font-size: 0.8rem; color: var(--fg-muted);">
-        <span>{{ block.duration_min|round(1) if block.duration_min else '?' }} min</span>
-        <span>{{ "%.2f"|format(block.distance_km) if block.distance_km else '?' }} km</span>
+        <span>⏱ {{ block.duration_min|round(1) if block.duration_min else '?' }} min</span>
+        <span>📏 {{ "%.2f"|format(block.distance_km) if block.distance_km else '?' }} km</span>
         {% if block.avg_hr %}
         <span style="color: {{ '#3fb950' if block.avg_hr < 140 else '#d29922' if block.avg_hr < 160 else '#f85149' }};">
-          {{ block.avg_hr|int }} bpm
+          ❤️ {{ block.avg_hr|int }} bpm
         </span>
         {% endif %}
         {% if block.avg_power %}
-        <span>{{ block.avg_power|int }} W</span>
+        <span>⚡ {{ block.avg_power|int }} W</span>
         {% endif %}
       </div>
       {% if block.hr_zones %}
-      <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.5rem;" title="HR Zones">
-        <div style="width: {{ block.hr_zones.Z1_pct }}%; background: #58a6ff;"></div>
-        <div style="width: {{ block.hr_zones.Z2_pct }}%; background: #3fb950;"></div>
-        <div style="width: {{ block.hr_zones.Z3_pct }}%; background: #d29922;"></div>
-        <div style="width: {{ block.hr_zones.Z4_pct }}%; background: #f0883e;"></div>
-        <div style="width: {{ block.hr_zones.Z5_pct }}%; background: #f85149;"></div>
+      <div style="margin-top: 0.5rem; font-size: 0.75rem;">
+        <span style="color: var(--fg-muted);">HR Zones</span>
+        <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.25rem;" title="HR Zones">
+          <div style="width: {{ block.hr_zones.Z1_pct }}%; background: #58a6ff;"></div>
+          <div style="width: {{ block.hr_zones.Z2_pct }}%; background: #3fb950;"></div>
+          <div style="width: {{ block.hr_zones.Z3_pct }}%; background: #d29922;"></div>
+          <div style="width: {{ block.hr_zones.Z4_pct }}%; background: #f0883e;"></div>
+          <div style="width: {{ block.hr_zones.Z5_pct }}%; background: #f85149;"></div>
+        </div>
       </div>
       {% endif %}
       {% if block.target_power and block.target_power.pct_time_in_range is not none %}
@@ -193,6 +228,7 @@
   }
   
   if (totalDuration > 0) {
+    const pcts = [z1, z2, z3, z4, z5].map(v => totalDuration > 0 ? +(v / totalDuration * 100).toFixed(1) : 0);
     const ctx = document.getElementById('hrZoneChart').getContext('2d');
     new Chart(ctx, {
       type: 'bar',
@@ -209,13 +245,29 @@
         responsive: true,
         maintainAspectRatio: true,
         plugins: {
-          legend: { display: false }
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                return ctx.parsed.y + ' min (' + pcts[ctx.dataIndex] + '%)';
+              }
+            }
+          },
+          datalabels: {
+            anchor: 'end',
+            align: 'end',
+            formatter: function(value, ctx) {
+              return pcts[ctx.dataIndex] + '%';
+            },
+            color: '#57534e',
+            font: { size: 11, weight: '600' }
+          }
         },
         scales: {
           y: {
             beginAtZero: true,
             title: { display: true, text: 'Minutes', color: '#8b949e' },
-            grid: { color: '#30363d' },
+            grid: { color: '#e5e2dd' },
             ticks: { color: '#8b949e' }
           },
           x: {

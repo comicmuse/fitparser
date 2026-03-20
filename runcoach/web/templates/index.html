@@ -1,5 +1,35 @@
 {% extends "base.html" %}
 {% block title %}RunCoach - Dashboard{% endblock %}
+
+{% block hero %}
+<div class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-heading">RunCoach</div>
+      <div class="hero-sub">Running training analysis &amp; coaching</div>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-num">{{ stats.total_runs }}</span>
+        <span class="hero-stat-label">Total Runs</span>
+      </div>
+      {% if stats.pending_analyze %}
+      <div class="hero-stat">
+        <span class="hero-stat-num">{{ stats.pending_analyze }}</span>
+        <span class="hero-stat-label">To Analyse</span>
+      </div>
+      {% endif %}
+      {% if stats.errors %}
+      <div class="hero-stat" style="color:#fca5a5;">
+        <span class="hero-stat-num">{{ stats.errors }}</span>
+        <span class="hero-stat-label">Errors</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
 
 <div id="upload-form" class="card" style="display: none;">
@@ -41,65 +71,6 @@ function toggleUploadForm() {
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 </script>
-
-{# ── Training Calendar ── #}
-<div class="card">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-    <h2 style="margin-bottom: 0;">Training Calendar</h2>
-    <a href="{{ url_for('main.workouts') }}" class="btn btn-sm">View All</a>
-  </div>
-  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
-    {{ stats.total_runs }} runs
-    {% if stats.pending_parse %} &middot; {{ stats.pending_parse }} pending parse{% endif %}
-    {% if stats.pending_analyze %} &middot; {{ stats.pending_analyze }} pending analysis{% endif %}
-    {% if stats.errors %} &middot; {{ stats.errors }} errors{% endif %}
-    {% if last_sync %}
-      &middot; Last sync: {{ last_sync.finished_at or last_sync.started_at }}
-    {% endif %}
-  </p>
-
-  {# Week labels #}
-  {% for week_idx in [0, 1, 2] %}
-  <div style="margin-bottom: {{ '0' if week_idx == 2 else '1rem' }};">
-    <div style="font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 600;">
-      {% if week_idx == 0 %}Previous Week{% elif week_idx == 1 %}This Week{% else %}Next Week{% endif %}
-    </div>
-    <div class="cal-grid">
-      {% for day in calendar_days %}
-      {% if day.week == week_idx %}
-      <div class="cal-day {{ 'cal-today' if day.is_today }}{{ ' cal-past' if day.is_past and not day.is_today }}">
-        <div class="cal-day-header">
-          <span class="cal-weekday">{{ day.weekday }}</span>
-          <span class="cal-date">{{ day.day }}</span>
-        </div>
-        <div class="cal-day-body">
-          {% for run in day.actual %}
-          <a href="{{ url_for('main.run_detail', run_id=run.id) }}" class="cal-item cal-actual" title="{{ run.workout_name or run.name }}">
-            <span class="cal-item-dot" style="background: var(--green);"></span>
-            <span class="cal-item-text">{{ (run.workout_name or run.name)|truncate(20, True) }}</span>
-          </a>
-          {% endfor %}
-          {% for pw in day.planned %}
-          {% if not day.actual %}
-          <div class="cal-item cal-planned" title="{{ pw.title }}">
-            <span class="cal-item-dot" style="background: var(--accent);"></span>
-            <span class="cal-item-text">{{ pw.title|truncate(20, True) }}</span>
-          </div>
-          {% endif %}
-          {% endfor %}
-          {% if not day.actual and not day.planned %}
-          <div class="cal-item cal-rest">
-            <span style="color: var(--fg-muted); font-size: 0.7rem;">Rest</span>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      {% endif %}
-      {% endfor %}
-    </div>
-  </div>
-  {% endfor %}
-</div>
 
 {# ── Recent Runs ── #}
 {% if recent_runs %}
@@ -161,6 +132,65 @@ function toggleUploadForm() {
   </div>
 </div>
 {% endif %}
+
+{# ── Training Calendar ── #}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+    <h2 style="margin-bottom: 0;">Training Calendar</h2>
+    <a href="{{ url_for('main.workouts') }}" class="btn btn-sm">View All</a>
+  </div>
+  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
+    {{ stats.total_runs }} runs
+    {% if stats.pending_parse %} &middot; {{ stats.pending_parse }} pending parse{% endif %}
+    {% if stats.pending_analyze %} &middot; {{ stats.pending_analyze }} pending analysis{% endif %}
+    {% if stats.errors %} &middot; {{ stats.errors }} errors{% endif %}
+    {% if last_sync %}
+      &middot; Last sync: {{ last_sync.finished_at or last_sync.started_at }}
+    {% endif %}
+  </p>
+
+  {# Week labels #}
+  {% for week_idx in [0, 1, 2] %}
+  <div style="margin-bottom: {{ '0' if week_idx == 2 else '1rem' }};">
+    <div style="font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 600;">
+      {% if week_idx == 0 %}Previous Week{% elif week_idx == 1 %}This Week{% else %}Next Week{% endif %}
+    </div>
+    <div class="cal-grid">
+      {% for day in calendar_days %}
+      {% if day.week == week_idx %}
+      <div class="cal-day {{ 'cal-today' if day.is_today }}{{ ' cal-past' if day.is_past and not day.is_today }}">
+        <div class="cal-day-header">
+          <span class="cal-weekday">{{ day.weekday }}</span>
+          <span class="cal-date">{{ day.day }}</span>
+        </div>
+        <div class="cal-day-body">
+          {% for run in day.actual %}
+          <a href="{{ url_for('main.run_detail', run_id=run.id) }}" class="cal-item cal-actual" title="{{ run.workout_name or run.name }}">
+            <span class="cal-item-dot" style="background: var(--green);"></span>
+            <span class="cal-item-text">{{ run.workout_name or run.name }}</span>
+          </a>
+          {% endfor %}
+          {% for pw in day.planned %}
+          {% if not day.actual %}
+          <div class="cal-item cal-planned" title="{{ pw.title }}">
+            <span class="cal-item-dot" style="background: var(--accent);"></span>
+            <span class="cal-item-text">{{ pw.title }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% if not day.actual and not day.planned %}
+          <div class="cal-item cal-rest">
+            <span style="color: var(--fg-muted); font-size: 0.7rem;">Rest</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
 
 {% if syncing is defined and syncing %}
 <script>
