@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ run.workout_name or run.name }} - RunCoach{% endblock %}
-{% if map_coords %}
 {% block head %}
+{% if map_coords %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-{% endblock %}
 {% endif %}
+{% endblock %}
 {% block content %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
