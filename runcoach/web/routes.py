@@ -380,13 +380,11 @@ def push_subscribe():
     return jsonify(ok=True)
 
 
-# Exempt push_subscribe and Strava webhook from CSRF:
-# - push_subscribe is called from the service worker with JSON (no HTML form)
-# - strava_webhook is called by Strava's servers (no session/cookie)
+# Exempt push_subscribe from CSRF — it's a JSON API called from the
+# service-worker/app.js, and Content-Type: application/json requests
+# don't originate from HTML forms.
 from runcoach.web import csrf  # noqa: E402
 csrf.exempt(push_subscribe)
-csrf.exempt(strava_webhook_verify)
-csrf.exempt(strava_webhook)
 
 
 @bp.route("/upload", methods=["POST"])
@@ -804,3 +802,9 @@ def strava_webhook():
     )
     t.start()
     return jsonify(ok=True)
+
+
+# Exempt Strava webhook endpoints from CSRF — they are called by Strava's
+# servers (no session/cookie), not from HTML forms.
+csrf.exempt(strava_webhook_verify)
+csrf.exempt(strava_webhook)
