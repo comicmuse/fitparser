@@ -608,6 +608,10 @@ def update_athlete_profile():
     if not isinstance(profile_text, str):
         return jsonify({"error": "'profile' must be a string"}), 400
 
+    import re, unicodedata
+    _ctrl = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+    profile_text = _ctrl.sub("", unicodedata.normalize("NFC", profile_text))[:5_000]
+
     db = get_db()
     user_id = request.user_id
     db.update_athlete_profile(user_id, profile_text.strip())

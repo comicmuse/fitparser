@@ -38,8 +38,11 @@ def app(tmp_path):
 
 @pytest.fixture
 def client(app):
-    """Create a test client for the Flask app."""
-    return app.test_client()
+    """Create a test client for the Flask app, pre-authenticated."""
+    c = app.test_client()
+    with c.session_transaction() as sess:
+        sess["logged_in"] = True
+    return c
 
 
 @pytest.fixture

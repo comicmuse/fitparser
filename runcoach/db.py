@@ -707,6 +707,14 @@ class RunCoachDB:
             row = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
         return row[0] if row else None
 
+    def get_user_password_hash(self, user_id: int) -> str | None:
+        """Return the stored password hash for the given user, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT password_hash FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        return row[0] if row else None
+
     # ------ unifiedpush_subscriptions ------
 
     def save_unifiedpush_subscription(

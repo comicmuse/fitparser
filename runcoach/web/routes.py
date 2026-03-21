@@ -3,6 +3,10 @@ from __future__ import annotations
 import logging
 import threading
 
+import re
+import unicodedata
+from functools import wraps
+
 from flask import (
     Blueprint,
     current_app,
@@ -11,17 +15,40 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 import markdown as md
 import nh3
 
 from runcoach.analyzer import analyze_and_write
+from runcoach.auth import verify_password
 from runcoach.config import Config
 
 log = logging.getLogger(__name__)
 
 bp = Blueprint("main", __name__)
+
+_PROFILE_MAX_LEN = 5_000
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _sanitize_profile(text: str) -> str:
+    """Strip control characters and enforce a maximum length."""
+    # Normalise unicode (NFC) then remove C0/C1 control chars except \t, \n, \r
+    text = unicodedata.normalize("NFC", text)
+    text = _CONTROL_CHAR_RE.sub("", text)
+    return text[:_PROFILE_MAX_LEN]
+
+
+def _login_required(f):
+    """Redirect to login if the session is not authenticated."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("main.login", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
 
 # Tags and attributes that the markdown library legitimately produces.
 _ALLOWED_TAGS = {
@@ -69,6 +96,7 @@ def _scheduler():
 
 
 @bp.route("/")
+@_login_required
 def index():
     from datetime import date as _date, timedelta
 
@@ -128,6 +156,7 @@ def index():
 
 
 @bp.route("/workouts")
+@_login_required
 def workouts():
     """Full paginated list of past and upcoming planned workouts."""
     from datetime import date as _date
@@ -170,6 +199,7 @@ def workouts():
 
 
 @bp.route("/run/<int:run_id>")
+@_login_required
 def run_detail(run_id: int):
     import yaml as _yaml
     
@@ -213,6 +243,7 @@ def run_detail(run_id: int):
 
 
 @bp.route("/sync", methods=["POST"])
+@_login_required
 def sync():
     _scheduler().trigger_now()
     flash("Sync started in background")
@@ -220,6 +251,7 @@ def sync():
 
 
 @bp.route("/run/<int:run_id>/analyze", methods=["POST"])
+@_login_required
 def analyze_run_route(run_id: int):
     db = _db()
     config: Config = current_app.config["config"]
@@ -290,6 +322,7 @@ def status():
 
 
 @bp.route("/run/<int:run_id>/status")
+@_login_required
 def run_status(run_id: int):
     """Return JSON status of a single run (for polling)."""
     db = _db()
@@ -333,6 +366,7 @@ csrf.exempt(push_subscribe)
 
 
 @bp.route("/upload", methods=["POST"])
+@_login_required
 def upload():
     """Handle manual FIT file upload."""
     import re
@@ -467,7 +501,37 @@ def upload():
         return redirect(url_for("main.index"))
 
 
+@bp.route("/login", methods=["GET", "POST"])
+def login():
+    """Session login for the web UI."""
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        db = _db()
+        user_id = db.get_default_user_id()
+        if user_id is not None:
+            row = db.get_user_password_hash(user_id)
+            if row and verify_password(password, row):
+                session["logged_in"] = True
+                session.permanent = False
+                next_url = request.form.get("next") or url_for("main.index")
+                # Guard against open-redirect: only allow relative paths
+                if not next_url.startswith("/") or next_url.startswith("//"):
+                    next_url = url_for("main.index")
+                return redirect(next_url)
+        flash("Incorrect password.")
+    next_url = request.args.get("next", "")
+    return render_template("login.html", next=next_url)
+
+
+@bp.route("/logout", methods=["POST"])
+def logout():
+    """Clear session and redirect to login."""
+    session.clear()
+    return redirect(url_for("main.login"))
+
+
 @bp.route("/athlete-profile", methods=["GET"])
+@_login_required
 def athlete_profile():
     """Display the athlete profile page."""
     db = _db()
@@ -477,6 +541,7 @@ def athlete_profile():
 
 
 @bp.route("/athlete-profile", methods=["POST"])
+@_login_required
 def athlete_profile_save():
     """Save the athlete profile."""
     db = _db()
@@ -485,7 +550,8 @@ def athlete_profile_save():
         flash("No user account found. Cannot save profile.")
         return redirect(url_for("main.athlete_profile"))
 
-    profile_text = request.form.get("profile", "").strip()
+    raw = request.form.get("profile", "")
+    profile_text = _sanitize_profile(raw).strip()
     db.update_athlete_profile(user_id, profile_text)
     flash("Athlete profile saved.")
     return redirect(url_for("main.athlete_profile"))

@@ -373,6 +373,10 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-primary">Sync Now</button>
         </form>
+        <form action="{{ url_for('main.logout') }}" method="post" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn" style="color:var(--fg-muted);">Sign out</button>
+        </form>
       </div>
     </div>
   </nav>
