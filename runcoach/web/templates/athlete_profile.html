@@ -5,6 +5,44 @@
 {% block content %}
 <h1 style="margin-bottom:1.5rem;">Athlete Profile</h1>
 
+{% if strava_enabled %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="#fc4c02" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+    <h2 style="margin:0;font-size:1.05rem;">Strava</h2>
+    {% if strava_connected %}
+      <span class="badge" style="background:#1a7f37;color:#fff;font-size:0.75rem;">Connected</span>
+    {% else %}
+      <span class="badge" style="background:var(--border);color:var(--fg-muted);font-size:0.75rem;">Not connected</span>
+    {% endif %}
+  </div>
+
+  {% if strava_connected %}
+    <p style="color:var(--fg-muted);font-size:0.9rem;margin-bottom:0.5rem;">
+      Your Strava account is connected{% if strava_athlete_id %} (athlete&nbsp;ID&nbsp;{{ strava_athlete_id }}){% endif %}.
+    </p>
+    <p style="font-size:0.85rem;margin-bottom:0.75rem;{% if strava_webhook_id %}color:var(--fg-muted);{% else %}color:#d29922;{% endif %}">
+      {% if strava_webhook_id %}
+        ✓ Webhook active (subscription&nbsp;ID&nbsp;{{ strava_webhook_id }}) — activities will sync automatically.
+      {% else %}
+        ⚠ Webhook not registered. Ensure <code>STRAVA_WEBHOOK_VERIFY_TOKEN</code> is set and this server is publicly reachable, then reconnect.
+      {% endif %}
+    </p>
+    <form method="post" action="{{ url_for('main.strava_disconnect') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn" style="color:#f85149;border-color:#f85149;">Disconnect Strava</button>
+    </form>
+  {% else %}
+    <p style="color:var(--fg-muted);font-size:0.9rem;margin-bottom:0.75rem;">
+      Connect your Strava account to enable automatic webhook sync and route maps on run detail pages.
+    </p>
+    <a href="{{ url_for('main.strava_connect') }}" class="btn btn-primary" style="background:#fc4c02;border-color:#fc4c02;">
+      Connect Strava
+    </a>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card">
   <p style="color:var(--fg-muted);margin-bottom:1rem;font-size:0.9rem;">
     This text is injected into the AI coaching prompt for every analysis. Include your

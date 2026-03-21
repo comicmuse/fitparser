@@ -25,6 +25,9 @@ class Config:
     vapid_public_key: str = ""
     vapid_email: str = ""
     secret_key: str = ""
+    strava_client_id: str = ""
+    strava_client_secret: str = ""
+    strava_webhook_verify_token: str = ""
 
     @property
     def db_path(self) -> Path:
@@ -69,4 +72,7 @@ class Config:
             vapid_public_key=os.environ.get("VAPID_PUBLIC_KEY", ""),
             vapid_email=os.environ.get("VAPID_EMAIL", ""),
             secret_key=secret_key,
+            strava_client_id=os.environ.get("STRAVA_CLIENT_ID", ""),
+            strava_client_secret=os.environ.get("STRAVA_CLIENT_SECRET", ""),
+            strava_webhook_verify_token=os.environ.get("STRAVA_WEBHOOK_VERIFY_TOKEN", ""),
         )
