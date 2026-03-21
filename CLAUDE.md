@@ -199,6 +199,22 @@ Bundled subproject with its own package:
 - `database.py`: Separate SQLite database for detailed Stryd data (87 fields, time-series)
 - `strydsync` command: batch sync with progress tracking
 
+### Strava Integration (`runcoach/strava.py`)
+Optional integration for route maps and webhook-triggered sync:
+- **OAuth 2.0 flow**: Connect via Athlete Profile page (`/athlete-profile`)
+- **Tokens stored**: `strava_access_token`, `strava_refresh_token`, `strava_token_expires_at` in `users` table; auto-refreshed when expired
+- **Webhook auto-registration**: After OAuth connect, `register_webhook()` is called automatically — Strava's push subscription is registered as part of the callback; the subscription ID is stored in `users.strava_webhook_subscription_id`
+- **Webhook**: `POST /strava/webhook` receives activity events from Strava, triggers Stryd sync pipeline, fetches route polyline
+- **Webhook verification**: `GET /strava/webhook` handles Strava hub challenge using `STRAVA_WEBHOOK_VERIFY_TOKEN`
+- **Route maps**: Strava `summary_polyline` decoded server-side and rendered with Leaflet.js on Run Detail page
+- **Activity links**: `strava_activity_id` stored in `runs` table links to `https://www.strava.com/activities/{id}`
+
+#### Setting up Strava
+1. Create an app at `https://www.strava.com/settings/api` — set the Authorization Callback Domain to your server's domain
+2. Set `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_WEBHOOK_VERIFY_TOKEN` in `.env`
+3. Connect your Strava account via the Athlete Profile page in the web UI — this runs the OAuth flow **and** automatically registers the webhook subscription in one step
+4. The Athlete Profile page will confirm the webhook subscription ID once registered
+
 ## Key Configuration
 
 All config via environment variables (see `config.py`):
@@ -208,6 +224,8 @@ All config via environment variables (see `config.py`):
 - `ANALYZE_FROM`: Only auto-analyze runs on/after this date (YYYY-MM-DD)
 - `DATA_DIR`: Root for activities, database, outputs (default: `data/`)
 - `SYNC_INTERVAL_HOURS`: Background sync interval (default: 6)
+- `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`: Strava OAuth app credentials (optional)
+- `STRAVA_WEBHOOK_VERIFY_TOKEN`: Random token for Strava webhook verification (optional)
 
 ### Directory Structure
 ```

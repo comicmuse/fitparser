@@ -152,6 +152,10 @@ class RunCoachDB:
                 conn.execute(
                     "ALTER TABLE runs ADD COLUMN strava_activity_id TEXT"
                 )
+            if "strava_map_polyline" not in columns:
+                conn.execute(
+                    "ALTER TABLE runs ADD COLUMN strava_map_polyline TEXT"
+                )
 
             # Migration: allow NULL stryd_activity_id for manual uploads
             # Check if stryd_activity_id has NOT NULL constraint (column index 3 is notnull flag)
@@ -208,11 +212,20 @@ class RunCoachDB:
                     PRAGMA foreign_keys=ON;
                 """)
 
-            # Migration: add athlete_profile and stryd_athlete_id columns to users if missing
+            # Migration: add athlete_profile, stryd_athlete_id, and Strava columns to users
             cursor = conn.execute("PRAGMA table_info(users)")
             user_columns = {row[1] for row in cursor.fetchall()}
             if "stryd_athlete_id" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN stryd_athlete_id TEXT")
+            for col, col_type in [
+                ("strava_access_token", "TEXT"),
+                ("strava_refresh_token", "TEXT"),
+                ("strava_token_expires_at", "INTEGER"),
+                ("strava_athlete_id", "TEXT"),
+                ("strava_webhook_subscription_id", "INTEGER"),
+            ]:
+                if col not in user_columns:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
             if "athlete_profile" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN athlete_profile TEXT")
                 # Seed from coach_profile.txt if the default user exists and profile is null
@@ -706,6 +719,117 @@ class RunCoachDB:
         with self._connect() as conn:
             row = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
         return row[0] if row else None
+
+    # ------ Strava OAuth tokens ------
+
+    def get_strava_tokens(self, user_id: int) -> Optional[dict]:
+        """Return Strava OAuth tokens for a user, or None if not connected."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT strava_access_token, strava_refresh_token,
+                          strava_token_expires_at, strava_athlete_id
+                   FROM users WHERE id = ?""",
+                (user_id,),
+            ).fetchone()
+        if row and row[0]:
+            return {
+                "strava_access_token": row[0],
+                "strava_refresh_token": row[1],
+                "strava_token_expires_at": row[2],
+                "strava_athlete_id": row[3],
+            }
+        return None
+
+    def save_strava_tokens(
+        self,
+        user_id: int,
+        access_token: str,
+        refresh_token: str,
+        expires_at: int,
+        strava_athlete_id: str | None = None,
+    ) -> None:
+        """Save (or update) Strava OAuth tokens for a user."""
+        with self._connect() as conn:
+            if strava_athlete_id is not None:
+                conn.execute(
+                    """UPDATE users
+                       SET strava_access_token = ?, strava_refresh_token = ?,
+                           strava_token_expires_at = ?, strava_athlete_id = ?
+                       WHERE id = ?""",
+                    (access_token, refresh_token, expires_at, strava_athlete_id, user_id),
+                )
+            else:
+                conn.execute(
+                    """UPDATE users
+                       SET strava_access_token = ?, strava_refresh_token = ?,
+                           strava_token_expires_at = ?
+                       WHERE id = ?""",
+                    (access_token, refresh_token, expires_at, user_id),
+                )
+
+    def clear_strava_tokens(self, user_id: int) -> None:
+        """Remove all Strava credentials for a user."""
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE users
+                   SET strava_access_token = NULL, strava_refresh_token = NULL,
+                       strava_token_expires_at = NULL
+                   WHERE id = ?""",
+                (user_id,),
+            )
+
+    def save_strava_webhook_subscription_id(
+        self, user_id: int, subscription_id: int
+    ) -> None:
+        """Store the Strava webhook subscription ID for the user."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET strava_webhook_subscription_id = ? WHERE id = ?",
+                (subscription_id, user_id),
+            )
+
+    def get_strava_webhook_subscription_id(self, user_id: int) -> int | None:
+        """Return the stored Strava webhook subscription ID, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT strava_webhook_subscription_id FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+        return row[0] if row and row[0] is not None else None
+
+    def update_run_strava_data(
+        self,
+        run_id: int,
+        strava_activity_id: str | None = None,
+        strava_map_polyline: str | None = None,
+    ) -> None:
+        """Update Strava activity ID and/or map polyline for a run."""
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE runs
+                   SET strava_activity_id = COALESCE(?, strava_activity_id),
+                       strava_map_polyline = COALESCE(?, strava_map_polyline)
+                   WHERE id = ?""",
+                (strava_activity_id, strava_map_polyline, run_id),
+            )
+
+    def get_run_by_strava_id(self, strava_activity_id: str) -> Optional[dict]:
+        """Get a run by its Strava activity ID."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM runs WHERE strava_activity_id = ?",
+                (str(strava_activity_id),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_runs_on_date(self, date: str) -> list[dict]:
+        """Get all runs for a specific date."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM runs WHERE date = ? ORDER BY id ASC",
+                (date,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_user_password_hash(self, user_id: int) -> str | None:
         """Return the stored password hash for the given user, or None."""
