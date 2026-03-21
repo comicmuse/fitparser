@@ -172,10 +172,16 @@ function toggleUploadForm() {
           {% endfor %}
           {% for pw in day.planned %}
           {% if not day.actual %}
-          {% set tips = [pw.title] %}
-          {% if pw.distance_m %}{% set tips = tips + ["%.1f km"|format(pw.distance_m / 1000)] %}{% endif %}
-          {% if pw.duration_s %}{% set tips = tips + ["%d:%02d"|format(pw.duration_s|int // 60, pw.duration_s|int % 60)] %}{% endif %}
-          <div class="cal-item cal-planned" title="{{ tips | join(' · ') }}">
+          {% set nl = "\n" %}
+          {% set tip = pw.title %}
+          {% if pw.distance_m %}{% set tip = tip + nl + "%.1f km"|format(pw.distance_m / 1000) %}{% endif %}
+          {% if pw.duration_s %}
+            {% set total_min = pw.duration_s|int // 60 %}
+            {% set hrs = total_min // 60 %}
+            {% set mins = total_min % 60 %}
+            {% if hrs > 0 %}{% set tip = tip + nl + hrs|string + "h " + "%02d"|format(mins) %}{% else %}{% set tip = tip + nl + mins|string + " min" %}{% endif %}
+          {% endif %}
+          <div class="cal-item cal-planned" title="{{ tip }}">
             <span class="cal-item-dot" style="background: var(--accent);"></span>
             <span class="cal-item-text">{{ pw.title }}</span>
           </div>
