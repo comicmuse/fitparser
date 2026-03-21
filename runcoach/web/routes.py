@@ -253,7 +253,7 @@ def run_detail(run_id: int):
                         db.update_run_strava_data(run_id=run["id"], strava_map_polyline=polyline)
                         map_coords = decode_polyline(polyline)
             except Exception as exc:
-                log.debug("Could not fetch Strava polyline for run %s: %s", run_id, exc)
+                log.warning("Could not fetch Strava polyline for run %s: %s", run_id, exc)
 
     return render_template(
         "run_detail.html",
