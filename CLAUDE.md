@@ -120,14 +120,16 @@ pytest --cov=runcoach --cov-report=html
 ```
 
 **Test Structure:**
-- `tests/test_context.py` - Training context and RSS calculations (92% coverage)
-- `tests/test_db.py` - Database CRUD operations (96% coverage)
-- `tests/test_analyzer.py` - AI analysis with mocked OpenAI (96% coverage)
-- `tests/test_fit_parser.py` - FIT file parsing (83% coverage)
-- `tests/test_web.py` - Flask web UI routes and pages (49% coverage)
+- `tests/test_context.py` - Training context and RSS calculations
+- `tests/test_db.py` - Database CRUD operations
+- `tests/test_analyzer.py` - AI analysis with mocked OpenAI
+- `tests/test_fit_parser.py` - FIT file parsing
+- `tests/test_parser.py` - Parser integration
+- `tests/test_web.py` - Flask web UI routes, login, profile sanitization
+- `tests/test_api.py` - JWT REST API endpoints
+- `tests/test_pipeline.py` - Pipeline orchestration (sync/parse/analyze stages)
+- `tests/test_sync.py` - Stryd sync
 - `tests/conftest.py` - Shared fixtures (temp databases, mock clients, sample files)
-
-**Current Coverage:** 69% overall (109 tests passing)
 
 **Testing Best Practices:**
 - External APIs (OpenAI, Stryd) are mocked to avoid costs and rate limits
