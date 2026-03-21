@@ -27,6 +27,7 @@ def app(tmp_path):
     # Create the app but don't start the scheduler
     app = create_app(config)
     app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False  # disable CSRF in tests
 
     # Stop the scheduler to avoid background threads during tests
     scheduler = app.config.get("scheduler")
@@ -402,3 +403,190 @@ class TestStaticAssets:
         response = client.get("/static/sw.js")
         # May be 200 if exists, or 404 if not found (acceptable for test)
         assert response.status_code in [200, 404]
+
+
+class TestLogin:
+    """Tests for session-based web login / logout."""
+
+    def test_login_page_loads(self, app):
+        """Login page must be accessible without authentication."""
+        client = app.test_client()
+        response = client.get("/login")
+        assert response.status_code == 200
+        assert b"password" in response.data.lower()
+
+    def test_unauthenticated_redirects_to_login(self, app):
+        """Protected routes must redirect to /login when not logged in."""
+        client = app.test_client()
+        response = client.get("/")
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+    def test_unauthenticated_run_detail_redirects(self, app):
+        """Run detail must redirect unauthenticated requests."""
+        client = app.test_client()
+        db = app.config["db"]
+        run_id = db.insert_run(
+            stryd_activity_id=99001,
+            name="Auth Test Run",
+            date="2026-03-01",
+            fit_path="activities/auth_test.fit",
+        )
+        response = client.get(f"/run/{run_id}")
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+    def test_correct_password_grants_access(self, app):
+        """A correct password sets session and redirects to the app."""
+        from runcoach.auth import hash_password
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password("testpass123"), user_id),
+            )
+
+        client = app.test_client()
+
+        response = client.post(
+            "/login",
+            data={"password": "testpass123", "next": "/"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        location = response.headers["Location"]
+        assert location in ("/", "http://localhost/")
+
+        # Session should now allow access
+        response = client.get("/")
+        assert response.status_code == 200
+
+    def test_wrong_password_stays_on_login(self, app):
+        """An incorrect password must not grant access and must re-render login."""
+        client = app.test_client()
+        response = client.post(
+            "/login",
+            data={"password": "definitely-wrong-password"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"password" in response.data.lower()
+        # Flash message should indicate failure
+        assert b"Incorrect" in response.data
+
+    def test_empty_password_rejected(self, app):
+        """An empty password must not authenticate."""
+        client = app.test_client()
+        response = client.post(
+            "/login",
+            data={"password": ""},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Incorrect" in response.data
+
+    def test_open_redirect_blocked(self, app):
+        """next= parameter must not allow redirect to external sites."""
+        from runcoach.auth import hash_password
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password("testpass123"), user_id),
+            )
+
+        client = app.test_client()
+        response = client.post(
+            "/login",
+            data={"password": "testpass123", "next": "https://evil.example.com/steal"},
+            follow_redirects=False,
+        )
+        # Must redirect to index, not the external URL
+        assert response.status_code == 302
+        location = response.headers["Location"]
+        assert "evil.example.com" not in location
+
+    def test_logout_clears_session(self, app):
+        """Logout must clear the session and redirect to login."""
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess["logged_in"] = True
+
+        response = client.post("/logout", follow_redirects=False)
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+        # After logout, protected routes should redirect again
+        response = client.get("/")
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+
+class TestProfileSanitization:
+    """Tests for athlete profile input sanitization."""
+
+    def test_control_characters_stripped(self, app):
+        """Control characters (except \\t, \\n, \\r) must be removed."""
+        from runcoach.web.routes import _sanitize_profile
+        dirty = "Hello\x00World\x07\x1b[31mRed\x1b[0m"
+        clean = _sanitize_profile(dirty)
+        assert "\x00" not in clean
+        assert "\x07" not in clean
+        assert "\x1b" not in clean
+        assert "Hello" in clean
+        assert "World" in clean
+
+    def test_newlines_preserved(self, app):
+        """Newlines and tabs must survive sanitization."""
+        from runcoach.web.routes import _sanitize_profile
+        text = "Line one\nLine two\r\nLine three\tTabbed"
+        clean = _sanitize_profile(text)
+        assert "\n" in clean
+        assert "\t" in clean
+
+    def test_length_capped_at_5000(self, app):
+        """Input longer than 5000 chars must be truncated."""
+        from runcoach.web.routes import _sanitize_profile
+        long_text = "A" * 10_000
+        clean = _sanitize_profile(long_text)
+        assert len(clean) == 5_000
+
+    def test_normal_text_unchanged(self, app):
+        """Ordinary profile text must pass through unmodified."""
+        from runcoach.web.routes import _sanitize_profile
+        text = "I'm training for a marathon.\nCurrent CP: 280 W."
+        assert _sanitize_profile(text) == text
+
+    def test_profile_save_strips_control_chars(self, client, app):
+        """POST /athlete-profile must store sanitized text."""
+        dirty_profile = "My profile\x00with null\x07byte"
+        response = client.post(
+            "/athlete-profile",
+            data={"profile": dirty_profile},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        saved = db.get_athlete_profile(user_id)
+        assert "\x00" not in saved
+        assert "\x07" not in saved
+        assert "My profile" in saved
+
+    def test_profile_save_enforces_max_length(self, client, app):
+        """POST /athlete-profile must truncate overlong input."""
+        response = client.post(
+            "/athlete-profile",
+            data={"profile": "X" * 10_000},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        saved = db.get_athlete_profile(user_id)
+        assert len(saved) <= 5_000
+
