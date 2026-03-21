@@ -145,6 +145,34 @@ class StravaClient:
         resp.raise_for_status()
         return resp.json()
 
+    def list_activities(
+        self,
+        access_token: str,
+        after: int | None = None,
+        before: int | None = None,
+        per_page: int = 100,
+        page: int = 1,
+    ) -> list[dict]:
+        """Fetch a page of activities from the athlete's activity list.
+
+        Parameters map directly to Strava's ``GET /athlete/activities`` API.
+        ``after`` and ``before`` are Unix epoch timestamps (inclusive).
+        Returns an empty list when no more activities exist.
+        """
+        params: dict = {"per_page": per_page, "page": page}
+        if after is not None:
+            params["after"] = after
+        if before is not None:
+            params["before"] = before
+        resp = requests.get(
+            f"{STRAVA_API_BASE}/athlete/activities",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     def get_valid_access_token(self, db: RunCoachDB, user_id: int) -> str | None:
         """
         Return a valid access token for the user, automatically refreshing

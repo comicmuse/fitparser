@@ -831,6 +831,14 @@ class RunCoachDB:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_unlinked_runs(self) -> list[dict]:
+        """Return all runs that have no Strava activity ID linked yet."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM runs WHERE strava_activity_id IS NULL ORDER BY date ASC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_user_password_hash(self, user_id: int) -> str | None:
         """Return the stored password hash for the given user, or None."""
         with self._connect() as conn:

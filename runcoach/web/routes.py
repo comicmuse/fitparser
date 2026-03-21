@@ -690,6 +690,104 @@ def strava_callback():
     return redirect(url_for("main.athlete_profile"))
 
 
+@bp.route("/strava/backfill", methods=["POST"])
+@_login_required
+def strava_backfill():
+    """
+    Backfill Strava activity IDs and route polylines for historical runs
+    that were parsed before Strava was connected.
+
+    Fetches the athlete's Strava activity list and matches each running
+    activity to an unlinked run record by date (``start_date_local``).
+    """
+    import datetime
+    from runcoach.strava import StravaClient
+
+    config: Config = current_app.config["config"]
+    db = _db()
+    user_id = db.get_default_user_id()
+    if not user_id or not config.strava_client_id:
+        flash("Strava is not configured.")
+        return redirect(url_for("main.athlete_profile"))
+
+    client = StravaClient(config.strava_client_id, config.strava_client_secret)
+    access_token = client.get_valid_access_token(db, user_id)
+    if not access_token:
+        flash("No valid Strava token. Please reconnect Strava.")
+        return redirect(url_for("main.athlete_profile"))
+
+    unlinked = db.get_unlinked_runs()
+    if not unlinked:
+        flash("All runs already have a Strava activity linked.")
+        return redirect(url_for("main.athlete_profile"))
+
+    # Group unlinked runs by date for fast lookup.
+    runs_by_date: dict[str, list[dict]] = {}
+    for run in unlinked:
+        date = (run.get("date") or "")[:10]
+        if date:
+            runs_by_date.setdefault(date, []).append(run)
+
+    # Fetch Strava activities starting from just before the oldest unlinked run.
+    oldest_date = min(runs_by_date.keys())
+    after_ts = int(
+        datetime.datetime(
+            *[int(p) for p in oldest_date.split("-")],
+            tzinfo=datetime.timezone.utc,
+        ).timestamp()
+    ) - 86400  # one day buffer
+
+    RUNNING_TYPES = {"Run", "TrailRun", "VirtualRun", "Treadmill"}
+    linked = 0
+    page = 1
+    while True:
+        try:
+            activities = client.list_activities(
+                access_token, after=after_ts, per_page=100, page=page
+            )
+        except Exception as exc:
+            log.error("Strava backfill: error fetching page %d: %s", page, exc)
+            flash(f"Backfill stopped early — Strava API error: {exc}")
+            break
+        if not activities:
+            break
+        for activity in activities:
+            sport = activity.get("sport_type") or activity.get("type", "")
+            if sport not in RUNNING_TYPES:
+                continue
+            act_date = (activity.get("start_date_local") or "")[:10]
+            if act_date not in runs_by_date:
+                continue
+            strava_id = str(activity["id"])
+            if db.get_run_by_strava_id(strava_id):
+                continue  # already linked
+            polyline = (activity.get("map") or {}).get("summary_polyline") or None
+            candidates = [r for r in runs_by_date[act_date] if not r.get("strava_activity_id")]
+            if not candidates:
+                continue
+            run = candidates[-1]
+            db.update_run_strava_data(
+                run_id=run["id"],
+                strava_activity_id=strava_id,
+                strava_map_polyline=polyline,
+            )
+            run["strava_activity_id"] = strava_id  # prevent double-linking in same run
+            linked += 1
+            log.info(
+                "Backfilled Strava activity %s to run %s (%s)",
+                strava_id, run["id"], act_date,
+            )
+        if len(activities) < 100:
+            break  # last page
+        page += 1
+
+    if linked:
+        flash(f"Backfill complete — linked {linked} run{'s' if linked != 1 else ''} to Strava activities.")
+    else:
+        flash("Backfill complete — no new matches found.")
+    return redirect(url_for("main.athlete_profile"))
+
+
 @bp.route("/strava/disconnect", methods=["POST"])
 @_login_required
 def strava_disconnect():
