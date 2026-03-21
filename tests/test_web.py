@@ -590,3 +590,451 @@ class TestProfileSanitization:
         saved = db.get_athlete_profile(user_id)
         assert len(saved) <= 5_000
 
+
+# ---------------------------------------------------------------------------
+# Strava webhook fixtures & helpers
+# ---------------------------------------------------------------------------
+
+import json
+import threading
+
+
+@pytest.fixture
+def strava_app(tmp_path):
+    """Flask app with Strava integration configured."""
+    from runcoach.config import Config
+    config = Config(
+        openai_api_key="test-key",
+        openai_model="gpt-4o",
+        data_dir=tmp_path / "data",
+        timezone="Europe/London",
+        stryd_email="test@example.com",
+        stryd_password="test-password",
+        secret_key="test-secret-key-for-testing",
+        sync_interval_hours=24,
+        strava_client_id="fake_client_id",
+        strava_client_secret="fake_client_secret",
+        strava_webhook_verify_token="test-verify-token",
+        strava_webhook_enabled=True,
+    )
+    from runcoach.web import create_app
+    app = create_app(config)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+
+    scheduler = app.config.get("scheduler")
+    if scheduler:
+        scheduler.stop()
+
+    yield app
+
+
+@pytest.fixture
+def strava_client(strava_app):
+    """Unauthenticated test client (webhook endpoints are public)."""
+    return strava_app.test_client()
+
+
+class TestStravaWebhookVerification:
+    """Tests for GET /strava/webhook (Strava hub challenge)."""
+
+    def test_valid_challenge_returns_hub_challenge(self, strava_client):
+        """Correct verify_token must echo back hub.challenge."""
+        response = strava_client.get(
+            "/strava/webhook",
+            query_string={
+                "hub.mode": "subscribe",
+                "hub.verify_token": "test-verify-token",
+                "hub.challenge": "abc123",
+            },
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data == {"hub.challenge": "abc123"}
+
+    def test_wrong_verify_token_returns_403(self, strava_client):
+        """A mismatched verify_token must be rejected with 403."""
+        response = strava_client.get(
+            "/strava/webhook",
+            query_string={
+                "hub.mode": "subscribe",
+                "hub.verify_token": "wrong-token",
+                "hub.challenge": "abc123",
+            },
+        )
+        assert response.status_code == 403
+
+    def test_missing_verify_token_returns_403(self, strava_client):
+        """A missing verify_token must be rejected with 403."""
+        response = strava_client.get(
+            "/strava/webhook",
+            query_string={"hub.challenge": "abc123"},
+        )
+        assert response.status_code == 403
+
+    def test_challenge_value_is_reflected_verbatim(self, strava_client):
+        """The exact challenge string must be echoed, whatever it contains."""
+        challenge = "random-challenge-xyz-9876"
+        response = strava_client.get(
+            "/strava/webhook",
+            query_string={
+                "hub.verify_token": "test-verify-token",
+                "hub.challenge": challenge,
+            },
+        )
+        assert response.status_code == 200
+        assert response.get_json()["hub.challenge"] == challenge
+
+    def test_webhook_accessible_without_login(self, strava_app):
+        """Webhook verification must be reachable without a session cookie."""
+        c = strava_app.test_client()  # no session manipulation
+        response = c.get(
+            "/strava/webhook",
+            query_string={
+                "hub.verify_token": "test-verify-token",
+                "hub.challenge": "open-check",
+            },
+        )
+        assert response.status_code == 200
+
+
+class TestStravaWebhookEvent:
+    """Tests for POST /strava/webhook (activity event handler)."""
+
+    def _post_event(self, client, payload):
+        return client.post(
+            "/strava/webhook",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_activity_create_returns_ok_immediately(self, strava_client, mocker):
+        """Webhook must return 200 ok immediately regardless of background work."""
+        mocker.patch("threading.Thread.start")  # stop the background thread
+        response = self._post_event(strava_client, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 111111,
+            "owner_id": 9999,
+        })
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True}
+
+    def test_non_activity_event_ignored(self, strava_client, mocker):
+        """Non-activity events (e.g. athlete updates) must be acknowledged but not processed."""
+        start_mock = mocker.patch("threading.Thread.start")
+        response = self._post_event(strava_client, {
+            "object_type": "athlete",
+            "aspect_type": "update",
+            "object_id": 9999,
+        })
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True}
+        start_mock.assert_not_called()
+
+    def test_delete_event_ignored(self, strava_client, mocker):
+        """Activity delete events must be acknowledged but not processed."""
+        start_mock = mocker.patch("threading.Thread.start")
+        response = self._post_event(strava_client, {
+            "object_type": "activity",
+            "aspect_type": "delete",
+            "object_id": 111111,
+        })
+        assert response.status_code == 200
+        start_mock.assert_not_called()
+
+    def test_empty_body_returns_ok(self, strava_client, mocker):
+        """An empty / malformed body must not crash the endpoint."""
+        mocker.patch("threading.Thread.start")
+        response = strava_client.post(
+            "/strava/webhook",
+            data="",
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.get_json() == {"ok": True}
+
+    def test_background_thread_is_spawned_for_create(self, strava_client, mocker):
+        """A create event must spawn exactly one background thread."""
+        start_mock = mocker.patch("threading.Thread.start")
+        self._post_event(strava_client, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 222222,
+            "owner_id": 9999,
+        })
+        start_mock.assert_called_once()
+
+    def test_background_thread_is_spawned_for_update(self, strava_client, mocker):
+        """An update event must also spawn a background thread."""
+        start_mock = mocker.patch("threading.Thread.start")
+        self._post_event(strava_client, {
+            "object_type": "activity",
+            "aspect_type": "update",
+            "object_id": 333333,
+        })
+        start_mock.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # Helpers for end-to-end handler tests
+    # ------------------------------------------------------------------
+
+    def _run_handler_synchronously(self, strava_client, mocker, payload):
+        """
+        Post a webhook event and run the background handler synchronously.
+
+        Replaces threading.Thread in the routes module with a fake that calls
+        the target function immediately inside start(), so side-effects are
+        observable before we return.
+        """
+        def fake_thread_class(*args, **kwargs):
+            target = kwargs.get("target")
+            thread_args = kwargs.get("args", ())
+
+            class _FakeThread:
+                daemon = kwargs.get("daemon", False)
+
+                def start(self):
+                    if target:
+                        target(*thread_args)
+
+                def join(self, timeout=None):
+                    pass
+
+            return _FakeThread()
+
+        mocker.patch("runcoach.web.routes.threading.Thread", side_effect=fake_thread_class)
+        return self._post_event(strava_client, payload)
+
+    def test_webhook_triggers_pipeline_and_stores_polyline(self, strava_client, strava_app, mocker):
+        """
+        End-to-end background handler test:
+        - pipeline is run synchronously via run_full_pipeline
+        - Strava activity is fetched first; polyline stored on matching run
+        """
+        import time
+        db = strava_app.config["db"]
+
+        run_id = db.insert_run(
+            stryd_activity_id=55555,
+            name="Morning Run",
+            date="2026-03-15",
+            fit_path="activities/test.fit",
+        )
+
+        pipeline_mock = mocker.patch("runcoach.web.routes.run_full_pipeline")
+
+        fake_activity = {
+            "id": 777777,
+            "sport_type": "Run",
+            "start_date_local": "2026-03-15T07:00:00Z",
+            "map": {"summary_polyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@"},
+        }
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mock_client_instance.get_activity.return_value = fake_activity
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        user_id = db.get_default_user_id()
+        db.save_strava_tokens(
+            user_id=user_id,
+            access_token="fake-access",
+            refresh_token="fake-refresh",
+            expires_at=int(time.time()) + 3600,
+        )
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 777777,
+        })
+
+        pipeline_mock.assert_called_once()
+        updated = db.get_run(run_id)
+        assert updated["strava_map_polyline"] == "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+
+    def test_background_handler_skips_non_run_sport(self, strava_client, strava_app, mocker):
+        """Handler must bail out before calling the pipeline for non-running activities."""
+        import time
+        db = strava_app.config["db"]
+
+        pipeline_mock = mocker.patch("runcoach.web.routes.run_full_pipeline")
+
+        fake_activity = {
+            "id": 888888,
+            "sport_type": "Ride",
+            "start_date_local": "2026-03-16T08:00:00Z",
+            "map": {"summary_polyline": "some_polyline"},
+        }
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mock_client_instance.get_activity.return_value = fake_activity
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        user_id = db.get_default_user_id()
+        db.save_strava_tokens(
+            user_id=user_id,
+            access_token="fake-access",
+            refresh_token="fake-refresh",
+            expires_at=int(time.time()) + 3600,
+        )
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 888888,
+        })
+
+        # Pipeline must NOT have been invoked for a non-running sport
+        pipeline_mock.assert_not_called()
+        runs = db.get_runs_on_date("2026-03-16")
+        for r in runs:
+            assert not r.get("strava_map_polyline")
+
+    def test_background_handler_links_run_by_strava_id(self, strava_client, strava_app, mocker):
+        """Handler must update an existing run that already has strava_activity_id set."""
+        import time
+        db = strava_app.config["db"]
+
+        mocker.patch("runcoach.web.routes.run_full_pipeline")
+
+        run_id = db.insert_run(
+            stryd_activity_id=66666,
+            name="Linked Run",
+            date="2026-03-20",
+            fit_path="activities/linked.fit",
+        )
+        db.update_run_strava_data(run_id=run_id, strava_activity_id="999999")
+
+        fake_activity = {
+            "id": 999999,
+            "sport_type": "Run",
+            "start_date_local": "2026-03-20T06:00:00Z",
+            "map": {"summary_polyline": "newpolyline=="},
+        }
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mock_client_instance.get_activity.return_value = fake_activity
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        user_id = db.get_default_user_id()
+        db.save_strava_tokens(
+            user_id=user_id,
+            access_token="fake-access",
+            refresh_token="fake-refresh",
+            expires_at=int(time.time()) + 3600,
+        )
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 999999,
+        })
+
+        updated = db.get_run(run_id)
+        assert updated["strava_map_polyline"] == "newpolyline=="
+
+    def test_background_handler_retries_pipeline_when_run_not_found(self, strava_client, strava_app, mocker):
+        """
+        If the run is not in the DB after the first pipeline run, the handler
+        must sleep 30s, retry, then sleep 120s, retry — and link on success.
+        """
+        import time
+        db = strava_app.config["db"]
+
+        # Pipeline mock that inserts the run on its second call
+        call_count = {"n": 0}
+        run_id_holder = {}
+
+        def fake_pipeline(config, db_arg):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                rid = db_arg.insert_run(
+                    stryd_activity_id=77777,
+                    name="Late Arrival Run",
+                    date="2026-03-21",
+                    fit_path="activities/late.fit",
+                )
+                run_id_holder["id"] = rid
+
+        mocker.patch("runcoach.web.routes.run_full_pipeline", side_effect=fake_pipeline)
+        sleep_mock = mocker.patch("runcoach.web.routes.time.sleep")
+
+        fake_activity = {
+            "id": 404040,
+            "sport_type": "Run",
+            "start_date_local": "2026-03-21T06:30:00Z",
+            "map": {"summary_polyline": "retrypoly=="},
+        }
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mock_client_instance.get_activity.return_value = fake_activity
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        user_id = db.get_default_user_id()
+        db.save_strava_tokens(
+            user_id=user_id,
+            access_token="fake-access",
+            refresh_token="fake-refresh",
+            expires_at=int(time.time()) + 3600,
+        )
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 404040,
+        })
+
+        # Pipeline called twice (initial + first retry)
+        assert call_count["n"] == 2
+        # First retry delay is 30s
+        sleep_mock.assert_called_once_with(30)
+        # Run should be linked with the polyline
+        updated = db.get_run(run_id_holder["id"])
+        assert updated["strava_map_polyline"] == "retrypoly=="
+
+    def test_background_handler_treadmill_accepted(self, strava_client, strava_app, mocker):
+        """Treadmill runs must be processed the same as outdoor runs."""
+        import time
+        db = strava_app.config["db"]
+
+        pipeline_mock = mocker.patch("runcoach.web.routes.run_full_pipeline")
+
+        run_id = db.insert_run(
+            stryd_activity_id=88888,
+            name="Treadmill Run",
+            date="2026-03-21",
+            fit_path="activities/treadmill.fit",
+        )
+
+        fake_activity = {
+            "id": 505050,
+            "sport_type": "Treadmill",
+            "start_date_local": "2026-03-21T08:00:00Z",
+            "map": {"summary_polyline": None},
+        }
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mock_client_instance.get_activity.return_value = fake_activity
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        user_id = db.get_default_user_id()
+        db.save_strava_tokens(
+            user_id=user_id,
+            access_token="fake-access",
+            refresh_token="fake-refresh",
+            expires_at=int(time.time()) + 3600,
+        )
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 505050,
+        })
+
+        # Pipeline must have been called
+        pipeline_mock.assert_called_once()
+        # Run linked (no polyline for treadmill, but strava_activity_id stored)
+        updated = db.get_run(run_id)
+        assert updated["strava_activity_id"] == "505050"
+

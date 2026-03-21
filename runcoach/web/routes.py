@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 
 import re
 import unicodedata
@@ -24,6 +25,7 @@ import nh3
 from runcoach.analyzer import analyze_and_write
 from runcoach.auth import verify_password
 from runcoach.config import Config
+from runcoach.pipeline import run_full_pipeline
 
 log = logging.getLogger(__name__)
 
@@ -662,7 +664,9 @@ def strava_callback():
     # This is a per-app operation — we only need it once, but it's safe to
     # retry (Strava returns 409 Conflict if already registered).
     webhook_msg = ""
-    if config.strava_webhook_verify_token:
+    if not config.strava_webhook_enabled:
+        webhook_msg = " (Webhook registration skipped — STRAVA_WEBHOOK_ENABLED=false.)"
+    elif config.strava_webhook_verify_token:
         callback_url = url_for("main.strava_webhook", _external=True)
         result = client.register_webhook(
             callback_url=callback_url,
@@ -742,14 +746,12 @@ def strava_webhook():
         with app.app_context():
             from runcoach.strava import StravaClient
             db = _db()
-            scheduler = _scheduler()
             config: Config = current_app.config["config"]
 
-            # 1. Trigger the full Stryd sync pipeline
-            scheduler.trigger_now()
-
-            # 2. Fetch Strava activity details to get the polyline
+            # --- Fetch Strava activity first so we can filter sport type
+            # before triggering any sync work at all. ---
             if not config.strava_client_id:
+                log.debug("Strava not configured, skipping webhook handler")
                 return
             user_id = db.get_default_user_id()
             if not user_id:
@@ -757,6 +759,7 @@ def strava_webhook():
             client = StravaClient(config.strava_client_id, config.strava_client_secret)
             access_token = client.get_valid_access_token(db, user_id)
             if not access_token:
+                log.warning("No valid Strava access token for webhook handler")
                 return
             try:
                 activity = client.get_activity(activity_id, access_token)
@@ -765,35 +768,74 @@ def strava_webhook():
                 return
 
             sport_type = activity.get("sport_type", "") or activity.get("type", "")
-            if sport_type not in ("Run", "TrailRun", "VirtualRun"):
+            if sport_type not in ("Run", "TrailRun", "VirtualRun", "Treadmill"):
+                log.debug("Ignoring Strava activity %s with sport_type=%s", activity_id, sport_type)
                 return
 
-            polyline = (
-                activity.get("map", {}) or {}
-            ).get("summary_polyline") or None
+            polyline = (activity.get("map", {}) or {}).get("summary_polyline") or None
             strava_id_str = str(activity_id)
             start_date = (activity.get("start_date_local") or "")[:10]  # YYYY-MM-DD
 
-            # Try to find the matching run (may already exist from Stryd sync)
-            existing = db.get_run_by_strava_id(strava_id_str)
-            if existing:
-                db.update_run_strava_data(
-                    run_id=existing["id"],
-                    strava_map_polyline=polyline,
-                )
-                return
+            def _try_link_run() -> bool:
+                """Try to match the Strava activity to a run in the DB.
 
-            # Not linked yet — try to match by date (pick the most recent run on that date)
-            if start_date:
-                runs_today = db.get_runs_on_date(start_date)
-                # Find runs without a strava_activity_id yet
-                unlinked = [r for r in runs_today if not r.get("strava_activity_id")]
-                if unlinked:
+                Returns True if the run was found and updated, False otherwise.
+                """
+                existing = db.get_run_by_strava_id(strava_id_str)
+                if existing:
                     db.update_run_strava_data(
-                        run_id=unlinked[-1]["id"],
-                        strava_activity_id=strava_id_str,
+                        run_id=existing["id"],
                         strava_map_polyline=polyline,
                     )
+                    log.info(
+                        "Linked Strava activity %s to run %s (by strava_id)",
+                        strava_id_str, existing["id"],
+                    )
+                    return True
+
+                if start_date:
+                    runs_today = db.get_runs_on_date(start_date)
+                    unlinked = [r for r in runs_today if not r.get("strava_activity_id")]
+                    if unlinked:
+                        db.update_run_strava_data(
+                            run_id=unlinked[-1]["id"],
+                            strava_activity_id=strava_id_str,
+                            strava_map_polyline=polyline,
+                        )
+                        log.info(
+                            "Linked Strava activity %s to run %s (by date %s)",
+                            strava_id_str, unlinked[-1]["id"], start_date,
+                        )
+                        return True
+                return False
+
+            # --- Run the Stryd sync pipeline synchronously so we can check
+            # whether the matching run arrived before deciding to retry. ---
+            log.info(
+                "Webhook: triggering pipeline for Strava activity %s (%s)",
+                strava_id_str, sport_type,
+            )
+            run_full_pipeline(config, db)
+
+            if _try_link_run():
+                return
+
+            # The Stryd FIT file may not have synced yet (Stryd's upload can
+            # lag a minute or two). Retry at +30 s then +2 min.
+            for delay in (30, 120):
+                log.info(
+                    "Strava activity %s not yet matched; retrying pipeline in %ds",
+                    strava_id_str, delay,
+                )
+                time.sleep(delay)
+                run_full_pipeline(config, db)
+                if _try_link_run():
+                    return
+
+            log.warning(
+                "Strava activity %s could not be matched to a Stryd run after retries",
+                strava_id_str,
+            )
 
     t = threading.Thread(
         target=_handle_webhook,

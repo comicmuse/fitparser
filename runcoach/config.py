@@ -28,6 +28,7 @@ class Config:
     strava_client_id: str = ""
     strava_client_secret: str = ""
     strava_webhook_verify_token: str = ""
+    strava_webhook_enabled: bool = True
 
     @property
     def db_path(self) -> Path:
@@ -75,4 +76,5 @@ class Config:
             strava_client_id=os.environ.get("STRAVA_CLIENT_ID", ""),
             strava_client_secret=os.environ.get("STRAVA_CLIENT_SECRET", ""),
             strava_webhook_verify_token=os.environ.get("STRAVA_WEBHOOK_VERIFY_TOKEN", ""),
+            strava_webhook_enabled=os.environ.get("STRAVA_WEBHOOK_ENABLED", "true").lower() in ("true", "1", "yes"),
         )
