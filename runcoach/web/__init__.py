@@ -5,6 +5,7 @@ import os
 
 from flask import Flask
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
@@ -40,6 +41,7 @@ def create_app(config: Config | None = None) -> Flask:
     _ensure_default_user(db, config)
 
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
     app.secret_key = config.secret_key
     app.config["SECRET_KEY"] = config.secret_key  # For JWT
     app.config["RUNCOACH_CONFIG"] = config  # For API blueprint
