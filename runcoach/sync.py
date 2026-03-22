@@ -43,8 +43,17 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
             if not activity_id:
                 continue
 
-            # Skip if already in our database
-            if db.get_run_by_stryd_id(activity_id):
+            # Skip if already in our database — but update name if Stryd
+            # has since renamed the activity (e.g. after plan-linking).
+            existing = db.get_run_by_stryd_id(activity_id)
+            if existing:
+                new_name = activity.get("name", "")
+                if new_name and new_name != existing["name"]:
+                    log.info(
+                        "Updating name for run %s: %r → %r",
+                        activity_id, existing["name"], new_name,
+                    )
+                    db.update_run_name(existing["id"], new_name)
                 continue
 
             name = activity.get("name", "Unnamed Activity")
@@ -56,6 +65,14 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
             dt = datetime.fromtimestamp(timestamp)
             date_str = dt.strftime("%Y-%m-%d")
             date_prefix = dt.strftime("%Y%m%d")
+
+            # If there's a planned workout for this date, prefer its title as
+            # the run name — Stryd may not have linked the plan yet at sync time.
+            planned = db.get_planned_workout_for_date(date_str)
+            if planned and planned[0].get("title"):
+                name = planned[0]["title"]
+                log.debug("Using planned workout title %r for activity %s", name, activity_id)
+
             clean_name = _sanitize_name(name)
             dir_name = f"{date_prefix}_{clean_name}"
 

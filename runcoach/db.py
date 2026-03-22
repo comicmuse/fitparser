@@ -797,6 +797,14 @@ class RunCoachDB:
             ).fetchone()
         return row[0] if row and row[0] is not None else None
 
+    def update_run_name(self, run_id: int, name: str) -> None:
+        """Update the display name of a run."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE runs SET name = ? WHERE id = ?",
+                (name, run_id),
+            )
+
     def update_run_strava_data(
         self,
         run_id: int,

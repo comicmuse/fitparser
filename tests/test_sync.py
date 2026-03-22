@@ -1,15 +1,16 @@
-"""Tests for sync.py — focused on the stale planned-workout cleanup in PR #7."""
+"""Tests for sync.py — planned-workout cleanup and activity name fix-up."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
-from runcoach.sync import sync_planned_workouts
+from runcoach.sync import sync_new_activities, sync_planned_workouts
 
 
 # ---------------------------------------------------------------------------
@@ -207,3 +208,156 @@ class TestLocalDatabaseHasPlannedWorkouts:
         print(f"\nFound {len(workouts)} planned workouts in local DB within sync window:")
         for w in workouts:
             print(f"  {w['date']} — {w['title']} ({w.get('workout_type', '')})")
+
+
+# ---------------------------------------------------------------------------
+# sync_new_activities — activity name fix-up
+# ---------------------------------------------------------------------------
+
+def _make_stryd_activity(
+    activity_id: int,
+    name: str,
+    date: datetime,
+    fit_content: bytes = b"FITDATA",
+) -> dict:
+    """Minimal Stryd activity dict."""
+    return {
+        "id": activity_id,
+        "name": name,
+        "timestamp": date.timestamp(),
+        "distance": 10000.0,
+        "moving_time": 3600,
+        "stress": 55.0,
+    }
+
+
+def _patch_stryd(activities: list[dict], fit_content: bytes = b"FITDATA"):
+    """Patch StrydAPI so get_activities returns *activities* and download writes dummy FIT."""
+
+    def _fake_download(activity_id, output_dir, filename=None):
+        p = Path(output_dir) / f"{filename or activity_id}.fit"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(fit_content)
+        return str(p)
+
+    mock_api = MagicMock()
+    mock_api.authenticate.return_value = None
+    mock_api.get_activities.return_value = activities
+    mock_api.download_fit_file.side_effect = _fake_download
+    return patch("strydcmd.stryd_api.StrydAPI", return_value=mock_api)
+
+
+class TestSyncNewActivitiesUsesPlannedName:
+    """When a planned workout exists for the run date, its title is used as the run name."""
+
+    def _config(self, tmp_path) -> Config:
+        return Config(
+            openai_api_key="test",
+            openai_model="gpt-4o",
+            data_dir=tmp_path / "data",
+            timezone="UTC",
+            stryd_email="a@b.com",
+            stryd_password="pw",
+        )
+
+    def test_planned_title_used_instead_of_generic_stryd_name(self, tmp_path, temp_db):
+        today = datetime(2026, 3, 22, 15, 0, 0, tzinfo=timezone.utc)
+        date_str = "2026-03-22"
+
+        temp_db.upsert_planned_workout(date=date_str, title="Day 77 - Long Run")
+
+        activity = _make_stryd_activity(999, "Afternoon Run", today)
+        config = self._config(tmp_path)
+
+        with _patch_stryd([activity]):
+            new_runs = sync_new_activities(config, temp_db)
+
+        assert len(new_runs) == 1
+        assert new_runs[0]["name"] == "Day 77 - Long Run"
+
+        row = temp_db.get_run_by_stryd_id(999)
+        assert row["name"] == "Day 77 - Long Run"
+
+    def test_stryd_name_used_when_no_planned_workout(self, tmp_path, temp_db):
+        today = datetime(2026, 3, 22, 15, 0, 0, tzinfo=timezone.utc)
+
+        activity = _make_stryd_activity(1000, "Afternoon Run", today)
+        config = self._config(tmp_path)
+
+        with _patch_stryd([activity]):
+            new_runs = sync_new_activities(config, temp_db)
+
+        assert len(new_runs) == 1
+        assert new_runs[0]["name"] == "Afternoon Run"
+
+    def test_planned_title_only_used_if_not_blank(self, tmp_path, temp_db):
+        today = datetime(2026, 3, 22, 15, 0, 0, tzinfo=timezone.utc)
+        date_str = "2026-03-22"
+
+        # A planned workout with no title
+        temp_db.upsert_planned_workout(date=date_str, title="")
+
+        activity = _make_stryd_activity(1001, "Afternoon Run", today)
+        config = self._config(tmp_path)
+
+        with _patch_stryd([activity]):
+            new_runs = sync_new_activities(config, temp_db)
+
+        assert new_runs[0]["name"] == "Afternoon Run"
+
+
+class TestSyncNewActivitiesUpdatesStaleNames:
+    """When an activity is already in the DB but Stryd has updated its name, the DB is updated."""
+
+    def _config(self, tmp_path) -> Config:
+        return Config(
+            openai_api_key="test",
+            openai_model="gpt-4o",
+            data_dir=tmp_path / "data",
+            timezone="UTC",
+            stryd_email="a@b.com",
+            stryd_password="pw",
+        )
+
+    def _seed_run(self, temp_db, stryd_id: int, name: str, date_str: str, tmp_path) -> int:
+        fit_path = tmp_path / "data" / "activities" / "2026" / "03" / "dummy.fit"
+        fit_path.parent.mkdir(parents=True, exist_ok=True)
+        fit_path.write_bytes(b"FIT")
+        run_id = temp_db.insert_run(
+            stryd_activity_id=stryd_id,
+            name=name,
+            date=date_str,
+            fit_path=str(fit_path),
+        )
+        return run_id
+
+    def test_name_updated_when_stryd_renames_activity(self, tmp_path, temp_db):
+        run_id = self._seed_run(temp_db, 555, "Afternoon Run", "2026-03-22", tmp_path)
+
+        # Stryd now returns the same activity with the plan-linked name
+        today = datetime(2026, 3, 22, 15, 0, 0, tzinfo=timezone.utc)
+        activity = _make_stryd_activity(555, "Day 77 - Long Run", today)
+
+        config = self._config(tmp_path)
+        with _patch_stryd([activity]):
+            new_runs = sync_new_activities(config, temp_db)
+
+        # No new run inserted (already existed)
+        assert new_runs == []
+
+        row = temp_db.get_run_by_stryd_id(555)
+        assert row["name"] == "Day 77 - Long Run"
+
+    def test_name_not_updated_when_unchanged(self, tmp_path, temp_db):
+        run_id = self._seed_run(temp_db, 556, "Day 77 - Long Run", "2026-03-22", tmp_path)
+
+        today = datetime(2026, 3, 22, 15, 0, 0, tzinfo=timezone.utc)
+        activity = _make_stryd_activity(556, "Day 77 - Long Run", today)
+
+        config = self._config(tmp_path)
+        with _patch_stryd([activity]):
+            new_runs = sync_new_activities(config, temp_db)
+
+        assert new_runs == []
+        row = temp_db.get_run_by_stryd_id(556)
+        assert row["name"] == "Day 77 - Long Run"
