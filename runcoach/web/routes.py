@@ -562,6 +562,7 @@ def athlete_profile():
     config: Config = current_app.config["config"]
     user_id = db.get_default_user_id()
     profile = db.get_athlete_profile(user_id) if user_id else ""
+    stryd_athlete_id = db.get_stryd_athlete_id(user_id) if user_id else None
     strava_connected = bool(
         user_id and db.get_strava_tokens(user_id)
     ) if config.strava_client_id else False
@@ -574,6 +575,7 @@ def athlete_profile():
     return render_template(
         "athlete_profile.html",
         profile=profile,
+        stryd_athlete_id=stryd_athlete_id,
         strava_connected=strava_connected,
         strava_athlete_id=strava_athlete_id,
         strava_webhook_id=strava_webhook_id,
@@ -595,6 +597,21 @@ def athlete_profile_save():
     profile_text = _sanitize_profile(raw).strip()
     db.update_athlete_profile(user_id, profile_text)
     flash("Athlete profile saved.")
+    return redirect(url_for("main.athlete_profile"))
+
+
+@bp.route("/athlete-profile/stryd-id", methods=["POST"])
+@_login_required
+def stryd_athlete_id_save():
+    """Save the Stryd athlete UUID."""
+    db = _db()
+    user_id = db.get_default_user_id()
+    if user_id is None:
+        flash("No user account found.")
+        return redirect(url_for("main.athlete_profile"))
+    stryd_id = request.form.get("stryd_athlete_id", "").strip()
+    db.update_stryd_athlete_id(user_id, stryd_id)
+    flash("Stryd athlete ID saved.")
     return redirect(url_for("main.athlete_profile"))
 
 
