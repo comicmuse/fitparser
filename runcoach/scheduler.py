@@ -26,7 +26,10 @@ class Scheduler:
         return self._running
 
     def start(self) -> None:
-        """Start the background scheduler thread."""
+        """Start the background scheduler thread. No-op if interval is 0."""
+        if self.config.sync_interval_hours == 0:
+            log.info("Scheduler disabled (SYNC_INTERVAL_HOURS=0)")
+            return
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()

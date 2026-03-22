@@ -223,7 +223,7 @@ All config via environment variables (see `config.py`):
 - `OPENAI_AUTO_ANALYSE`: Auto-analyze after sync (default: true)
 - `ANALYZE_FROM`: Only auto-analyze runs on/after this date (YYYY-MM-DD)
 - `DATA_DIR`: Root for activities, database, outputs (default: `data/`)
-- `SYNC_INTERVAL_HOURS`: Background sync interval (default: 6)
+- `SYNC_INTERVAL_HOURS`: Background sync interval in hours; `0` disables periodic sync (default: 0)
 - `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`: Strava OAuth app credentials (optional)
 - `STRAVA_WEBHOOK_VERIFY_TOKEN`: Random token for Strava webhook verification (optional)
 
@@ -271,6 +271,7 @@ Uses Web Push (VAPID) for analysis completion alerts:
 - Database migrations handled inline in `db.py._init_schema()`
 - Background scheduler runs in separate thread (`scheduler.py`)
 - All timestamps stored as ISO 8601 strings in UTC
+- Always create appropriate tests for any significant change to funictionality, or for any new behaviour
 
 ## Athlete Profile
 

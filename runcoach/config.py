@@ -14,7 +14,7 @@ class Config:
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     data_dir: Path = field(default_factory=lambda: Path("data"))
-    sync_interval_hours: int = 6
+    sync_interval_hours: int = 0
     sync_lookback_days: int = 30
     timezone: str = "Europe/London"
     flask_port: int = 5000
@@ -62,7 +62,7 @@ class Config:
             openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
             openai_model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
             data_dir=Path(os.environ.get("DATA_DIR", "data")),
-            sync_interval_hours=int(os.environ.get("SYNC_INTERVAL_HOURS", "6")),
+            sync_interval_hours=int(os.environ.get("SYNC_INTERVAL_HOURS", "0")),
             sync_lookback_days=int(os.environ.get("SYNC_LOOKBACK_DAYS", "30")),
             timezone=os.environ.get("TIMEZONE", "Europe/London"),
             flask_port=int(os.environ.get("FLASK_PORT", "5000")),

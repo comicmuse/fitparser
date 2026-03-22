@@ -49,7 +49,7 @@ All config is via environment variables (or `.env` file):
 | `OPENAI_AUTO_ANALYSE` | `true` | Auto-analyze after sync (`false` = on-demand only) |
 | `ANALYZE_FROM` | — | Only auto-analyze runs on/after this date (YYYY-MM-DD) |
 | `DATA_DIR` | `data` | Root directory for activities, database, and outputs |
-| `SYNC_INTERVAL_HOURS` | `6` | Background sync interval |
+| `SYNC_INTERVAL_HOURS` | `0` | Background sync interval in hours; `0` disables periodic sync |
 | `SYNC_LOOKBACK_DAYS` | `30` | How far back to check for new activities |
 | `TIMEZONE` | `Europe/London` | Timezone for FIT timestamp parsing |
 | `FLASK_PORT` | `5000` | Web server port |

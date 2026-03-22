@@ -8,6 +8,7 @@ import yaml
 
 from runcoach.web import create_app
 from runcoach.config import Config
+from runcoach.db import RunCoachDB
 
 
 @pytest.fixture
@@ -77,6 +78,26 @@ class TestAppCreation:
 
         # Clean up scheduler
         app.config["scheduler"].stop()
+
+    def test_scheduler_disabled_when_interval_zero(self, tmp_path):
+        """Scheduler.start() is a no-op when sync_interval_hours=0."""
+        from runcoach.scheduler import Scheduler
+
+        config = Config(
+            openai_api_key="test-key",
+            openai_model="gpt-4o",
+            data_dir=tmp_path / "data",
+            timezone="Europe/London",
+            stryd_email="test@example.com",
+            stryd_password="test-password",
+            secret_key="test-secret",
+            sync_interval_hours=0,
+        )
+        db = RunCoachDB(config.db_path)
+        sched = Scheduler(config, db)
+        sched.start()
+        # No background thread should have been spawned
+        assert sched._thread is None
 
     def test_app_has_secret_key(self, app):
         """Test that app has a secret key configured."""
