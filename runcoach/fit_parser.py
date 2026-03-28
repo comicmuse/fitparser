@@ -666,7 +666,6 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
     recovery_time_min = None
     critical_power = None
 #    avg_temperature = None
-    baseline_humidity = None
     
 
     for msg in ff.get_messages("session"):
@@ -696,7 +695,6 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         
         # Environmental conditions
 #        avg_temperature = avg_temperature or d.get("avg_temperature")
-        baseline_humidity = baseline_humidity or d.get("Baseline Humidity")
 
     # VO2 max sometimes lives in a vendor message: unknown_140 field 7
     # Vendor/developer mapping (observed in this FIT file):
@@ -1016,7 +1014,6 @@ def build_blocks_from_fit(path: Path, tz_name: str = "Europe/London") -> Dict[st
         "recovery_time_readable": recovery_time_readable,
         "critical_power": critical_power,
  #       "avg_temperature": avg_temperature,
-        "baseline_humidity": baseline_humidity,
         "actual_weight": _round(actual_weight, 1) if actual_weight is not None else None,
         "resting_hr": resting_hr,
         "lthr": lthr,

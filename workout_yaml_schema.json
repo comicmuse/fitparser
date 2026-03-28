@@ -139,10 +139,6 @@
       "type": ["number", "null"],
       "description": "Critical power (watts)"
     },
-    "baseline_humidity": {
-      "type": ["number", "null"],
-      "description": "Baseline humidity percentage"
-    },
     "actual_weight": {
       "type": ["number", "null"],
       "description": "Athlete weight (kg)"
