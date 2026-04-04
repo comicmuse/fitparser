@@ -21,9 +21,6 @@ class Config:
     flask_debug: bool = False
     openai_auto_analyse: bool = True  # if False, skip auto-analysis in pipeline; on-demand still works
     analyze_from: str | None = None  # YYYY-MM-DD; only auto-analyze runs on or after this date
-    vapid_private_key: str = ""
-    vapid_public_key: str = ""
-    vapid_email: str = ""
     secret_key: str = ""
     strava_client_id: str = ""
     strava_client_secret: str = ""
@@ -69,9 +66,6 @@ class Config:
             flask_debug=os.environ.get("FLASK_DEBUG", "false").lower() in ("true", "1", "yes"),
             openai_auto_analyse=os.environ.get("OPENAI_AUTO_ANALYSE", "true").lower() in ("true", "1", "yes"),
             analyze_from=os.environ.get("ANALYZE_FROM") or None,
-            vapid_private_key=os.environ.get("VAPID_PRIVATE_KEY", ""),
-            vapid_public_key=os.environ.get("VAPID_PUBLIC_KEY", ""),
-            vapid_email=os.environ.get("VAPID_EMAIL", ""),
             secret_key=secret_key,
             strava_client_id=os.environ.get("STRAVA_CLIENT_ID", ""),
             strava_client_secret=os.environ.get("STRAVA_CLIENT_SECRET", ""),

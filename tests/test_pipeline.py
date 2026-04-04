@@ -194,7 +194,7 @@ class TestPipelineAnalyzeStage:
         with patch(
             "runcoach.pipeline.analyze_and_write",
             return_value=(md_path, mock_result),
-        ), patch("runcoach.pipeline.send_analysis_notification"):
+        ):
             result = run_full_pipeline(config, db)
 
         assert result["analyzed"] == 1
@@ -215,27 +215,6 @@ class TestPipelineAnalyzeStage:
 
         assert result["errors"] == 1
         assert db.get_run(run_id)["stage"] == "error"
-
-    def test_analyze_stage_ignores_push_notification_failure(self, config, db, tmp_path):
-        """A push notification failure must not mark the run as errored."""
-        config.openai_auto_analyse = True
-        run_id = self._insert_parsed_run(config, db, tmp_path)
-
-        md_path = config.data_dir / "activities" / "run.md"
-        mock_result = {"commentary": "Nice!", "prompt_tokens": 10, "completion_tokens": 5}
-
-        with patch(
-            "runcoach.pipeline.analyze_and_write",
-            return_value=(md_path, mock_result),
-        ), patch(
-            "runcoach.pipeline.send_analysis_notification",
-            side_effect=RuntimeError("push failed"),
-        ):
-            result = run_full_pipeline(config, db)
-
-        # errors should be 0 — push failure is non-fatal
-        assert result["analyzed"] == 1
-        assert result["errors"] == 0
 
     def test_analyze_respects_date_from_filter(self, config, db, tmp_path):
         """analyze_from config causes old runs to be skipped."""

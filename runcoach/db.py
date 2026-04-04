@@ -50,14 +50,6 @@ CREATE TABLE IF NOT EXISTS sync_log (
 CREATE INDEX IF NOT EXISTS idx_runs_date ON runs(date);
 CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
 
-CREATE TABLE IF NOT EXISTS push_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endpoint TEXT NOT NULL UNIQUE,
-    p256dh TEXT NOT NULL,
-    auth TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
 CREATE TABLE IF NOT EXISTS planned_workouts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
@@ -87,28 +79,6 @@ CREATE TABLE IF NOT EXISTS users (
     athlete_profile TEXT
 );
 
-CREATE TABLE IF NOT EXISTS unifiedpush_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    endpoint TEXT NOT NULL UNIQUE,
-    topic TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_unifiedpush_user ON unifiedpush_subscriptions(user_id);
-
-CREATE TABLE IF NOT EXISTS expo_push_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    token TEXT NOT NULL UNIQUE,
-    platform TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    last_used TEXT,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_expo_push_user ON expo_push_tokens(user_id);
 """
 
 
@@ -450,37 +420,6 @@ class RunCoachDB:
             "pending_analyze": pending_analyze,
             "errors": errors,
         }
-
-    # ------ push_subscriptions ------
-
-    def save_push_subscription(
-        self, endpoint: str, p256dh: str, auth: str
-    ) -> None:
-        """Save or update a push subscription."""
-        now = _now_iso()
-        with self._connect() as conn:
-            conn.execute(
-                """INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(endpoint) DO UPDATE SET
-                     p256dh = excluded.p256dh,
-                     auth = excluded.auth""",
-                (endpoint, p256dh, auth, now),
-            )
-
-    def get_all_push_subscriptions(self) -> list[dict]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT endpoint, p256dh, auth FROM push_subscriptions"
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def delete_push_subscription(self, endpoint: str) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                "DELETE FROM push_subscriptions WHERE endpoint = ?",
-                (endpoint,),
-            )
 
     # ------ planned_workouts ------
 
@@ -873,85 +812,3 @@ class RunCoachDB:
             ).fetchone()
         return row[0] if row else None
 
-    # ------ unifiedpush_subscriptions ------
-
-    def save_unifiedpush_subscription(
-        self, user_id: int, endpoint: str, topic: str
-    ) -> None:
-        """Save or update a UnifiedPush subscription."""
-        now = _now_iso()
-        with self._connect() as conn:
-            conn.execute(
-                """INSERT INTO unifiedpush_subscriptions (user_id, endpoint, topic, created_at)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(endpoint) DO UPDATE SET
-                     topic = excluded.topic""",
-                (user_id, endpoint, topic, now),
-            )
-
-    def get_all_unifiedpush_subscriptions(self) -> list[dict]:
-        """Get all UnifiedPush subscriptions."""
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM unifiedpush_subscriptions"
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def get_unifiedpush_subscriptions_for_user(self, user_id: int) -> list[dict]:
-        """Get all UnifiedPush subscriptions for a specific user."""
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM unifiedpush_subscriptions WHERE user_id = ?",
-                (user_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def delete_unifiedpush_subscription(self, endpoint: str) -> None:
-        """Delete a UnifiedPush subscription."""
-        with self._connect() as conn:
-            conn.execute(
-                "DELETE FROM unifiedpush_subscriptions WHERE endpoint = ?",
-                (endpoint,),
-            )
-
-    # ------ expo_push_tokens ------
-
-    def save_expo_push_token(
-        self, user_id: int, token: str, platform: str
-    ) -> None:
-        """Save or update an Expo push token."""
-        now = _now_iso()
-        with self._connect() as conn:
-            conn.execute(
-                """INSERT INTO expo_push_tokens (user_id, token, platform, created_at, last_used)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(token) DO UPDATE SET
-                     last_used = excluded.last_used,
-                     platform = excluded.platform""",
-                (user_id, token, platform, now, now),
-            )
-
-    def get_all_expo_push_tokens(self) -> list[dict]:
-        """Get all Expo push tokens (for sending notifications)."""
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM expo_push_tokens"
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def get_expo_push_tokens_for_user(self, user_id: int) -> list[dict]:
-        """Get all Expo push tokens for a specific user."""
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM expo_push_tokens WHERE user_id = ?",
-                (user_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def delete_expo_push_token(self, token: str) -> None:
-        """Delete an Expo push token."""
-        with self._connect() as conn:
-            conn.execute(
-                "DELETE FROM expo_push_tokens WHERE token = ?",
-                (token,),
-            )

@@ -139,15 +139,6 @@ class TestRoutes:
         # Check for expected fields in status response
         assert "total_runs" in data or "errors" in data or "syncing" in data
 
-    def test_vapid_key_endpoint(self, client):
-        """Test the VAPID key endpoint for push notifications."""
-        response = client.get("/push/vapid-key")
-        assert response.status_code == 200
-
-        data = response.get_json()
-        assert data is not None
-        assert "vapid_public_key" in data  # May be None if not configured
-
     def test_nonexistent_run_404(self, client):
         """Test that accessing a nonexistent run returns 404 or redirect."""
         response = client.get("/run/99999")

@@ -33,7 +33,6 @@ class TestDatabaseInit:
 
         assert "runs" in tables
         assert "sync_log" in tables
-        assert "push_subscriptions" in tables
         assert "planned_workouts" in tables
 
     def test_db_init_creates_indexes(self, tmp_path):
@@ -494,51 +493,6 @@ class TestPlannedWorkouts:
         remaining = temp_db.get_planned_workout_for_date("2026-03-01")
         assert len(remaining) == 1
         assert remaining[0]["title"] == "PM Run"
-
-
-class TestPushSubscriptions:
-    """Tests for push_subscriptions table operations."""
-
-    def test_save_push_subscription(self, temp_db):
-        """Test saving a push subscription."""
-        temp_db.save_push_subscription(
-            endpoint="https://example.com/push",
-            p256dh="key1",
-            auth="auth1",
-        )
-
-        subs = temp_db.get_all_push_subscriptions()
-        assert len(subs) == 1
-        assert subs[0]["endpoint"] == "https://example.com/push"
-        assert subs[0]["p256dh"] == "key1"
-        assert subs[0]["auth"] == "auth1"
-
-    def test_save_push_subscription_upsert(self, temp_db):
-        """Test that saving same endpoint updates keys."""
-        endpoint = "https://example.com/push"
-
-        # Insert first subscription
-        temp_db.save_push_subscription(endpoint=endpoint, p256dh="key1", auth="auth1")
-
-        # Insert again with different keys
-        temp_db.save_push_subscription(endpoint=endpoint, p256dh="key2", auth="auth2")
-
-        # Should only have one subscription with updated keys
-        subs = temp_db.get_all_push_subscriptions()
-        assert len(subs) == 1
-        assert subs[0]["p256dh"] == "key2"
-        assert subs[0]["auth"] == "auth2"
-
-    def test_delete_push_subscription(self, temp_db):
-        """Test deleting a push subscription."""
-        endpoint = "https://example.com/push"
-        temp_db.save_push_subscription(endpoint=endpoint, p256dh="key1", auth="auth1")
-
-        # Delete it
-        temp_db.delete_push_subscription(endpoint)
-
-        subs = temp_db.get_all_push_subscriptions()
-        assert len(subs) == 0
 
 
 class TestPagination:

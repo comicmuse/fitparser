@@ -306,20 +306,6 @@
       border-top: 1px solid var(--border);
     }
 
-    #notif-banner {
-      display: none;
-      background: var(--accent-light);
-      border: 1px solid #fed7aa;
-      border-radius: 6px;
-      padding: 0.5rem 1rem;
-      margin-bottom: 1rem;
-      font-size: 0.85rem;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-    }
-    #notif-banner.show { display: flex; }
-
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .container { max-width: 100%; }
@@ -385,11 +371,6 @@
   {% block hero %}{% endblock %}
 
   <div class="container">
-    <div id="notif-banner">
-      <span>Enable notifications to know when analyses are ready.</span>
-      <button class="btn btn-sm" onclick="subscribeToNotifications()">Enable</button>
-      <button class="btn btn-sm" onclick="dismissNotifBanner()" style="border:none;background:none;color:var(--fg-muted);cursor:pointer;">&times;</button>
-    </div>
     {% with messages = get_flashed_messages() %}
       {% for msg in messages %}
         <div class="flash">{{ msg }}</div>
