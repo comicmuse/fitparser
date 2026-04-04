@@ -563,6 +563,9 @@ def athlete_profile():
     user_id = db.get_default_user_id()
     profile = db.get_athlete_profile(user_id) if user_id else ""
     stryd_athlete_id = db.get_stryd_athlete_id(user_id) if user_id else None
+    display_name = db.get_display_name(user_id) if user_id else ""
+    user_row = db.get_user_by_id(user_id) if user_id else None
+    username = user_row["username"] if user_row else ""
     strava_connected = bool(
         user_id and db.get_strava_tokens(user_id)
     ) if config.strava_client_id else False
@@ -575,6 +578,8 @@ def athlete_profile():
     return render_template(
         "athlete_profile.html",
         profile=profile,
+        display_name=display_name,
+        username=username,
         stryd_athlete_id=stryd_athlete_id,
         strava_connected=strava_connected,
         strava_athlete_id=strava_athlete_id,
@@ -612,6 +617,30 @@ def stryd_athlete_id_save():
     stryd_id = request.form.get("stryd_athlete_id", "").strip()
     db.update_stryd_athlete_id(user_id, stryd_id)
     flash("Stryd athlete ID saved.")
+    return redirect(url_for("main.athlete_profile"))
+
+
+@bp.route("/athlete-profile/user-info", methods=["POST"])
+@_login_required
+def user_info_save():
+    """Save the athlete's display name and login username."""
+    db = _db()
+    user_id = db.get_default_user_id()
+    if user_id is None:
+        flash("No user account found.")
+        return redirect(url_for("main.athlete_profile"))
+    display_name = request.form.get("display_name", "").strip()
+    new_username = request.form.get("username", "").strip()
+    if not new_username:
+        flash("Username cannot be empty.")
+        return redirect(url_for("main.athlete_profile"))
+    # Check if new username conflicts with another user
+    existing = db.get_user_by_username(new_username)
+    if existing and existing["id"] != user_id:
+        flash("That username is already taken.")
+        return redirect(url_for("main.athlete_profile"))
+    db.update_user_info(user_id, display_name, new_username)
+    flash("User info saved.")
     return redirect(url_for("main.athlete_profile"))
 
 

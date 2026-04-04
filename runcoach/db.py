@@ -226,6 +226,8 @@ class RunCoachDB:
             ]:
                 if col not in user_columns:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+            if "display_name" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
             if "athlete_profile" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN athlete_profile TEXT")
                 # Seed from coach_profile.txt if the default user exists and profile is null
@@ -712,6 +714,22 @@ class RunCoachDB:
             conn.execute(
                 "UPDATE users SET athlete_profile = ? WHERE id = ?",
                 (profile_text, user_id),
+            )
+
+    def get_display_name(self, user_id: int) -> str:
+        """Return the display name for a user (empty string if not set)."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT display_name FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        return row[0] if row and row[0] else ""
+
+    def update_user_info(self, user_id: int, display_name: str, username: str) -> None:
+        """Update the display name and login username for a user."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET display_name = ?, username = ? WHERE id = ?",
+                (display_name, username, user_id),
             )
 
     def get_default_user_id(self) -> int | None:
