@@ -581,12 +581,17 @@ def get_athlete_profile():
 
     GET /api/v1/athlete/profile
     Headers: Authorization: Bearer <access_token>
-    Response: {"profile": "..."}
+    Response: {"profile": "...", "display_name": "...", "username": "..."}
     """
     db = get_db()
     user_id = request.user_id
+    user = db.get_user_by_id(user_id)
     profile = db.get_athlete_profile(user_id)
-    return jsonify({"profile": profile}), 200
+    return jsonify({
+        "profile": profile,
+        "display_name": user["display_name"] if user and user["display_name"] else "",
+        "username": user["username"] if user else "",
+    }), 200
 
 
 @api_bp.route("/athlete/profile", methods=["PUT"])
@@ -597,22 +602,43 @@ def update_athlete_profile():
 
     PUT /api/v1/athlete/profile
     Headers: Authorization: Bearer <access_token>
-    Body: {"profile": "..."}
-    Response: {"profile": "..."}
+    Body: {"profile": "...", "display_name": "...", "username": "..."}
+    Response: {"profile": "...", "display_name": "...", "username": "..."}
+
+    All fields are optional — only provided fields are updated.
     """
     data = request.get_json()
-    if data is None or "profile" not in data:
-        return jsonify({"error": "Missing 'profile' field"}), 400
-
-    profile_text = data["profile"]
-    if not isinstance(profile_text, str):
-        return jsonify({"error": "'profile' must be a string"}), 400
+    if data is None:
+        return jsonify({"error": "Missing request body"}), 400
 
     import re, unicodedata
     _ctrl = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-    profile_text = _ctrl.sub("", unicodedata.normalize("NFC", profile_text))[:5_000]
 
     db = get_db()
     user_id = request.user_id
-    db.update_athlete_profile(user_id, profile_text.strip())
-    return jsonify({"profile": profile_text.strip()}), 200
+
+    if "profile" in data:
+        profile_text = data["profile"]
+        if not isinstance(profile_text, str):
+            return jsonify({"error": "'profile' must be a string"}), 400
+        profile_text = _ctrl.sub("", unicodedata.normalize("NFC", profile_text))[:5_000]
+        db.update_athlete_profile(user_id, profile_text.strip())
+
+    if "display_name" in data or "username" in data:
+        user = db.get_user_by_id(user_id)
+        new_display_name = data.get("display_name", user["display_name"] or "").strip()
+        new_username = data.get("username", user["username"]).strip()
+        if not new_username:
+            return jsonify({"error": "Username cannot be empty"}), 400
+        existing = db.get_user_by_username(new_username)
+        if existing and existing["id"] != user_id:
+            return jsonify({"error": "That username is already taken"}), 409
+        db.update_user_info(user_id, new_display_name, new_username)
+
+    user = db.get_user_by_id(user_id)
+    profile = db.get_athlete_profile(user_id)
+    return jsonify({
+        "profile": profile,
+        "display_name": user["display_name"] if user and user["display_name"] else "",
+        "username": user["username"] if user else "",
+    }), 200

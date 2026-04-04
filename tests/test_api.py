@@ -253,13 +253,22 @@ class TestAPIAthleteProfile:
         assert resp.status_code == 200
         assert len(resp.get_json()["profile"]) <= 5_000
 
-    def test_update_profile_missing_field(self, client, auth_headers):
+    def test_update_profile_no_body(self, client, auth_headers):
         resp = client.put(
             "/api/v1/athlete/profile",
-            json={"not_profile": "oops"},
+            data="not json",
+            content_type="text/plain",
             headers=auth_headers,
         )
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 415)
+
+    def test_update_profile_unknown_fields_ignored(self, client, auth_headers):
+        resp = client.put(
+            "/api/v1/athlete/profile",
+            json={"not_a_known_field": "oops"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
 
     def test_update_profile_wrong_type(self, client, auth_headers):
         resp = client.put(
