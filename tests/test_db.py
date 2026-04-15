@@ -577,3 +577,44 @@ class TestGetRunsInDateRange:
         assert len(runs) == 2
         assert runs[0]["date"] == "2026-03-05"
         assert runs[1]["date"] == "2026-03-10"
+
+
+class TestRaceGoal:
+    """Tests for race goal CRUD operations."""
+
+    def test_get_race_goal_default(self, temp_db):
+        """Test that new users have no race goal set."""
+        user_id = temp_db.get_default_user_id()
+        goal = temp_db.get_race_goal(user_id)
+        assert goal["race_date"] is None
+        assert goal["race_distance"] is None
+
+    def test_update_and_get_race_goal(self, temp_db):
+        """Test setting and retrieving a race goal."""
+        user_id = temp_db.get_default_user_id()
+        temp_db.update_race_goal(user_id, "2026-10-04", "Marathon")
+
+        goal = temp_db.get_race_goal(user_id)
+        assert goal["race_date"] == "2026-10-04"
+        assert goal["race_distance"] == "Marathon"
+
+    def test_clear_race_goal(self, temp_db):
+        """Test clearing a race goal by passing None values."""
+        user_id = temp_db.get_default_user_id()
+        temp_db.update_race_goal(user_id, "2026-10-04", "Marathon")
+
+        # Clear it
+        temp_db.update_race_goal(user_id, None, None)
+        goal = temp_db.get_race_goal(user_id)
+        assert goal["race_date"] is None
+        assert goal["race_distance"] is None
+
+    def test_update_race_goal_overwrites(self, temp_db):
+        """Test that updating overwrites an existing race goal."""
+        user_id = temp_db.get_default_user_id()
+        temp_db.update_race_goal(user_id, "2026-10-04", "Marathon")
+        temp_db.update_race_goal(user_id, "2026-06-07", "Half Marathon")
+
+        goal = temp_db.get_race_goal(user_id)
+        assert goal["race_date"] == "2026-06-07"
+        assert goal["race_distance"] == "Half Marathon"

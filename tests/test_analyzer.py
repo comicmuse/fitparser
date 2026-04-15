@@ -323,3 +323,112 @@ class TestAnalyzerIntegration:
 
         # Should contain workout data from the sample
         assert "distance_km" in user_msg or "duration_min" in user_msg
+
+
+class TestTrainingPhase:
+    """Tests for the _training_phase function."""
+
+    def test_base_building(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(17 * 7) == "Base Building"
+        assert _training_phase(16 * 7 + 1) == "Base Building"
+
+    def test_build_phase(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(16 * 7) == "Build Phase"
+        assert _training_phase(8 * 7 + 1) == "Build Phase"
+
+    def test_peak_training(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(8 * 7) == "Peak Training"
+        assert _training_phase(4 * 7 + 1) == "Peak Training"
+
+    def test_taper(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(4 * 7) == "Taper"
+        assert _training_phase(8) == "Taper"
+
+    def test_race_week(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(7) == "Race Week"
+        assert _training_phase(0) == "Race Week"
+
+    def test_recovery(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(-1) == "Recovery"
+        assert _training_phase(-28) == "Recovery"
+
+    def test_post_race(self):
+        from runcoach.analyzer import _training_phase
+        assert _training_phase(-29) == "Post-race"
+
+
+class TestAnalyzeRunWithRaceContext:
+    """Tests for race context injection in analyze_run."""
+
+    def test_race_context_included_when_goal_set(self, test_config, mock_openai_client, temp_db):
+        """Race context appears in system prompt when race goal is set."""
+        user_id = temp_db.get_default_user_id()
+        temp_db.update_race_goal(user_id, "2026-10-04", "Marathon")
+
+        yaml_content = "date: '2026-04-15'\nname: Test Run\n"
+        analyze_run(yaml_content, test_config, db=temp_db, run_date="2026-04-15")
+
+        call_args = mock_openai_client.chat.completions.create.call_args
+        system_msg = call_args.kwargs["messages"][0]["content"]
+
+        assert "Marathon" in system_msg
+        assert "2026-10-04" in system_msg
+        assert "training phase" in system_msg.lower()
+
+    def test_race_context_omitted_when_no_goal(self, test_config, mock_openai_client, temp_db):
+        """Race context block is absent when no race goal is set."""
+        yaml_content = "date: '2026-04-15'\nname: Test Run\n"
+        analyze_run(yaml_content, test_config, db=temp_db, run_date="2026-04-15")
+
+        call_args = mock_openai_client.chat.completions.create.call_args
+        system_msg = call_args.kwargs["messages"][0]["content"]
+
+        assert "Current race goal" not in system_msg
+
+    def test_race_context_omitted_when_no_db(self, test_config, mock_openai_client):
+        """Race context is absent when no DB is provided."""
+        yaml_content = "date: '2026-04-15'\nname: Test Run\n"
+        analyze_run(yaml_content, test_config, db=None, run_date="2026-04-15")
+
+        call_args = mock_openai_client.chat.completions.create.call_args
+        system_msg = call_args.kwargs["messages"][0]["content"]
+
+        assert "Current race goal" not in system_msg
+
+    def test_race_context_days_calculation(self, test_config, mock_openai_client, temp_db):
+        """Correct days until race are computed and included."""
+        user_id = temp_db.get_default_user_id()
+        temp_db.update_race_goal(user_id, "2026-05-15", "Half Marathon")
+
+        yaml_content = "date: '2026-04-15'\nname: Test Run\n"
+        analyze_run(yaml_content, test_config, db=temp_db, run_date="2026-04-15")
+
+        call_args = mock_openai_client.chat.completions.create.call_args
+        system_msg = call_args.kwargs["messages"][0]["content"]
+
+        # 30 days from 2026-04-15 to 2026-05-15
+        assert "30" in system_msg
+
+    def test_malformed_race_date_does_not_crash(self, test_config, mock_openai_client, temp_db):
+        """Malformed race_date in DB is silently ignored."""
+        user_id = temp_db.get_default_user_id()
+        # Force a bad value directly into the DB
+        with temp_db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET race_date = ?, race_distance = ? WHERE id = ?",
+                ("not-a-date", "Marathon", user_id),
+            )
+
+        yaml_content = "date: '2026-04-15'\nname: Test Run\n"
+        result = analyze_run(yaml_content, test_config, db=temp_db, run_date="2026-04-15")
+
+        assert result["commentary"] == "Test commentary"
+        call_args = mock_openai_client.chat.completions.create.call_args
+        system_msg = call_args.kwargs["messages"][0]["content"]
+        assert "Current race goal" not in system_msg

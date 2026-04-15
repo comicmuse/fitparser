@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -61,6 +62,45 @@ Below is the JSON Schema that describes the workout YAML data format:
 ```
 """
 
+RACE_CONTEXT_PROMPT = """\
+
+Current race goal: {race_distance} on {race_date}
+Days until race: {days_until_race}
+Training phase: {training_phase}
+Current date: {current_date}
+
+Consider the athlete's position in their training cycle when analysing this workout. \
+Provide guidance appropriate to their current training phase ({training_phase}) and \
+proximity to race day.
+"""
+
+RACE_DISTANCES = [
+    "5K",
+    "10K",
+    "15K",
+    "10 Mile",
+    "Half Marathon",
+    "Marathon",
+]
+
+
+def _training_phase(days_until_race: int) -> str:
+    """Return a training phase label based on days until race."""
+    weeks = days_until_race / 7
+    if days_until_race < 0:
+        if days_until_race >= -28:
+            return "Recovery"
+        return "Post-race"
+    if weeks <= 1:
+        return "Race Week"
+    if weeks <= 4:
+        return "Taper"
+    if weeks <= 8:
+        return "Peak Training"
+    if weeks <= 16:
+        return "Build Phase"
+    return "Base Building"
+
 
 def _load_athlete_profile(db: RunCoachDB | None = None) -> str:
     """Load the athlete profile from the database (default user)."""
@@ -69,6 +109,15 @@ def _load_athlete_profile(db: RunCoachDB | None = None) -> str:
         if user_id is not None:
             return db.get_athlete_profile(user_id)
     return ""
+
+
+def _load_race_goal(db: RunCoachDB | None = None) -> dict:
+    """Load the race goal (race_date, race_distance) from the database."""
+    if db is not None:
+        user_id = db.get_default_user_id()
+        if user_id is not None:
+            return db.get_race_goal(user_id)
+    return {"race_date": None, "race_distance": None}
 
 
 def _load_schema(project_root: Path | None = None) -> str:
@@ -86,6 +135,7 @@ def analyze_run(
     config: Config,
     context_yaml: str | None = None,
     db: RunCoachDB | None = None,
+    run_date: str | None = None,
 ) -> dict:
     """
     Send YAML workout data to the LLM for coaching analysis.
@@ -97,6 +147,26 @@ def analyze_run(
     schema = _load_schema()
     profile = _load_athlete_profile(db)
     system_msg = SYSTEM_PROMPT.format(schema=schema, athlete_profile=profile)
+
+    # Append race context if a race goal is set
+    race_goal = _load_race_goal(db)
+    race_date_str = race_goal.get("race_date")
+    race_distance = race_goal.get("race_distance")
+    if race_date_str and race_distance:
+        try:
+            race_date = date.fromisoformat(race_date_str)
+            current = date.fromisoformat(run_date) if run_date else date.today()
+            days_until = (race_date - current).days
+            phase = _training_phase(days_until)
+            system_msg += RACE_CONTEXT_PROMPT.format(
+                race_distance=race_distance,
+                race_date=race_date_str,
+                days_until_race=days_until,
+                training_phase=phase,
+                current_date=current.isoformat(),
+            )
+        except (ValueError, TypeError):
+            pass  # Malformed race_date — skip the race context block
 
     # Check if this is a manual upload and add a note to the prompt
     if "manual_upload: true" in yaml_content:
@@ -144,6 +214,7 @@ def analyze_and_write(
 
     # Build weekly training context if we have a DB reference
     context_yaml = None
+    run_date: str | None = None
     if db is not None:
         try:
             parsed = yaml.safe_load(yaml_content)
@@ -161,7 +232,7 @@ def analyze_and_write(
         except Exception:
             log.exception("Failed to build training context, proceeding without it")
 
-    result = analyze_run(yaml_content, config, context_yaml=context_yaml, db=db)
+    result = analyze_run(yaml_content, config, context_yaml=context_yaml, db=db, run_date=run_date)
 
     md_path = yaml_path.with_suffix(".md")
     md_path.write_text(result["commentary"], encoding="utf-8")

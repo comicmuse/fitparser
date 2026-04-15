@@ -1050,3 +1050,70 @@ class TestStravaWebhookEvent:
         updated = db.get_run(run_id)
         assert updated["strava_activity_id"] == "505050"
 
+
+
+class TestRaceGoal:
+    """Tests for race goal save route."""
+
+    def test_race_goal_save_valid(self, client, app):
+        """POST /athlete-profile/race-goal saves valid race goal."""
+        response = client.post(
+            "/athlete-profile/race-goal",
+            data={"race_date": "2027-04-25", "race_distance": "Marathon"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        goal = db.get_race_goal(user_id)
+        assert goal["race_date"] == "2027-04-25"
+        assert goal["race_distance"] == "Marathon"
+
+    def test_race_goal_page_displays_goal(self, client, app):
+        """Athlete profile page shows current race goal when set."""
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.update_race_goal(user_id, "2027-04-25", "Marathon")
+
+        response = client.get("/athlete-profile")
+        assert response.status_code == 200
+        assert b"Marathon" in response.data
+        assert b"2027-04-25" in response.data
+
+    def test_race_goal_save_past_date_rejected(self, client):
+        """POST /athlete-profile/race-goal rejects a past date."""
+        response = client.post(
+            "/athlete-profile/race-goal",
+            data={"race_date": "2020-01-01", "race_distance": "5K"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"future" in response.data.lower()
+
+    def test_race_goal_save_invalid_distance_rejected(self, client):
+        """POST /athlete-profile/race-goal rejects unknown distance."""
+        response = client.post(
+            "/athlete-profile/race-goal",
+            data={"race_date": "2027-04-25", "race_distance": "Ultra"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Invalid" in response.data
+
+    def test_race_goal_clear(self, client, app):
+        """Submitting empty values clears the race goal."""
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.update_race_goal(user_id, "2027-04-25", "Marathon")
+
+        response = client.post(
+            "/athlete-profile/race-goal",
+            data={"race_date": "", "race_distance": ""},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+
+        goal = db.get_race_goal(user_id)
+        assert goal["race_date"] is None
+        assert goal["race_distance"] is None
