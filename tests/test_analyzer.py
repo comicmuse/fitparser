@@ -341,11 +341,11 @@ class TestTrainingPhase:
     def test_peak_training(self):
         from runcoach.analyzer import _training_phase
         assert _training_phase(8 * 7) == "Peak Training"
-        assert _training_phase(4 * 7 + 1) == "Peak Training"
+        assert _training_phase(2 * 7 + 1) == "Peak Training"
 
     def test_taper(self):
         from runcoach.analyzer import _training_phase
-        assert _training_phase(4 * 7) == "Taper"
+        assert _training_phase(2 * 7) == "Taper"
         assert _training_phase(8) == "Taper"
 
     def test_race_week(self):

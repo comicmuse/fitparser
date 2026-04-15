@@ -93,7 +93,7 @@ def _training_phase(days_until_race: int) -> str:
         return "Post-race"
     if weeks <= 1:
         return "Race Week"
-    if weeks <= 4:
+    if weeks <= 2:
         return "Taper"
     if weeks <= 8:
         return "Peak Training"
