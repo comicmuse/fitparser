@@ -609,11 +609,6 @@ def user_info_save():
     return redirect(url_for("main.athlete_profile"))
 
 
-_VALID_RACE_DISTANCES = {
-    "5K", "10K", "15K", "10 Mile", "Half Marathon", "Marathon",
-}
-
-
 @bp.route("/athlete-profile/race-goal", methods=["POST"])
 @_login_required
 def race_goal_save():
@@ -644,7 +639,7 @@ def race_goal_save():
     # Validate race distance
     race_distance: str | None = None
     if race_distance_raw:
-        if race_distance_raw not in _VALID_RACE_DISTANCES:
+        if race_distance_raw not in RACE_DISTANCES:
             flash("Invalid race distance selected.")
             return redirect(url_for("main.athlete_profile"))
         race_distance = race_distance_raw

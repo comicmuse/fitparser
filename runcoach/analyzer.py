@@ -69,7 +69,7 @@ Days until race: {days_until_race}
 Training phase: {training_phase}
 Current date: {current_date}
 
-Consider the athlete's position in their training cycle when analysing this workout. \
+Consider the athlete's position in their training cycle when analyzing this workout. \
 Provide guidance appropriate to their current training phase ({training_phase}) and \
 proximity to race day.
 """
