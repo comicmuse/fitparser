@@ -198,6 +198,10 @@ class RunCoachDB:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
             if "display_name" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+            if "race_date" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN race_date TEXT")
+            if "race_distance" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN race_distance TEXT")
             if "athlete_profile" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN athlete_profile TEXT")
                 # Seed from coach_profile.txt if the default user exists and profile is null
@@ -653,6 +657,29 @@ class RunCoachDB:
             conn.execute(
                 "UPDATE users SET athlete_profile = ? WHERE id = ?",
                 (profile_text, user_id),
+            )
+
+    def get_race_goal(self, user_id: int) -> dict:
+        """Return the race goal for a user as a dict with race_date and race_distance."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT race_date, race_distance FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        if row:
+            return {"race_date": row[0] or None, "race_distance": row[1] or None}
+        return {"race_date": None, "race_distance": None}
+
+    def update_race_goal(
+        self,
+        user_id: int,
+        race_date: str | None,
+        race_distance: str | None,
+    ) -> None:
+        """Update the race date and distance for a user."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET race_date = ?, race_distance = ? WHERE id = ?",
+                (race_date or None, race_distance or None, user_id),
             )
 
     def get_display_name(self, user_id: int) -> str:

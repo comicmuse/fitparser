@@ -75,7 +75,60 @@
   </form>
 </div>
 
-{# ── 3. Stryd + Strava side by side ── #}
+{# ── 3. Race Goal ── #}
+<div class="card" style="margin-bottom:1.5rem;">
+  <h2 style="font-size:1.05rem;margin-bottom:0.5rem;">Race Goal</h2>
+  <p style="color:var(--fg-muted);margin-bottom:1rem;font-size:0.9rem;">
+    Set your target race so the AI coach can tailor advice to your training phase and
+    proximity to race day.
+  </p>
+
+  {% if race_goal and race_goal.race_date and race_goal.race_distance %}
+  <div style="
+    display:inline-flex;align-items:center;gap:0.6rem;
+    background:color-mix(in srgb,var(--accent) 12%,transparent);
+    border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+    border-radius:8px;padding:0.5rem 0.9rem;margin-bottom:1rem;font-size:0.95rem;
+  ">
+    🏁 <strong>{{ race_goal.race_distance }}</strong> on <strong>{{ race_goal.race_date }}</strong>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('main.race_goal_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div>
+        <label for="race_date" style="display:block;font-size:0.85rem;color:var(--fg-muted);margin-bottom:0.35rem;">Race Date</label>
+        <input
+          type="date"
+          name="race_date"
+          id="race_date"
+          value="{{ race_goal.race_date or '' }}"
+          style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-size:0.95rem;box-sizing:border-box;"
+        >
+      </div>
+      <div>
+        <label for="race_distance" style="display:block;font-size:0.85rem;color:var(--fg-muted);margin-bottom:0.35rem;">Race Distance</label>
+        <select
+          name="race_distance"
+          id="race_distance"
+          style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-size:0.95rem;box-sizing:border-box;"
+        >
+          <option value="">— select distance —</option>
+          {% for dist in ['5K', '10K', '15K', '10 Mile', 'Half Marathon', 'Marathon'] %}
+          <option value="{{ dist }}"{% if race_goal.race_distance == dist %} selected{% endif %}>{{ dist }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Race Goal</button>
+    {% if race_goal and race_goal.race_date %}
+    <button type="submit" name="race_date" value="" class="btn" style="margin-left:0.5rem;color:var(--fg-muted);">Clear</button>
+    {% endif %}
+  </form>
+</div>
+
+{# ── 4. Stryd + Strava side by side ── #}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
 
   {# Stryd card #}

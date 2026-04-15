@@ -6,6 +6,7 @@ import time
 
 import re
 import unicodedata
+from datetime import date
 from functools import wraps
 
 from flask import (
@@ -528,6 +529,7 @@ def athlete_profile():
     display_name = db.get_display_name(user_id) if user_id else ""
     user_row = db.get_user_by_id(user_id) if user_id else None
     username = user_row["username"] if user_row else ""
+    race_goal = db.get_race_goal(user_id) if user_id else {"race_date": None, "race_distance": None}
     strava_connected = bool(
         user_id and db.get_strava_tokens(user_id)
     ) if config.strava_client_id else False
@@ -542,6 +544,7 @@ def athlete_profile():
         profile=profile,
         display_name=display_name,
         username=username,
+        race_goal=race_goal,
         stryd_athlete_id=stryd_athlete_id,
         strava_connected=strava_connected,
         strava_athlete_id=strava_athlete_id,
@@ -603,6 +606,49 @@ def user_info_save():
         return redirect(url_for("main.athlete_profile"))
     db.update_user_info(user_id, display_name, new_username)
     flash("User info saved.")
+    return redirect(url_for("main.athlete_profile"))
+
+
+@bp.route("/athlete-profile/race-goal", methods=["POST"])
+@_login_required
+def race_goal_save():
+    """Save the athlete's race goal (date + distance)."""
+    from runcoach.analyzer import RACE_DISTANCES
+    db = _db()
+    user_id = db.get_default_user_id()
+    if user_id is None:
+        flash("No user account found.")
+        return redirect(url_for("main.athlete_profile"))
+
+    race_date_raw = request.form.get("race_date", "").strip()
+    race_distance_raw = request.form.get("race_distance", "").strip()
+
+    # Validate race date (must be a valid future date)
+    race_date: str | None = None
+    if race_date_raw:
+        try:
+            parsed_date = date.fromisoformat(race_date_raw)
+            if parsed_date <= date.today():
+                flash("Race date must be in the future.")
+                return redirect(url_for("main.athlete_profile"))
+            race_date = parsed_date.isoformat()
+        except ValueError:
+            flash("Invalid race date format.")
+            return redirect(url_for("main.athlete_profile"))
+
+    # Validate race distance
+    race_distance: str | None = None
+    if race_distance_raw:
+        if race_distance_raw not in RACE_DISTANCES:
+            flash("Invalid race distance selected.")
+            return redirect(url_for("main.athlete_profile"))
+        race_distance = race_distance_raw
+
+    db.update_race_goal(user_id, race_date, race_distance)
+    if race_date and race_distance:
+        flash("Race goal saved.")
+    else:
+        flash("Race goal cleared.")
     return redirect(url_for("main.athlete_profile"))
 
 
