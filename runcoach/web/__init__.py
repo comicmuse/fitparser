@@ -69,11 +69,18 @@ def create_app(config: Config | None = None) -> Flask:
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="RunCoach web server")
+    parser.add_argument("--port", type=int, default=None, help="Port to listen on (overrides FLASK_PORT, default: 5000)")
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     config = Config.from_env()
+    if args.port is not None:
+        config.flask_port = args.port
     app = create_app(config)
     app.run(host="0.0.0.0", port=config.flask_port, debug=config.flask_debug)
 

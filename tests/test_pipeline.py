@@ -21,7 +21,7 @@ def config(tmp_path):
         stryd_email="",
         stryd_password="",
         sync_interval_hours=24,
-        openai_auto_analyse=False,  # prevent analyze stage from running by default
+        llm_auto_analyse=False,  # prevent analyze stage from running by default
     )
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     return cfg
@@ -47,16 +47,18 @@ class TestPipelineNoCredentials:
         mock_sync.assert_not_called()
         assert result["synced"] == 0
 
-    def test_skips_analysis_without_openai_key(self, config, db):
-        """Pipeline should skip analysis when no OpenAI key is set."""
+    def test_skips_analysis_without_llm_configured(self, config, db):
+        """Pipeline should skip analysis when no LLM provider is configured."""
         config.openai_api_key = ""
+        config.anthropic_api_key = ""
+        config.ollama_base_url = ""
         with patch("runcoach.pipeline.analyze_and_write") as mock_analyze:
             run_full_pipeline(config, db)
         mock_analyze.assert_not_called()
 
     def test_skips_analysis_when_auto_analyse_off(self, config, db):
-        """Pipeline respects OPENAI_AUTO_ANALYSE=false."""
-        config.openai_auto_analyse = False
+        """Pipeline respects LLM_AUTO_ANALYSE=false."""
+        config.llm_auto_analyse = False
         with patch("runcoach.pipeline.analyze_and_write") as mock_analyze:
             run_full_pipeline(config, db)
         mock_analyze.assert_not_called()
@@ -181,7 +183,7 @@ class TestPipelineAnalyzeStage:
         return run_id
 
     def test_analyze_stage_processes_parsed_runs(self, config, db, tmp_path):
-        config.openai_auto_analyse = True
+        config.llm_auto_analyse = True
         run_id = self._insert_parsed_run(config, db, tmp_path)
 
         md_path = config.data_dir / "activities" / "run.md"
@@ -204,7 +206,7 @@ class TestPipelineAnalyzeStage:
         assert updated["commentary"] == "Great run!"
 
     def test_analyze_stage_records_error_on_failure(self, config, db, tmp_path):
-        config.openai_auto_analyse = True
+        config.llm_auto_analyse = True
         run_id = self._insert_parsed_run(config, db, tmp_path)
 
         with patch(
@@ -218,7 +220,7 @@ class TestPipelineAnalyzeStage:
 
     def test_analyze_respects_date_from_filter(self, config, db, tmp_path):
         """analyze_from config causes old runs to be skipped."""
-        config.openai_auto_analyse = True
+        config.llm_auto_analyse = True
         config.analyze_from = "2026-04-01"  # future date
         run_id = self._insert_parsed_run(config, db, tmp_path)  # date="2026-03-05"
 

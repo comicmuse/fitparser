@@ -351,7 +351,7 @@ def analyze_run(run_id: int):
                     run_id=fresh_run["id"],
                     md_path=md_path_rel,
                     commentary=result["commentary"],
-                    model_used=config.openai_model,
+                    model_used=config.active_model,
                     prompt_tokens=result.get("prompt_tokens"),
                     completion_tokens=result.get("completion_tokens"),
                 )

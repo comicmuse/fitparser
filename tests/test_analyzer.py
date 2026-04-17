@@ -12,7 +12,10 @@ from runcoach.analyzer import (
     analyze_and_write,
     _load_athlete_profile,
     _load_schema,
+    _call_claude,
+    _call_ollama,
 )
+from runcoach.config import Config
 
 
 class TestLoadAthleteProfile:
@@ -323,6 +326,140 @@ class TestAnalyzerIntegration:
 
         # Should contain workout data from the sample
         assert "distance_km" in user_msg or "duration_min" in user_msg
+
+
+class TestLLMProviderSelection:
+    """Tests for multi-provider configuration and dispatch."""
+
+    def test_single_openai_provider(self, tmp_path):
+        cfg = Config(openai_api_key="sk-test", data_dir=tmp_path)
+        assert cfg.llm_provider == "openai"
+
+    def test_single_claude_provider(self, tmp_path):
+        cfg = Config(anthropic_api_key="sk-ant-test", data_dir=tmp_path)
+        assert cfg.llm_provider == "claude"
+
+    def test_single_ollama_provider(self, tmp_path):
+        cfg = Config(ollama_base_url="http://localhost:11434", data_dir=tmp_path)
+        assert cfg.llm_provider == "ollama"
+
+    def test_no_provider_defaults_to_openai(self, tmp_path):
+        cfg = Config(data_dir=tmp_path)
+        assert cfg.llm_provider == "openai"
+
+    def test_multiple_providers_defaults_to_openai_with_warning(self, tmp_path, caplog):
+        import logging
+        cfg = Config(
+            openai_api_key="sk-test",
+            anthropic_api_key="sk-ant-test",
+            data_dir=tmp_path,
+        )
+        with caplog.at_level(logging.WARNING, logger="runcoach.config"):
+            provider = cfg.llm_provider
+        assert provider == "openai"
+        assert "MULTIPLE LLM PROVIDERS" in caplog.text
+        assert "openai" in caplog.text
+        assert "claude" in caplog.text
+
+    def test_all_three_providers_warns_and_uses_openai(self, tmp_path, caplog):
+        import logging
+        cfg = Config(
+            openai_api_key="sk-test",
+            anthropic_api_key="sk-ant-test",
+            ollama_base_url="http://localhost:11434",
+            data_dir=tmp_path,
+        )
+        with caplog.at_level(logging.WARNING, logger="runcoach.config"):
+            provider = cfg.llm_provider
+        assert provider == "openai"
+        assert "ollama" in caplog.text
+
+
+class TestClaudeProvider:
+    """Tests for the Claude/Anthropic LLM backend."""
+
+    def test_analyze_run_uses_claude(self, claude_config, mock_anthropic_client):
+        yaml_content = "date: '2026-03-01'\nname: Test Run\n"
+        result = analyze_run(yaml_content, claude_config)
+
+        assert result["commentary"] == "Test commentary"
+        assert result["prompt_tokens"] == 80
+        assert result["completion_tokens"] == 40
+        mock_anthropic_client.messages.create.assert_called_once()
+
+    def test_claude_passes_system_and_user_messages(self, claude_config, mock_anthropic_client):
+        yaml_content = "date: '2026-03-01'\nname: Test Run\n"
+        analyze_run(yaml_content, claude_config)
+
+        call_kwargs = mock_anthropic_client.messages.create.call_args.kwargs
+        assert call_kwargs["model"] == "claude-opus-4-6"
+        assert "running trainer" in call_kwargs["system"].lower()
+        assert len(call_kwargs["messages"]) == 1
+        assert call_kwargs["messages"][0]["role"] == "user"
+        assert yaml_content in call_kwargs["messages"][0]["content"]
+
+    def test_claude_missing_package_raises_import_error(self, claude_config, mocker):
+        mocker.patch.dict("sys.modules", {"anthropic": None})
+        with pytest.raises(ImportError, match="anthropic"):
+            _call_claude("system", "user", claude_config)
+
+
+class TestOllamaProvider:
+    """Tests for the Ollama LLM backend."""
+
+    def test_analyze_run_uses_ollama(self, ollama_config, mock_openai_client):
+        yaml_content = "date: '2026-03-01'\nname: Test Run\n"
+        result = analyze_run(yaml_content, ollama_config)
+
+        assert result["commentary"] == "Test commentary"
+        mock_openai_client.chat.completions.create.assert_called_once()
+
+    def test_ollama_uses_correct_base_url(self, ollama_config, mocker):
+        captured = {}
+
+        def fake_openai(base_url=None, api_key=None):
+            captured["base_url"] = base_url
+            captured["api_key"] = api_key
+            mock_response = mocker.Mock()
+            mock_response.choices = [mocker.Mock(message=mocker.Mock(content="ok"))]
+            mock_response.usage = mocker.Mock(prompt_tokens=10, completion_tokens=5)
+            mock_client = mocker.Mock()
+            mock_client.chat.completions.create.return_value = mock_response
+            return mock_client
+
+        mocker.patch("runcoach.analyzer.OpenAI", side_effect=fake_openai)
+        _call_ollama("system", "user", ollama_config)
+
+        assert captured["base_url"] == "http://localhost:11434/v1"
+        assert captured["api_key"] == "ollama"
+
+    def test_ollama_uses_configured_model(self, ollama_config, mock_openai_client):
+        yaml_content = "date: '2026-03-01'\nname: Test Run\n"
+        analyze_run(yaml_content, ollama_config)
+
+        call_kwargs = mock_openai_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["model"] == "llama3.2"
+
+    def test_ollama_strips_trailing_slash_from_base_url(self, mocker, tmp_path):
+        cfg = Config(
+            ollama_base_url="http://localhost:11434/",
+            ollama_model="mistral",
+            data_dir=tmp_path,
+        )
+        captured = {}
+
+        def fake_openai(base_url=None, api_key=None):
+            captured["base_url"] = base_url
+            mock_response = mocker.Mock()
+            mock_response.choices = [mocker.Mock(message=mocker.Mock(content="ok"))]
+            mock_response.usage = mocker.Mock(prompt_tokens=1, completion_tokens=1)
+            mock_client = mocker.Mock()
+            mock_client.chat.completions.create.return_value = mock_response
+            return mock_client
+
+        mocker.patch("runcoach.analyzer.OpenAI", side_effect=fake_openai)
+        _call_ollama("system", "user", cfg)
+        assert captured["base_url"] == "http://localhost:11434/v1"
 
 
 class TestTrainingPhase:

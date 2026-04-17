@@ -46,7 +46,7 @@ All config is via environment variables (or `.env` file):
 | `STRYD_PASSWORD` | — | Stryd account password |
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `OPENAI_MODEL` | `gpt-4o` | Model to use for analysis |
-| `OPENAI_AUTO_ANALYSE` | `true` | Auto-analyze after sync (`false` = on-demand only) |
+| `LLM_AUTO_ANALYSE` | `true` | Auto-analyze after sync (`false` = on-demand only) |
 | `ANALYZE_FROM` | — | Only auto-analyze runs on/after this date (YYYY-MM-DD) |
 | `DATA_DIR` | `data` | Root directory for activities, database, and outputs |
 | `SYNC_INTERVAL_HOURS` | `0` | Background sync interval in hours; `0` disables periodic sync |

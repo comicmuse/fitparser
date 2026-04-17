@@ -90,11 +90,11 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
                 db.update_error(run["id"], f"Parse error: {e}")
                 summary["errors"] += 1
 
-        # 3. Analyze all parsed runs with GPT-4o
-        if not config.openai_api_key:
-            log.warning("No OPENAI_API_KEY set, skipping analysis stage")
-        elif not config.openai_auto_analyse:
-            log.info("OPENAI_AUTO_ANALYSE is off, skipping automatic analysis (on-demand still available)")
+        # 3. Analyze all parsed runs
+        if not config.has_llm:
+            log.warning("No LLM provider configured, skipping analysis stage")
+        elif not config.llm_auto_analyse:
+            log.info("LLM_AUTO_ANALYSE is off, skipping automatic analysis (on-demand still available)")
         else:
             for run in db.get_pending_runs("parsed", date_from=config.analyze_from):
                 try:
@@ -106,7 +106,7 @@ def run_full_pipeline(config: Config, db: RunCoachDB) -> dict:
                         run_id=run["id"],
                         md_path=md_path_rel,
                         commentary=result["commentary"],
-                        model_used=config.openai_model,
+                        model_used=config.active_model,
                         prompt_tokens=result.get("prompt_tokens"),
                         completion_tokens=result.get("completion_tokens"),
                     )

@@ -24,6 +24,7 @@ runcoach-pipeline = "runcoach.pipeline:main"
 runcoach-cli = "runcoach.cli:main"
 
 [project.optional-dependencies]
+claude = ["anthropic>=0.40"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

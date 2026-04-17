@@ -287,8 +287,8 @@ def analyze_run_route(run_id: int):
         flash("Run not found")
         return redirect(url_for("main.index"))
 
-    if not config.openai_api_key:
-        flash("No OPENAI_API_KEY configured")
+    if not config.has_llm:
+        flash("No LLM provider configured")
         return redirect(url_for("main.run_detail", run_id=run_id))
 
     if run["stage"] not in ("parsed", "analyzed"):
@@ -307,7 +307,7 @@ def analyze_run_route(run_id: int):
                     run_id=run["id"],
                     md_path=md_path_rel,
                     commentary=result["commentary"],
-                    model_used=config.openai_model,
+                    model_used=config.active_model,
                     prompt_tokens=result.get("prompt_tokens"),
                     completion_tokens=result.get("completion_tokens"),
                 )

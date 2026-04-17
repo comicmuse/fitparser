@@ -220,7 +220,7 @@ Optional integration for route maps and webhook-triggered sync:
 All config via environment variables (see `config.py`):
 - `STRYD_EMAIL` / `STRYD_PASSWORD`: Stryd API credentials
 - `OPENAI_API_KEY` / `OPENAI_MODEL`: OpenAI configuration
-- `OPENAI_AUTO_ANALYSE`: Auto-analyze after sync (default: true)
+- `LLM_AUTO_ANALYSE`: Auto-analyze after sync (default: true)
 - `ANALYZE_FROM`: Only auto-analyze runs on/after this date (YYYY-MM-DD)
 - `DATA_DIR`: Root for activities, database, outputs (default: `data/`)
 - `SYNC_INTERVAL_HOURS`: Background sync interval in hours; `0` disables periodic sync (default: 0)

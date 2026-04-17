@@ -56,3 +56,41 @@ def mock_openai_client(mocker):
 
     mocker.patch("runcoach.analyzer.OpenAI", return_value=mock_client)
     return mock_client
+
+
+@pytest.fixture
+def claude_config(tmp_path):
+    """Test configuration using Claude as the LLM provider."""
+    return Config(
+        anthropic_api_key="test-anthropic-key",
+        anthropic_model="claude-opus-4-6",
+        data_dir=tmp_path / "data",
+        timezone="Europe/London",
+    )
+
+
+@pytest.fixture
+def ollama_config(tmp_path):
+    """Test configuration using Ollama as the LLM provider."""
+    return Config(
+        ollama_base_url="http://localhost:11434",
+        ollama_model="llama3.2",
+        data_dir=tmp_path / "data",
+        timezone="Europe/London",
+    )
+
+
+@pytest.fixture
+def mock_anthropic_client(mocker):
+    """Mock Anthropic client that returns predictable responses."""
+    mock_usage = mocker.Mock(input_tokens=80, output_tokens=40)
+    mock_content = mocker.Mock(text="Test commentary")
+    mock_response = mocker.Mock(content=[mock_content], usage=mock_usage)
+
+    mock_client = mocker.Mock()
+    mock_client.messages.create.return_value = mock_response
+
+    mock_anthropic = mocker.Mock()
+    mock_anthropic.Anthropic.return_value = mock_client
+    mocker.patch.dict("sys.modules", {"anthropic": mock_anthropic})
+    return mock_client

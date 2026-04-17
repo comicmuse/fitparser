@@ -130,6 +130,76 @@ def _load_schema(project_root: Path | None = None) -> str:
     return "{}"
 
 
+def _call_openai(system_msg: str, user_msg: str, config: Config) -> dict:
+    client = OpenAI(api_key=config.openai_api_key)
+    response = client.chat.completions.create(
+        model=config.openai_model,
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+    )
+    choice = response.choices[0]
+    usage = response.usage
+    return {
+        "commentary": choice.message.content,
+        "prompt_tokens": usage.prompt_tokens if usage else None,
+        "completion_tokens": usage.completion_tokens if usage else None,
+    }
+
+
+def _call_claude(system_msg: str, user_msg: str, config: Config) -> dict:
+    try:
+        import anthropic
+    except ImportError as exc:
+        raise ImportError(
+            "The 'anthropic' package is required for Claude support. "
+            "Install it with: pip install anthropic"
+        ) from exc
+    client = anthropic.Anthropic(api_key=config.anthropic_api_key)
+    response = client.messages.create(
+        model=config.anthropic_model,
+        max_tokens=8192,
+        system=system_msg,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return {
+        "commentary": response.content[0].text,
+        "prompt_tokens": response.usage.input_tokens if response.usage else None,
+        "completion_tokens": response.usage.output_tokens if response.usage else None,
+    }
+
+
+def _call_ollama(system_msg: str, user_msg: str, config: Config) -> dict:
+    base_url = config.ollama_base_url.rstrip("/") + "/v1"
+    client = OpenAI(base_url=base_url, api_key="ollama")
+    response = client.chat.completions.create(
+        model=config.ollama_model,
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+        extra_body={"options": {"num_ctx": config.ollama_num_ctx}},
+    )
+    choice = response.choices[0]
+    usage = response.usage
+    return {
+        "commentary": choice.message.content,
+        "prompt_tokens": usage.prompt_tokens if usage else None,
+        "completion_tokens": usage.completion_tokens if usage else None,
+    }
+
+
+def _dispatch_llm(system_msg: str, user_msg: str, config: Config) -> dict:
+    provider = config.llm_provider
+    log.info("Using LLM provider: %s", provider)
+    if provider == "claude":
+        return _call_claude(system_msg, user_msg, config)
+    if provider == "ollama":
+        return _call_ollama(system_msg, user_msg, config)
+    return _call_openai(system_msg, user_msg, config)
+
+
 def analyze_run(
     yaml_content: str,
     config: Config,
@@ -181,23 +251,7 @@ def analyze_run(
     else:
         user_msg = yaml_content
 
-    client = OpenAI(api_key=config.openai_api_key)
-    response = client.chat.completions.create(
-        model=config.openai_model,
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg},
-        ],
-    )
-
-    choice = response.choices[0]
-    usage = response.usage
-
-    return {
-        "commentary": choice.message.content,
-        "prompt_tokens": usage.prompt_tokens if usage else None,
-        "completion_tokens": usage.completion_tokens if usage else None,
-    }
+    return _dispatch_llm(system_msg, user_msg, config)
 
 
 def analyze_and_write(
