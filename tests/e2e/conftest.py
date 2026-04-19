@@ -129,10 +129,14 @@ def server_url(flask_server):
     return flask_server
 
 
+E2E_USERNAME = "athlete"
+
+
 @pytest.fixture
 def logged_in_page(page, flask_server):
     """Return a Playwright page already logged in."""
     page.goto(f"{flask_server}/login")
+    page.fill("input[name='username']", E2E_USERNAME)
     page.fill("input[name='password']", E2E_PASSWORD)
     page.click("button[type='submit']")
     page.wait_for_url(f"{flask_server}/")

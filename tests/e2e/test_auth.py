@@ -3,11 +3,13 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
+E2E_USERNAME = "athlete"
 E2E_PASSWORD = "testpassword123"
 
 
 def test_login_page_renders(page, server_url):
     page.goto(f"{server_url}/login")
+    assert page.locator("input[name='username']").is_visible()
     assert page.locator("input[name='password']").is_visible()
     assert "RunCoach" in page.title() or "RunCoach" in page.content()
 
@@ -19,6 +21,7 @@ def test_unauthenticated_redirects_to_login(page, server_url):
 
 def test_wrong_password_shows_error(page, server_url):
     page.goto(f"{server_url}/login")
+    page.fill("input[name='username']", E2E_USERNAME)
     page.fill("input[name='password']", "wrongpassword")
     page.click("button[type='submit']")
     page.wait_for_load_state("networkidle")
@@ -29,6 +32,7 @@ def test_wrong_password_shows_error(page, server_url):
 
 def test_correct_password_lands_on_dashboard(page, server_url):
     page.goto(f"{server_url}/login")
+    page.fill("input[name='username']", E2E_USERNAME)
     page.fill("input[name='password']", E2E_PASSWORD)
     page.click("button[type='submit']")
     page.wait_for_url(f"{server_url}/")
