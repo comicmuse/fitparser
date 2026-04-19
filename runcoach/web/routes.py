@@ -57,9 +57,32 @@ def _login_required(f):
     return decorated
 
 
+def _admin_required(f):
+    """Redirect non-admins away."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("main.login", next=request.path))
+        user = _db().get_user_by_id(session["user_id"])
+        if not user or not user.get("is_admin"):
+            flash("Admin access required.")
+            return redirect(url_for("main.index"))
+        return f(*args, **kwargs)
+    return decorated
+
+
 def _current_user_id() -> int:
     """Return the authenticated user's ID from the session."""
     return session["user_id"]
+
+
+@bp.context_processor
+def inject_admin_status():
+    user_id = session.get("user_id")
+    if user_id:
+        user = _db().get_user_by_id(user_id)
+        return {"current_user_is_admin": bool(user and user.get("is_admin"))}
+    return {"current_user_is_admin": False}
 
 # Tags and attributes that the markdown library legitimately produces.
 _ALLOWED_TAGS = {
@@ -508,14 +531,18 @@ def login():
         db = _db()
         user = db.get_user_by_username(username)
         if user and verify_password(password, user["password_hash"]):
-            session["user_id"] = user["id"]
-            session.permanent = False
-            next_url = request.form.get("next") or url_for("main.index")
-            # Guard against open-redirect: only allow relative paths
-            if not next_url.startswith("/") or next_url.startswith("//"):
-                next_url = url_for("main.index")
-            return redirect(next_url)
-        flash("Incorrect username or password.")
+            if not user.get("is_active", 1):
+                flash("This account has been deactivated.")
+            else:
+                session["user_id"] = user["id"]
+                session.permanent = False
+                next_url = request.form.get("next") or url_for("main.index")
+                # Guard against open-redirect: only allow relative paths
+                if not next_url.startswith("/") or next_url.startswith("//"):
+                    next_url = url_for("main.index")
+                return redirect(next_url)
+        else:
+            flash("Incorrect username or password.")
     next_url = request.args.get("next", "")
     return render_template("login.html", next=next_url)
 
@@ -548,6 +575,86 @@ def register():
             session["user_id"] = user_id
             return redirect(url_for("main.index"))
     return render_template("register.html")
+
+
+# ---------------------------------------------------------------------------
+# Admin — user management
+# ---------------------------------------------------------------------------
+
+@bp.route("/admin/users")
+@_admin_required
+def admin_users():
+    db = _db()
+    users = db.get_all_users()
+    return render_template("admin_users.html", users=users, current_user_id=_current_user_id())
+
+
+@bp.route("/admin/users/<int:uid>/deactivate", methods=["POST"])
+@_admin_required
+def admin_deactivate_user(uid):
+    if uid == _current_user_id():
+        flash("You cannot deactivate your own account.")
+        return redirect(url_for("main.admin_users"))
+    _db().set_user_active(uid, False)
+    flash("User deactivated.")
+    return redirect(url_for("main.admin_users"))
+
+
+@bp.route("/admin/users/<int:uid>/reactivate", methods=["POST"])
+@_admin_required
+def admin_reactivate_user(uid):
+    _db().set_user_active(uid, True)
+    flash("User reactivated.")
+    return redirect(url_for("main.admin_users"))
+
+
+@bp.route("/admin/users/<int:uid>/promote", methods=["POST"])
+@_admin_required
+def admin_promote_user(uid):
+    _db().set_user_admin(uid, True)
+    flash("User promoted to admin.")
+    return redirect(url_for("main.admin_users"))
+
+
+@bp.route("/admin/users/<int:uid>/demote", methods=["POST"])
+@_admin_required
+def admin_demote_user(uid):
+    if uid == _current_user_id():
+        flash("You cannot demote yourself.")
+        return redirect(url_for("main.admin_users"))
+    db = _db()
+    all_users = db.get_all_users()
+    other_admins = [u for u in all_users if u.get("is_admin") and u["id"] != uid]
+    if not other_admins:
+        flash("Cannot demote the last admin.")
+        return redirect(url_for("main.admin_users"))
+    db.set_user_admin(uid, False)
+    flash("Admin privileges removed.")
+    return redirect(url_for("main.admin_users"))
+
+
+@bp.route("/admin/users/<int:uid>/delete", methods=["POST"])
+@_admin_required
+def admin_delete_user(uid):
+    if uid == _current_user_id():
+        flash("You cannot delete your own account.")
+        return redirect(url_for("main.admin_users"))
+    db = _db()
+    user = db.get_user_by_id(uid)
+    if not user:
+        flash("User not found.")
+        return redirect(url_for("main.admin_users"))
+    if request.form.get("confirm_username", "").strip() != user["username"]:
+        flash("Username confirmation did not match — user not deleted.")
+        return redirect(url_for("main.admin_users"))
+    if user.get("is_admin"):
+        other_admins = [u for u in db.get_all_users() if u.get("is_admin") and u["id"] != uid]
+        if not other_admins:
+            flash("Cannot delete the last admin.")
+            return redirect(url_for("main.admin_users"))
+    db.delete_user(uid)
+    flash(f"User '{user['username']}' deleted.")
+    return redirect(url_for("main.admin_users"))
 
 
 @bp.route("/athlete-profile", methods=["GET"])

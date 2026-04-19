@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}User Admin — RunCoach{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1rem;">
+  <h1 style="font-size:1.4rem; font-weight:700;">User Management</h1>
+</div>
+
+<div class="card">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th class="hide-mobile">Created</th>
+          <th class="hide-mobile">Last login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr {% if not u.is_active %}style="opacity:0.55"{% endif %}>
+          <td>
+            {{ u.username }}
+            {% if u.id == current_user_id %}<span style="font-size:0.75rem;color:var(--fg-muted);"> (you)</span>{% endif %}
+          </td>
+          <td>
+            {% if u.is_admin %}
+              <span class="badge badge-blue">admin</span>
+            {% else %}
+              <span style="font-size:0.85rem;color:var(--fg-muted);">user</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge badge-green">active</span>
+            {% else %}
+              <span class="badge badge-red">inactive</span>
+            {% endif %}
+          </td>
+          <td class="hide-mobile" style="font-size:0.82rem;color:var(--fg-muted);">
+            {{ u.created_at[:10] if u.created_at else '—' }}
+          </td>
+          <td class="hide-mobile" style="font-size:0.82rem;color:var(--fg-muted);">
+            {{ u.last_login[:10] if u.last_login else '—' }}
+          </td>
+          <td>
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+              {% if u.id != current_user_id %}
+                {# Activate / Deactivate #}
+                {% if u.is_active %}
+                  <form method="POST" action="{{ url_for('main.admin_deactivate_user', uid=u.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm" style="color:var(--yellow);" title="Deactivate">Deactivate</button>
+                  </form>
+                {% else %}
+                  <form method="POST" action="{{ url_for('main.admin_reactivate_user', uid=u.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm" style="color:var(--green);">Reactivate</button>
+                  </form>
+                {% endif %}
+
+                {# Promote / Demote #}
+                {% if not u.is_admin %}
+                  <form method="POST" action="{{ url_for('main.admin_promote_user', uid=u.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm">Make admin</button>
+                  </form>
+                {% else %}
+                  <form method="POST" action="{{ url_for('main.admin_demote_user', uid=u.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm">Remove admin</button>
+                  </form>
+                {% endif %}
+
+                {# Delete #}
+                <button class="btn btn-sm"
+                        style="color:var(--red);"
+                        onclick="openDeleteModal('{{ u.id }}', '{{ u.username | e }}')">Delete</button>
+              {% else %}
+                <span style="font-size:0.8rem;color:var(--fg-muted);">—</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Delete confirmation modal #}
+<div id="delete-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1.5rem; max-width:380px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <h2 style="font-size:1.1rem; margin-bottom:0.5rem;">Delete user</h2>
+    <p style="font-size:0.9rem; color:var(--fg-muted); margin-bottom:1rem;">
+      This permanently deletes the user and all their runs. Type <strong id="delete-username-display"></strong> to confirm.
+    </p>
+    <form id="delete-form" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="confirm_username" id="delete-confirm-input"
+             placeholder="type username here"
+             style="width:100%; padding:0.5rem 0.75rem; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; margin-bottom:1rem; font-family:inherit;">
+      <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+        <button type="button" class="btn" onclick="closeDeleteModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" style="background:var(--red); border-color:var(--red);">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openDeleteModal(uid, username) {
+    document.getElementById('delete-username-display').textContent = username;
+    document.getElementById('delete-confirm-input').value = '';
+    document.getElementById('delete-form').action = '/admin/users/' + uid + '/delete';
+    const overlay = document.getElementById('delete-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('delete-confirm-input').focus();
+  }
+  function closeDeleteModal() {
+    document.getElementById('delete-overlay').style.display = 'none';
+  }
+  document.getElementById('delete-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+  });
+</script>
+{% endblock %}

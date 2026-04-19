@@ -226,6 +226,22 @@ class RunCoachDB:
             if "stryd_password" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN stryd_password TEXT")
 
+            # Migration: add is_active and is_admin to users
+            cursor = conn.execute("PRAGMA table_info(users)")
+            user_columns = {row[1] for row in cursor.fetchall()}
+            if "is_active" not in user_columns:
+                conn.execute(
+                    "ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
+                )
+            if "is_admin" not in user_columns:
+                conn.execute(
+                    "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
+                )
+                # First user (lowest id) is admin by default
+                conn.execute(
+                    "UPDATE users SET is_admin = 1 WHERE id = (SELECT MIN(id) FROM users)"
+                )
+
             # Migration: add user_id to runs
             cursor = conn.execute("PRAGMA table_info(runs)")
             run_cols = {row[1] for row in cursor.fetchall()}
@@ -814,6 +830,27 @@ class RunCoachDB:
                 "SELECT * FROM users ORDER BY id ASC"
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def set_user_active(self, user_id: int, is_active: bool) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET is_active = ? WHERE id = ?",
+                (1 if is_active else 0, user_id),
+            )
+
+    def set_user_admin(self, user_id: int, is_admin: bool) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET is_admin = ? WHERE id = ?",
+                (1 if is_admin else 0, user_id),
+            )
+
+    def delete_user(self, user_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM runs WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM planned_workouts WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM sync_log WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
     def create_user(self, username: str, password_hash: str) -> int:
         """Create a new user."""
