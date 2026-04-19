@@ -237,10 +237,12 @@ class RunCoachDB:
                 conn.execute(
                     "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
                 )
-                # First user (lowest id) is admin by default
-                conn.execute(
-                    "UPDATE users SET is_admin = 1 WHERE id = (SELECT MIN(id) FROM users)"
-                )
+            # Always ensure at least one admin exists (idempotent, handles existing DBs)
+            conn.execute(
+                """UPDATE users SET is_admin = 1
+                   WHERE id = (SELECT MIN(id) FROM users)
+                   AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)"""
+            )
 
             # Migration: add user_id to runs
             cursor = conn.execute("PRAGMA table_info(runs)")
@@ -874,12 +876,15 @@ class RunCoachDB:
     def ensure_default_user(self, username: str, password_hash: str) -> int:
         """
         Ensure default user exists, create if not.
+        The bootstrapped default user is always an admin.
         Returns the user ID.
         """
         user = self.get_user_by_username(username)
         if user:
             return user["id"]
-        return self.create_user(username, password_hash)
+        user_id = self.create_user(username, password_hash)
+        self.set_user_admin(user_id, True)
+        return user_id
 
     def get_athlete_profile(self, user_id: int) -> str:
         """Return the athlete profile text for a user (empty string if not set)."""

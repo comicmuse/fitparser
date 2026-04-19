@@ -130,14 +130,72 @@ def server_url(flask_server):
 
 
 E2E_USERNAME = "athlete"
+REGULAR_USERNAME = "e2e_regular"
+REGULAR_PASSWORD = "regularpass123"
 
 
 @pytest.fixture
 def logged_in_page(page, flask_server):
-    """Return a Playwright page already logged in."""
+    """Return a Playwright page already logged in as the admin user."""
     page.goto(f"{flask_server}/login")
     page.fill("input[name='username']", E2E_USERNAME)
     page.fill("input[name='password']", E2E_PASSWORD)
     page.click("button[type='submit']")
     page.wait_for_url(f"{flask_server}/")
     return page
+
+
+@pytest.fixture(scope="session")
+def regular_user(flask_server, e2e_data_dir):
+    """Create a non-admin user once for the session."""
+    from runcoach.auth import hash_password
+    from runcoach.db import RunCoachDB
+
+    db = RunCoachDB(e2e_data_dir / "runcoach.db")
+    if not db.get_user_by_username(REGULAR_USERNAME):
+        db.create_user(REGULAR_USERNAME, hash_password(REGULAR_PASSWORD))
+    return {"username": REGULAR_USERNAME, "password": REGULAR_PASSWORD}
+
+
+@pytest.fixture
+def regular_user_page(page, flask_server, regular_user):
+    """Return a Playwright page logged in as the non-admin regular user."""
+    page.goto(f"{flask_server}/login")
+    page.fill("input[name='username']", regular_user["username"])
+    page.fill("input[name='password']", regular_user["password"])
+    page.click("button[type='submit']")
+    page.wait_for_url(f"{flask_server}/")
+    return page
+
+
+@pytest.fixture
+def deactivation_victim(flask_server, e2e_data_dir):
+    """Create (or reset) a user to be used in deactivation/reactivation tests."""
+    from runcoach.auth import hash_password
+    from runcoach.db import RunCoachDB
+
+    db = RunCoachDB(e2e_data_dir / "runcoach.db")
+    username = "e2e_victim_deactivate"
+    password = "victimpass123"
+    existing = db.get_user_by_username(username)
+    if not existing:
+        db.create_user(username, hash_password(password))
+    else:
+        db.set_user_active(existing["id"], True)
+    return {"username": username, "password": password}
+
+
+@pytest.fixture
+def deletion_victim(flask_server, e2e_data_dir):
+    """Create a fresh user to be deleted in deletion tests."""
+    from runcoach.auth import hash_password
+    from runcoach.db import RunCoachDB
+
+    db = RunCoachDB(e2e_data_dir / "runcoach.db")
+    username = "e2e_victim_delete"
+    password = "deletepass123"
+    existing = db.get_user_by_username(username)
+    if existing:
+        db.delete_user(existing["id"])
+    db.create_user(username, hash_password(password))
+    return {"username": username, "password": password}
