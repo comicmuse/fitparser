@@ -75,9 +75,75 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  docker-smoke-test:
+    name: Docker Smoke Test
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: runcoach:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start container
+        run: |
+          docker run -d \
+            --name runcoach-smoke \
+            -p 5000:5000 \
+            -e SECRET_KEY="ci-test-secret-key-not-for-production" \
+            -e DATA_DIR=/tmp/data \
+            -e FLASK_PORT=5000 \
+            runcoach:ci
+
+      - name: Wait for port 5000 to accept connections
+        run: |
+          echo "Waiting for port 5000..."
+          timeout 60 bash -c 'until nc -z localhost 5000; do sleep 1; done' || {
+            echo "Port 5000 never opened. Container logs:"
+            docker logs runcoach-smoke
+            exit 1
+          }
+          echo "Port 5000 is open"
+
+      - name: Verify /status responds on port 5000
+        run: |
+          response=$(curl -sf http://localhost:5000/status) || {
+            echo "HTTP request to port 5000 failed. Container logs:"
+            docker logs runcoach-smoke
+            exit 1
+          }
+          echo "/status responded: $response"
+
+      - name: Check container logs for errors
+        run: |
+          errors=$(docker logs runcoach-smoke 2>&1 | grep "ERROR" || true)
+          if [ -n "$errors" ]; then
+            echo "ERROR lines found in container logs:"
+            echo "$errors"
+            exit 1
+          fi
+          echo "No errors in container logs"
+
+      - name: Stop container
+        if: always()
+        run: |
+          docker stop runcoach-smoke || true
+          docker rm runcoach-smoke || true
+
   build-and-deploy:
     name: Build and Push Docker Image
-    needs: test  # Only runs if tests pass
+    needs: [test, docker-smoke-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -105,68 +171,6 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,prefix={{branch}}-
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true  # Load into local Docker for testing
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Start container for health check
-        run: |
-          docker run -d \
-            --name runcoach-test \
-            -p 5000:5000 \
-            -e SECRET_KEY="ci-test-secret-key-not-for-production" \
-            -e DATA_DIR=/tmp/data \
-            -e OPENAI_API_KEY="sk-fake-key-for-ci" \
-            -e FLASK_PORT=5000 \
-            ghcr.io/${{ github.repository }}:latest
-
-      - name: Wait for container to be ready
-        run: |
-          echo "Waiting for container to start..."
-          timeout 60 bash -c 'until docker logs runcoach-test 2>&1 | grep -q "Running on"; do sleep 2; done' || {
-            echo "Container failed to start. Logs:"
-            docker logs runcoach-test
-            exit 1
-          }
-
-      - name: Health check
-        run: |
-          echo "Running health check on /status endpoint..."
-          for i in {1..10}; do
-            if curl -f -s http://localhost:5000/status; then
-              echo "✓ Health check passed!"
-              exit 0
-            fi
-            echo "Attempt $i failed, retrying..."
-            sleep 3
-          done
-          echo "Health check failed after 10 attempts"
-          docker logs runcoach-test
-          exit 1
-
-      - name: Check container logs for errors
-        run: |
-          echo "Checking container logs for ERROR lines..."
-          ERROR_LINES=$(docker logs runcoach-test 2>&1 | grep -c "ERROR" || true)
-          if [ "$ERROR_LINES" -gt 0 ]; then
-            echo "Found $ERROR_LINES ERROR line(s) in container logs:"
-            docker logs runcoach-test 2>&1 | grep "ERROR"
-            exit 1
-          fi
-          echo "✓ No errors in container logs"
-
-      - name: Stop test container
-        if: always()
-        run: |
-          docker stop runcoach-test || true
-          docker rm runcoach-test || true
 
       - name: Push Docker image to GHCR
         uses: docker/build-push-action@v6

@@ -4,6 +4,8 @@ import logging
 import threading
 import time
 
+import hashlib
+import hmac
 import re
 import unicodedata
 from datetime import date
@@ -881,6 +883,18 @@ def strava_webhook():
     On activity create/update, trigger the sync pipeline and attempt to
     fetch the route polyline for the map.
     """
+    config: Config = current_app.config["config"]
+    if config.strava_client_secret:
+        sig_header = request.headers.get("X-Hub-Signature", "")
+        raw_body = request.get_data()
+        expected = "sha256=" + hmac.new(
+            config.strava_client_secret.encode(),
+            raw_body,
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(sig_header, expected):
+            return jsonify(error="Invalid signature"), 403
+
     data = request.get_json(silent=True) or {}
     object_type = data.get("object_type")
     aspect_type = data.get("aspect_type")
@@ -890,7 +904,6 @@ def strava_webhook():
     if object_type != "activity" or aspect_type not in ("create", "update"):
         return jsonify(ok=True)
 
-    config: Config = current_app.config["config"]
     db = _db()
     app = current_app._get_current_object()
 
