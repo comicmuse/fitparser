@@ -3,6 +3,7 @@
 
 # Binary activity files
 *.fit
+!tests/fixtures/*.fit
 
 # Runtime data
 data/

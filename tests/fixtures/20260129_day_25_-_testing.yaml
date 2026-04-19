@@ -1,0 +1,436 @@
+source_file: data/activities/2026/01/20260129_day_25_-_testing/20260129_day_25_-_testing.fit
+id: '3604073591'
+name: Day 25 - Testing
+hr_zone_definition:
+  source: garmin
+  system: Garmin_5_zone
+  zones:
+    Z1:
+      min_bpm: 0
+      max_bpm: 135
+    Z2:
+      min_bpm: 136
+      max_bpm: 149
+    Z3:
+      min_bpm: 150
+      max_bpm: 157
+    Z4:
+      min_bpm: 158
+      max_bpm: 169
+    Z5:
+      min_bpm: 170
+      max_bpm: 187
+  lthr_bpm: 176
+workout_name: Day 25 - Testing
+date: '2026-01-29'
+sport: running
+start_utc: '2026-01-29T12:33:51+00:00'
+start_local: '2026-01-29T12:33:51+00:00'
+distance_km: 7.07
+duration_min: 45.0
+elev_gain_m: 27.0
+avg_hr: 145.0
+max_hr: 182.0
+avg_power: 176.0
+max_power: 379.0
+calories_kcal: 518.0
+aerobic_te: 3.5
+anaerobic_te: 2.9
+vo2_max: 51.5052
+recovery_time_min: 2804
+recovery_time_readable: 1d 22:44
+critical_power: 236
+actual_weight: 65.8
+resting_hr: 51
+lthr: 176
+blocks:
+  warmup:
+    type: warmup
+    start_utc: '2026-01-29T12:33:51+00:00'
+    end_utc: '2026-01-29T12:45:51+00:00'
+    duration_min: 12.0
+    distance_km: 1.93
+    avg_hr: 136.0
+    avg_power: 180.0
+    hr_drift_pct: 6.41
+    hr_first5s_to_last5s_delta: 59.5
+    target_power:
+      min_w: 165.0
+      max_w: 189.0
+      pct_time_below: 5.7
+      pct_time_in_range: 81.0
+      pct_time_above: 13.2
+    running_dynamics:
+      form_power_med: 56.0
+      lss_med: 8.0
+      gct_med: 285.0
+      vert_osc_med: 5.7
+      step_length_med: 0.929
+      cadence_med: 174.0
+      air_power_pct_mean: 4.08
+      form_power_ratio_mean: 0.31
+    hr_zones:
+      Z1_pct: 17.4
+      Z2_pct: 82.6
+      Z3_pct: 0.0
+      Z4_pct: 0.0
+      Z5_pct: 0.0
+  active_1:
+    type: work
+    start_utc: '2026-01-29T12:45:51+00:00'
+    end_utc: '2026-01-29T12:46:51+00:00'
+    duration_min: 1.0
+    distance_km: 0.21
+    avg_hr: 160.0
+    avg_power: 237.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: 14.3
+    target_power:
+      min_w: 229.0
+      max_w: 243.0
+      pct_time_below: 18.6
+      pct_time_in_range: 49.2
+      pct_time_above: 32.2
+    running_dynamics:
+      form_power_med: 60.0
+      lss_med: 8.375
+      gct_med: 233.0
+      vert_osc_med: 6.7
+      step_length_med: 1.186
+      cadence_med: 178.0
+      air_power_pct_mean: 6.96
+      form_power_ratio_mean: 0.25
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 3.4
+      Z3_pct: 13.6
+      Z4_pct: 83.1
+      Z5_pct: 0.0
+  float_2:
+    type: float
+    start_utc: '2026-01-29T12:46:51+00:00'
+    end_utc: '2026-01-29T12:48:51+00:00'
+    duration_min: 2.0
+    distance_km: 0.34
+    avg_hr: 153.0
+    avg_power: 186.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: -19.7
+    target_power:
+      min_w: 154.0
+      max_w: 189.0
+      pct_time_below: 0.0
+      pct_time_in_range: 70.0
+      pct_time_above: 30.0
+    running_dynamics:
+      form_power_med: 56.0
+      lss_med: 7.875
+      gct_med: 281.0
+      vert_osc_med: 5.8
+      step_length_med: 0.961
+      cadence_med: 174.0
+      air_power_pct_mean: 5.56
+      form_power_ratio_mean: 0.31
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 31.7
+      Z3_pct: 48.3
+      Z4_pct: 20.0
+      Z5_pct: 0.0
+  active_3:
+    type: work
+    start_utc: '2026-01-29T12:48:51+00:00'
+    end_utc: '2026-01-29T12:49:21+00:00'
+    duration_min: 0.5
+    distance_km: 0.1
+    avg_hr: 161.0
+    avg_power: 255.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: null
+    target_power:
+      min_w: 241.0
+      max_w: 253.0
+      pct_time_below: 24.1
+      pct_time_in_range: 17.2
+      pct_time_above: 58.6
+    running_dynamics:
+      form_power_med: 62.0
+      lss_med: 8.5
+      gct_med: 241.0
+      vert_osc_med: 7.2
+      step_length_med: 1.199
+      cadence_med: 174.0
+      air_power_pct_mean: 6.75
+      form_power_ratio_mean: 0.24
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 6.9
+      Z3_pct: 24.1
+      Z4_pct: 69.0
+      Z5_pct: 0.0
+  float_4:
+    type: float
+    start_utc: '2026-01-29T12:49:21+00:00'
+    end_utc: '2026-01-29T12:50:51+00:00'
+    duration_min: 1.5
+    distance_km: 0.23
+    avg_hr: 153.0
+    avg_power: 169.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: -17.0
+    target_power:
+      min_w: 154.0
+      max_w: 189.0
+      pct_time_below: 22.5
+      pct_time_in_range: 70.8
+      pct_time_above: 6.7
+    running_dynamics:
+      form_power_med: 53.0
+      lss_med: 7.625
+      gct_med: 304.0
+      vert_osc_med: 5.0
+      step_length_med: 0.857
+      cadence_med: 174.0
+      air_power_pct_mean: 4.64
+      form_power_ratio_mean: 0.32
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 38.2
+      Z3_pct: 43.8
+      Z4_pct: 18.0
+      Z5_pct: 0.0
+  active_5:
+    type: work
+    start_utc: '2026-01-29T12:50:51+00:00'
+    end_utc: '2026-01-29T12:51:01+00:00'
+    duration_min: 0.2
+    distance_km: 0.05
+    avg_hr: 158.0
+    avg_power: 345.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: null
+    target_power:
+      min_w: 253.0
+      max_w: 473.0
+      pct_time_below: 10.0
+      pct_time_in_range: 90.0
+      pct_time_above: 0.0
+    running_dynamics:
+      form_power_med: 56.0
+      lss_med: 7.75
+      gct_med: 173.0
+      vert_osc_med: 5.8
+      step_length_med: 1.54
+      cadence_med: 206.0
+      air_power_pct_mean: 5.85
+      form_power_ratio_mean: 0.18
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 0.0
+      Z3_pct: 70.0
+      Z4_pct: 30.0
+      Z5_pct: 0.0
+  float_6:
+    type: float
+    start_utc: '2026-01-29T12:51:01+00:00'
+    end_utc: '2026-01-29T12:52:51+00:00'
+    duration_min: 1.8
+    distance_km: 0.31
+    avg_hr: 157.0
+    avg_power: 185.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: -25.3
+    target_power:
+      min_w: 154.0
+      max_w: 189.0
+      pct_time_below: 0.0
+      pct_time_in_range: 87.2
+      pct_time_above: 12.8
+    running_dynamics:
+      form_power_med: 55.0
+      lss_med: 7.625
+      gct_med: 296.0
+      vert_osc_med: 5.3
+      step_length_med: 0.915
+      cadence_med: 174.0
+      air_power_pct_mean: 4.33
+      form_power_ratio_mean: 0.31
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 19.3
+      Z3_pct: 36.7
+      Z4_pct: 34.9
+      Z5_pct: 9.2
+  active_7:
+    type: work
+    start_utc: '2026-01-29T12:52:51+00:00'
+    end_utc: '2026-01-29T12:54:51+00:00'
+    duration_min: 2.0
+    distance_km: 0.33
+    avg_hr: 148.0
+    avg_power: 182.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: -0.7
+    target_power:
+      min_w: 154.0
+      max_w: 189.0
+      pct_time_below: 0.0
+      pct_time_in_range: 90.0
+      pct_time_above: 10.0
+    running_dynamics:
+      form_power_med: 56.0
+      lss_med: 7.75
+      gct_med: 283.0
+      vert_osc_med: 5.8
+      step_length_med: 0.96
+      cadence_med: 174.0
+      air_power_pct_mean: 1.67
+      form_power_ratio_mean: 0.31
+    hr_zones:
+      Z1_pct: 0.0
+      Z2_pct: 75.8
+      Z3_pct: 24.2
+      Z4_pct: 0.0
+      Z5_pct: 0.0
+  float_8:
+    type: float
+    start_utc: '2026-01-29T12:54:51+00:00'
+    end_utc: '2026-01-29T12:57:51+00:00'
+    duration_min: 3.0
+    distance_km: 0.25
+    avg_hr: 121.0
+    avg_power: 97.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: -21
+    target_power:
+      min_w: 1.0
+      max_w: 118.0
+      pct_time_below: 0.0
+      pct_time_in_range: 88.8
+      pct_time_above: 11.2
+    running_dynamics:
+      form_power_med: 44.0
+      lss_med: 4.0
+      gct_med: 614.0
+      vert_osc_med: 12.3
+      step_length_med: 0.68
+      cadence_med: 118.0
+      air_power_pct_mean: 1.74
+      form_power_ratio_mean: 0.5
+    hr_zones:
+      Z1_pct: 83.7
+      Z2_pct: 16.3
+      Z3_pct: 0.0
+      Z4_pct: 0.0
+      Z5_pct: 0.0
+  active_9:
+    type: work
+    start_utc: '2026-01-29T12:57:51+00:00'
+    end_utc: '2026-01-29T13:00:51+00:00'
+    duration_min: 3.0
+    distance_km: 0.79
+    avg_hr: 174.0
+    avg_power: 290.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: 47.3
+    target_power:
+      min_w: 330.0
+      max_w: 365.0
+      pct_time_below: 100.0
+      pct_time_in_range: 0.0
+      pct_time_above: 0.0
+    running_dynamics:
+      form_power_med: 61.0
+      lss_med: 8.125
+      gct_med: 206.0
+      vert_osc_med: 6.5
+      step_length_med: 1.415
+      cadence_med: 190.0
+      air_power_pct_mean: 6.86
+      form_power_ratio_mean: 0.21
+    hr_zones:
+      Z1_pct: 1.7
+      Z2_pct: 3.3
+      Z3_pct: 2.8
+      Z4_pct: 6.7
+      Z5_pct: 85.6
+  float_10:
+    type: float
+    start_utc: '2026-01-29T13:00:51+00:00'
+    end_utc: '2026-01-29T13:05:51+00:00'
+    duration_min: 5.0
+    distance_km: 0.46
+    avg_hr: 134.0
+    avg_power: 109.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: -49.8
+    target_power:
+      min_w: 1.0
+      max_w: 118.0
+      pct_time_below: 0.0
+      pct_time_in_range: 77.5
+      pct_time_above: 22.5
+    running_dynamics:
+      form_power_med: 50.0
+      lss_med: 4.0
+      gct_med: 594.0
+      vert_osc_med: 12.0
+      step_length_med: 0.699
+      cadence_med: 120.0
+      air_power_pct_mean: 2.19
+      form_power_ratio_mean: 0.48
+    hr_zones:
+      Z1_pct: 70.1
+      Z2_pct: 10.1
+      Z3_pct: 5.4
+      Z4_pct: 8.4
+      Z5_pct: 6.0
+  cooldown:
+    type: cooldown
+    start_utc: '2026-01-29T13:05:51+00:00'
+    end_utc: '2026-01-29T13:18:51+00:00'
+    duration_min: 13.0
+    distance_km: 2.06
+    avg_hr: 148.0
+    avg_power: 176.0
+    hr_drift_pct: null
+    hr_first5s_to_last5s_delta: 17.2
+    target_power:
+      min_w: 142.0
+      max_w: 189.0
+      pct_time_below: 1.7
+      pct_time_in_range: 90.6
+      pct_time_above: 7.7
+    running_dynamics:
+      form_power_med: 55.0
+      lss_med: 7.75
+      gct_med: 289.0
+      vert_osc_med: 5.7
+      step_length_med: 0.937
+      cadence_med: 174.0
+      air_power_pct_mean: 2.89
+      form_power_ratio_mean: 0.31
+    hr_zones:
+      Z1_pct: 5.1
+      Z2_pct: 43.4
+      Z3_pct: 51.5
+      Z4_pct: 0.0
+      Z5_pct: 0.0
+running_dynamics_summary:
+  form_power_med: 55.0
+  lss_med: 7.875
+  gct_med: 287.0
+  vert_osc_med: 5.8
+  step_length_med: 0.93
+  cadence_med: 174.0
+  air_power_pct_mean: 3.72
+  form_power_ratio_mean: 0.33
+session_hr_zones:
+  Z1_pct: 19.6
+  Z2_pct: 44.1
+  Z3_pct: 22.6
+  Z4_pct: 7.0
+  Z5_pct: 6.8
+workout_name_source: planned_workout
+stryd_rss: 39.9
+stryd_rss_note: Running Stress Score from Stryd (official)

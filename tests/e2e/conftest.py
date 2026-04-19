@@ -12,10 +12,7 @@ import pytest
 
 from tests.e2e.mock_ollama import start_mock_ollama_server
 
-SAMPLE_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "data/activities/2026/01/20260129_day_25_-_testing"
-)
+SAMPLE_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 SAMPLE_FIT_NAME = "20260129_day_25_-_testing.fit"
 SAMPLE_YAML_NAME = "20260129_day_25_-_testing.yaml"
 
