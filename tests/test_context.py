@@ -173,7 +173,7 @@ class TestBuildWeeklyContext:
         )
 
         # Update to parsed stage with yaml_path
-        runs = temp_db.get_all_runs()
+        runs = temp_db.get_all_runs(1)
         temp_db.update_parsed(
             run_id=runs[0]["id"],
             yaml_path="activities/2026/02/20260225_test_run/20260225_test_run.yaml",
@@ -253,7 +253,7 @@ class TestBuildWeeklyContext:
             fit_path="activities/2026/03/20260301_future_run/20260301_future_run.fit",
         )
 
-        runs = temp_db.get_all_runs()
+        runs = temp_db.get_all_runs(1)
         temp_db.update_parsed(
             run_id=runs[0]["id"],
             yaml_path="activities/2026/03/20260301_future_run/20260301_future_run.yaml",

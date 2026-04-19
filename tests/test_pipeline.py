@@ -18,8 +18,6 @@ def config(tmp_path):
         openai_model="gpt-4o",
         data_dir=tmp_path / "data",
         timezone="Europe/London",
-        stryd_email="",
-        stryd_password="",
         sync_interval_hours=24,
         llm_auto_analyse=False,  # prevent analyze stage from running by default
     )
@@ -236,9 +234,12 @@ class TestPipelineAnalyzeStage:
 # ---------------------------------------------------------------------------
 
 class TestPipelineSyncStage:
+    def _set_creds(self, db):
+        user_id = db.get_default_user_id()
+        db.update_stryd_credentials(user_id, "user@example.com", "secret")
+
     def test_sync_stage_uses_credentials(self, config, db):
-        config.stryd_email = "user@example.com"
-        config.stryd_password = "secret"
+        self._set_creds(db)
 
         with patch(
             "runcoach.pipeline.sync_new_activities",
@@ -253,8 +254,7 @@ class TestPipelineSyncStage:
         assert result["synced"] == 0
 
     def test_sync_failure_increments_errors(self, config, db):
-        config.stryd_email = "user@example.com"
-        config.stryd_password = "secret"
+        self._set_creds(db)
 
         with patch(
             "runcoach.pipeline.sync_new_activities",
@@ -266,8 +266,7 @@ class TestPipelineSyncStage:
 
     def test_planned_sync_failure_is_non_fatal(self, config, db):
         """Planned workout sync failure should not increment errors."""
-        config.stryd_email = "user@example.com"
-        config.stryd_password = "secret"
+        self._set_creds(db)
 
         with patch(
             "runcoach.pipeline.sync_new_activities",

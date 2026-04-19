@@ -26,7 +26,7 @@ import markdown as md
 import nh3
 
 from runcoach.analyzer import analyze_and_write
-from runcoach.auth import verify_password
+from runcoach.auth import hash_password, verify_password
 from runcoach.config import Config
 from runcoach.pipeline import run_full_pipeline
 from runcoach.web import csrf
@@ -51,10 +51,15 @@ def _login_required(f):
     """Redirect to login if the session is not authenticated."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("logged_in"):
+        if not session.get("user_id"):
             return redirect(url_for("main.login", next=request.path))
         return f(*args, **kwargs)
     return decorated
+
+
+def _current_user_id() -> int:
+    """Return the authenticated user's ID from the session."""
+    return session["user_id"]
 
 # Tags and attributes that the markdown library legitimately produces.
 _ALLOWED_TAGS = {
@@ -107,6 +112,7 @@ def index():
     from datetime import date as _date, timedelta
 
     db = _db()
+    user_id = _current_user_id()
     today = _date.today()
 
     # Build a 3-week calendar: previous Mon–Sun + current Mon–Sun + next Mon–Sun
@@ -118,8 +124,8 @@ def index():
     # Fetch planned workouts and actual runs for the 3-week window
     cal_start = prev_monday.isoformat()
     cal_end = next_sunday_plus1.isoformat()
-    planned = db.get_planned_workouts_in_range(cal_start, cal_end)
-    actual = db.get_runs_in_date_range(cal_start, cal_end)
+    planned = db.get_planned_workouts_in_range(cal_start, cal_end, user_id=user_id)
+    actual = db.get_runs_in_date_range(cal_start, cal_end, user_id=user_id)
 
     # Index by date for easy template lookup
     planned_by_date = {}
@@ -145,9 +151,9 @@ def index():
             "actual": actual_by_date.get(ds, []),
         })
 
-    stats = db.get_sync_stats()
-    last_sync = db.get_last_sync()
-    recent_runs = db.get_runs_paginated(limit=5)
+    stats = db.get_sync_stats(user_id=user_id)
+    last_sync = db.get_last_sync(user_id=user_id)
+    recent_runs = db.get_runs_paginated(limit=5, user_id=user_id)
 
     return render_template(
         "index.html",
@@ -168,21 +174,22 @@ def workouts():
     from datetime import date as _date
 
     db = _db()
+    user_id = _current_user_id()
     today = _date.today().isoformat()
     per_page = 10
 
     past_page = request.args.get("past_page", 1, type=int)
     upcoming_page = request.args.get("upcoming_page", 1, type=int)
 
-    past_total = db.count_past_planned_workouts(today)
-    upcoming_total = db.count_upcoming_planned_workouts(today)
+    past_total = db.count_past_planned_workouts(today, user_id=user_id)
+    upcoming_total = db.count_upcoming_planned_workouts(today, user_id=user_id)
 
-    past = db.get_past_planned_workouts(today, limit=per_page, offset=(past_page - 1) * per_page)
-    upcoming = db.get_upcoming_planned_workouts_paged(today, limit=per_page, offset=(upcoming_page - 1) * per_page)
+    past = db.get_past_planned_workouts(today, limit=per_page, offset=(past_page - 1) * per_page, user_id=user_id)
+    upcoming = db.get_upcoming_planned_workouts_paged(today, limit=per_page, offset=(upcoming_page - 1) * per_page, user_id=user_id)
 
     runs_page = request.args.get("runs_page", 1, type=int)
-    runs_total = db.count_runs()
-    runs = db.get_runs_paginated(limit=per_page, offset=(runs_page - 1) * per_page)
+    runs_total = db.count_runs(user_id=user_id)
+    runs = db.get_runs_paginated(limit=per_page, offset=(runs_page - 1) * per_page, user_id=user_id)
 
     import math
     return render_template(
@@ -199,7 +206,7 @@ def workouts():
         runs_page=runs_page,
         runs_pages=math.ceil(runs_total / per_page),
         runs_total=runs_total,
-        stats=db.get_sync_stats(),
+        stats=db.get_sync_stats(user_id=user_id),
         syncing=_scheduler().is_syncing,
     )
 
@@ -210,8 +217,9 @@ def run_detail(run_id: int):
     import yaml as _yaml
     
     db = _db()
+    user_id = _current_user_id()
     config: Config = current_app.config["config"]
-    run = db.get_run(run_id)
+    run = db.get_run(run_id, user_id=user_id)
     if run is None:
         flash("Run not found")
         return redirect(url_for("main.index"))
@@ -232,32 +240,29 @@ def run_detail(run_id: int):
                 pass
 
     # Load prescribed workout for this date
-    prescribed = db.get_planned_workout_for_date(run["date"])
+    prescribed = db.get_planned_workout_for_date(run["date"], user_id=user_id)
 
     # Stryd athlete UUID for external link
-    default_uid = db.get_default_user_id()
-    stryd_athlete_id = db.get_stryd_athlete_id(default_uid) if default_uid else None
+    stryd_athlete_id = db.get_stryd_athlete_id(user_id)
 
     # Strava map polyline — fetch lazily if we have an activity ID but no stored polyline
     map_coords: list | None = None
     if run.get("strava_map_polyline"):
         from runcoach.strava import decode_polyline
         map_coords = decode_polyline(run["strava_map_polyline"])
-    elif run.get("strava_activity_id") and default_uid:
-        config_obj: Config = current_app.config["config"]
-        if config_obj.strava_client_id:
-            try:
-                from runcoach.strava import StravaClient, decode_polyline
-                client = StravaClient(config_obj.strava_client_id, config_obj.strava_client_secret)
-                token = client.get_valid_access_token(db, default_uid)
-                if token:
-                    activity = client.get_activity(run["strava_activity_id"], token)
-                    polyline = (activity.get("map") or {}).get("summary_polyline") or None
-                    if polyline:
-                        db.update_run_strava_data(run_id=run["id"], strava_map_polyline=polyline)
-                        map_coords = decode_polyline(polyline)
-            except Exception as exc:
-                log.warning("Could not fetch Strava polyline for run %s: %s", run_id, exc)
+    elif run.get("strava_activity_id") and config.strava_client_id:
+        try:
+            from runcoach.strava import StravaClient, decode_polyline
+            client = StravaClient(config.strava_client_id, config.strava_client_secret)
+            token = client.get_valid_access_token(db, user_id)
+            if token:
+                activity = client.get_activity(run["strava_activity_id"], token)
+                polyline = (activity.get("map") or {}).get("summary_polyline") or None
+                if polyline:
+                    db.update_run_strava_data(run_id=run["id"], strava_map_polyline=polyline)
+                    map_coords = decode_polyline(polyline)
+        except Exception as exc:
+            log.warning("Could not fetch Strava polyline for run %s: %s", run_id, exc)
 
     return render_template(
         "run_detail.html",
@@ -282,8 +287,9 @@ def sync():
 @_login_required
 def analyze_run_route(run_id: int):
     db = _db()
+    user_id = _current_user_id()
     config: Config = current_app.config["config"]
-    run = db.get_run(run_id)
+    run = db.get_run(run_id, user_id=user_id)
 
     if run is None:
         flash("Run not found")
@@ -297,13 +303,13 @@ def analyze_run_route(run_id: int):
         flash(f"Run must be parsed first (current stage: {run['stage']})")
         return redirect(url_for("main.run_detail", run_id=run_id))
 
-    def _do_analyze(app, run_id, config):
+    def _do_analyze(app, run_id, config, user_id):
         with app.app_context():
             db = _db()
             run = db.get_run(run_id)
             try:
                 yaml_path = config.data_dir / run["yaml_path"]
-                md_path, result = analyze_and_write(yaml_path, config, db=db)
+                md_path, result = analyze_and_write(yaml_path, config, db=db, user_id=user_id)
                 md_path_rel = str(md_path.relative_to(config.data_dir))
                 db.update_analyzed(
                     run_id=run["id"],
@@ -320,7 +326,7 @@ def analyze_run_route(run_id: int):
 
     t = threading.Thread(
         target=_do_analyze,
-        args=(current_app._get_current_object(), run_id, config),
+        args=(current_app._get_current_object(), run_id, config, user_id),
         daemon=True,
     )
     t.start()
@@ -345,7 +351,7 @@ def status():
 def run_status(run_id: int):
     """Return JSON status of a single run (for polling)."""
     db = _db()
-    run = db.get_run(run_id)
+    run = db.get_run(run_id, user_id=_current_user_id())
     if run is None:
         return jsonify(error="not found"), 404
     return jsonify(
@@ -366,6 +372,7 @@ def upload():
 
     config: Config = current_app.config["config"]
     db = _db()
+    user_id = _current_user_id()
 
     if "fit_file" not in request.files:
         flash("No file provided")
@@ -431,7 +438,7 @@ def upload():
     fit_path_rel = str(fit_path.relative_to(config.data_dir))
 
     # Check if already exists
-    if db.get_run_by_fit_path(fit_path_rel):
+    if db.get_run_by_fit_path(fit_path_rel, user_id=user_id):
         flash("A run with this file already exists")
         return redirect(url_for("main.index"))
 
@@ -439,7 +446,7 @@ def upload():
     try:
         # Get planned workout title for this date to use full name (FIT truncates at 32 chars)
         planned_workout_title = None
-        planned_workouts = db.get_planned_workout_for_date(date_str)
+        planned_workouts = db.get_planned_workout_for_date(date_str, user_id=user_id)
         if planned_workouts:
             planned_workout_title = planned_workouts[0]["title"]
 
@@ -463,6 +470,7 @@ def upload():
             fit_path=fit_path_rel,
             distance_m=parsed.get("distance_km", 0) * 1000 if parsed.get("distance_km") else None,
             moving_time_s=int(parsed.get("duration_min", 0) * 60) if parsed.get("duration_min") else None,
+            user_id=user_id,
         )
 
         # Update as parsed
@@ -484,6 +492,7 @@ def upload():
             name=activity_name,
             date=date_str,
             fit_path=fit_path_rel,
+            user_id=user_id,
         )
         db.update_error(run_id, f"Parse error: {e}")
         flash(f"Uploaded but failed to parse: {e}")
@@ -494,20 +503,19 @@ def upload():
 def login():
     """Session login for the web UI."""
     if request.method == "POST":
+        username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         db = _db()
-        user_id = db.get_default_user_id()
-        if user_id is not None:
-            row = db.get_user_password_hash(user_id)
-            if row and verify_password(password, row):
-                session["logged_in"] = True
-                session.permanent = False
-                next_url = request.form.get("next") or url_for("main.index")
-                # Guard against open-redirect: only allow relative paths
-                if not next_url.startswith("/") or next_url.startswith("//"):
-                    next_url = url_for("main.index")
-                return redirect(next_url)
-        flash("Incorrect password.")
+        user = db.get_user_by_username(username)
+        if user and verify_password(password, user["password_hash"]):
+            session["user_id"] = user["id"]
+            session.permanent = False
+            next_url = request.form.get("next") or url_for("main.index")
+            # Guard against open-redirect: only allow relative paths
+            if not next_url.startswith("/") or next_url.startswith("//"):
+                next_url = url_for("main.index")
+            return redirect(next_url)
+        flash("Incorrect username or password.")
     next_url = request.args.get("next", "")
     return render_template("login.html", next=next_url)
 
@@ -519,25 +527,47 @@ def logout():
     return redirect(url_for("main.login"))
 
 
+@bp.route("/register", methods=["GET", "POST"])
+def register():
+    """Self-registration for new users."""
+    if request.method == "POST":
+        db = _db()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if not username:
+            flash("Username is required.")
+        elif db.get_user_by_username(username):
+            flash("Username already taken.")
+        elif len(password) < 8:
+            flash("Password must be at least 8 characters.")
+        elif password != confirm:
+            flash("Passwords do not match.")
+        else:
+            user_id = db.create_user(username, hash_password(password))
+            session["user_id"] = user_id
+            return redirect(url_for("main.index"))
+    return render_template("register.html")
+
+
 @bp.route("/athlete-profile", methods=["GET"])
 @_login_required
 def athlete_profile():
     """Display the athlete profile page."""
     db = _db()
     config: Config = current_app.config["config"]
-    user_id = db.get_default_user_id()
-    profile = db.get_athlete_profile(user_id) if user_id else ""
-    stryd_athlete_id = db.get_stryd_athlete_id(user_id) if user_id else None
-    display_name = db.get_display_name(user_id) if user_id else ""
-    user_row = db.get_user_by_id(user_id) if user_id else None
+    user_id = _current_user_id()
+    profile = db.get_athlete_profile(user_id)
+    stryd_athlete_id = db.get_stryd_athlete_id(user_id)
+    display_name = db.get_display_name(user_id)
+    user_row = db.get_user_by_id(user_id)
     username = user_row["username"] if user_row else ""
-    race_goal = db.get_race_goal(user_id) if user_id else {"race_date": None, "race_distance": None}
-    strava_connected = bool(
-        user_id and db.get_strava_tokens(user_id)
-    ) if config.strava_client_id else False
+    race_goal = db.get_race_goal(user_id)
+    stryd_creds = db.get_stryd_credentials(user_id)
+    strava_connected = bool(db.get_strava_tokens(user_id)) if config.strava_client_id else False
     strava_athlete_id = None
     strava_webhook_id = None
-    if strava_connected and user_id:
+    if strava_connected:
         tokens = db.get_strava_tokens(user_id)
         strava_athlete_id = tokens.get("strava_athlete_id") if tokens else None
         strava_webhook_id = db.get_strava_webhook_subscription_id(user_id)
@@ -548,6 +578,7 @@ def athlete_profile():
         username=username,
         race_goal=race_goal,
         stryd_athlete_id=stryd_athlete_id,
+        stryd_email=stryd_creds.get("stryd_email", ""),
         strava_connected=strava_connected,
         strava_athlete_id=strava_athlete_id,
         strava_webhook_id=strava_webhook_id,
@@ -560,10 +591,7 @@ def athlete_profile():
 def athlete_profile_save():
     """Save the athlete profile."""
     db = _db()
-    user_id = db.get_default_user_id()
-    if user_id is None:
-        flash("No user account found. Cannot save profile.")
-        return redirect(url_for("main.athlete_profile"))
+    user_id = _current_user_id()
 
     raw = request.form.get("profile", "")
     profile_text = _sanitize_profile(raw).strip()
@@ -577,10 +605,7 @@ def athlete_profile_save():
 def stryd_athlete_id_save():
     """Save the Stryd athlete UUID."""
     db = _db()
-    user_id = db.get_default_user_id()
-    if user_id is None:
-        flash("No user account found.")
-        return redirect(url_for("main.athlete_profile"))
+    user_id = _current_user_id()
     stryd_id = request.form.get("stryd_athlete_id", "").strip()
     db.update_stryd_athlete_id(user_id, stryd_id)
     flash("Stryd athlete ID saved.")
@@ -592,10 +617,7 @@ def stryd_athlete_id_save():
 def user_info_save():
     """Save the athlete's display name and login username."""
     db = _db()
-    user_id = db.get_default_user_id()
-    if user_id is None:
-        flash("No user account found.")
-        return redirect(url_for("main.athlete_profile"))
+    user_id = _current_user_id()
     display_name = request.form.get("display_name", "").strip()
     new_username = request.form.get("username", "").strip()
     if not new_username:
@@ -617,10 +639,7 @@ def race_goal_save():
     """Save the athlete's race goal (date + distance)."""
     from runcoach.analyzer import RACE_DISTANCES
     db = _db()
-    user_id = db.get_default_user_id()
-    if user_id is None:
-        flash("No user account found.")
-        return redirect(url_for("main.athlete_profile"))
+    user_id = _current_user_id()
 
     race_date_raw = request.form.get("race_date", "").strip()
     race_distance_raw = request.form.get("race_distance", "").strip()
@@ -651,6 +670,22 @@ def race_goal_save():
         flash("Race goal saved.")
     else:
         flash("Race goal cleared.")
+    return redirect(url_for("main.athlete_profile"))
+
+
+@bp.route("/athlete-profile/stryd-credentials", methods=["POST"])
+@_login_required
+def stryd_credentials_save():
+    """Save the user's Stryd login credentials."""
+    db = _db()
+    user_id = _current_user_id()
+    email = request.form.get("stryd_email", "").strip()
+    pw = request.form.get("stryd_password", "")
+    if not pw:
+        existing = db.get_stryd_credentials(user_id)
+        pw = existing.get("stryd_password", "")
+    db.update_stryd_credentials(user_id, email, pw)
+    flash("Stryd credentials saved.")
     return redirect(url_for("main.athlete_profile"))
 
 
@@ -698,10 +733,7 @@ def strava_callback():
         flash("Failed to connect to Strava. Please try again.")
         return redirect(url_for("main.athlete_profile"))
 
-    user_id = db.get_default_user_id()
-    if user_id is None:
-        flash("No user account found.")
-        return redirect(url_for("main.athlete_profile"))
+    user_id = _current_user_id()
 
     athlete = token_data.get("athlete", {})
     strava_athlete_id = str(athlete.get("id", "")) if athlete.get("id") else None
@@ -761,8 +793,8 @@ def strava_backfill():
 
     config: Config = current_app.config["config"]
     db = _db()
-    user_id = db.get_default_user_id()
-    if not user_id or not config.strava_client_id:
+    user_id = _current_user_id()
+    if not config.strava_client_id:
         flash("Strava is not configured.")
         return redirect(url_for("main.athlete_profile"))
 
@@ -772,7 +804,7 @@ def strava_backfill():
         flash("No valid Strava token. Please reconnect Strava.")
         return redirect(url_for("main.athlete_profile"))
 
-    unlinked = db.get_unlinked_runs()
+    unlinked = db.get_unlinked_runs(user_id=user_id)
     if not unlinked:
         flash("All runs already have a Strava activity linked.")
         return redirect(url_for("main.athlete_profile"))
@@ -851,7 +883,7 @@ def strava_disconnect():
     from runcoach.strava import StravaClient
     config: Config = current_app.config["config"]
     db = _db()
-    user_id = db.get_default_user_id()
+    user_id = _current_user_id()
     if user_id:
         tokens = db.get_strava_tokens(user_id)
         if tokens and tokens.get("strava_access_token") and config.strava_client_id:
@@ -907,7 +939,9 @@ def strava_webhook():
     db = _db()
     app = current_app._get_current_object()
 
-    def _handle_webhook(app, activity_id):
+    owner_id = str(data.get("owner_id", "")) if data.get("owner_id") else None
+
+    def _handle_webhook(app, activity_id, owner_id):
         with app.app_context():
             from runcoach.strava import StravaClient
             db = _db()
@@ -918,7 +952,14 @@ def strava_webhook():
             if not config.strava_client_id:
                 log.debug("Strava not configured, skipping webhook handler")
                 return
-            user_id = db.get_default_user_id()
+            # Find the user by their Strava athlete ID (from the webhook owner_id field)
+            user_id = None
+            if owner_id:
+                user = db.get_user_by_strava_athlete_id(owner_id)
+                if user:
+                    user_id = user["id"]
+            if not user_id:
+                user_id = db.get_default_user_id()
             if not user_id:
                 return
             client = StravaClient(config.strava_client_id, config.strava_client_secret)
@@ -980,7 +1021,7 @@ def strava_webhook():
                 "Webhook: triggering pipeline for Strava activity %s (%s)",
                 strava_id_str, sport_type,
             )
-            run_full_pipeline(config, db)
+            run_full_pipeline(config, db, user_id=user_id)
 
             if _try_link_run():
                 return
@@ -993,7 +1034,7 @@ def strava_webhook():
                     strava_id_str, delay,
                 )
                 time.sleep(delay)
-                run_full_pipeline(config, db)
+                run_full_pipeline(config, db, user_id=user_id)
                 if _try_link_run():
                     return
 
@@ -1004,7 +1045,7 @@ def strava_webhook():
 
     t = threading.Thread(
         target=_handle_webhook,
-        args=(app, activity_id),
+        args=(app, activity_id, owner_id),
         daemon=True,
     )
     t.start()

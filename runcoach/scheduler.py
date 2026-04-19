@@ -59,8 +59,13 @@ class Scheduler:
     def _run_once(self) -> None:
         self._running = True
         try:
-            run_full_pipeline(self.config, self.db)
+            users = self.db.get_all_users()
+            for user in users:
+                try:
+                    run_full_pipeline(self.config, self.db, user_id=user["id"])
+                except Exception:
+                    log.exception("Pipeline error for user %d", user["id"])
         except Exception:
-            log.exception("Pipeline error in scheduler")
+            log.exception("Scheduler error fetching users")
         finally:
             self._running = False

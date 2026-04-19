@@ -134,8 +134,29 @@
   {# Stryd card #}
   <div class="card">
     <h2 style="font-size:1.05rem;margin-bottom:0.75rem;">Stryd</h2>
-    <p style="color:var(--fg-muted);font-size:0.9rem;margin-bottom:0.75rem;">
-      Your Stryd athlete UUID constructs direct links to activities in the Stryd Power Center.
+
+    <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;">Sync credentials</h3>
+    <p style="color:var(--fg-muted);font-size:0.85rem;margin-bottom:0.75rem;">
+      Used to download activities and your training calendar from Stryd.
+    </p>
+    <form method="post" action="{{ url_for('main.stryd_credentials_save') }}" style="margin-bottom:1.25rem;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:0.5rem;">
+        <label style="display:block;font-size:0.85rem;font-weight:500;margin-bottom:0.3rem;">Email</label>
+        <input type="email" name="stryd_email" value="{{ stryd_email or '' }}" placeholder="you@example.com"
+          style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-size:0.9rem;">
+      </div>
+      <div style="margin-bottom:0.75rem;">
+        <label style="display:block;font-size:0.85rem;font-weight:500;margin-bottom:0.3rem;">Password</label>
+        <input type="password" name="stryd_password" placeholder="leave blank to keep current"
+          style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-size:0.9rem;" autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-primary">Save credentials</button>
+    </form>
+
+    <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;">Athlete UUID</h3>
+    <p style="color:var(--fg-muted);font-size:0.85rem;margin-bottom:0.75rem;">
+      Constructs direct links to activities in the Stryd Power Center.
       Find it in the URL on <a href="https://www.stryd.com/powercenter" target="_blank" rel="noopener">stryd.com/powercenter</a>.
     </p>
     <form method="post" action="{{ url_for('main.stryd_athlete_id_save') }}">

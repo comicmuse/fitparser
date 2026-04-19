@@ -23,8 +23,6 @@ def app(tmp_path):
         openai_model="gpt-4o",
         data_dir=tmp_path / "data",
         timezone="Europe/London",
-        stryd_email="test@example.com",
-        stryd_password="test-password",
         secret_key="test-secret-key-for-testing",
         sync_interval_hours=24,  # Don't auto-sync during tests
     )
@@ -47,7 +45,7 @@ def client(app):
     """Create a test client for the Flask app, pre-authenticated."""
     c = app.test_client()
     with c.session_transaction() as sess:
-        sess["logged_in"] = True
+        sess["user_id"] = 1
     return c
 
 
@@ -67,8 +65,6 @@ class TestAppCreation:
             openai_model="gpt-4o",
             data_dir=tmp_path / "data",
             timezone="Europe/London",
-            stryd_email="test@example.com",
-            stryd_password="test-password",
             secret_key="test-secret",
             sync_interval_hours=24,
         )
@@ -92,8 +88,6 @@ class TestAppCreation:
             openai_model="gpt-4o",
             data_dir=tmp_path / "data",
             timezone="Europe/London",
-            stryd_email="test@example.com",
-            stryd_password="test-password",
             secret_key="test-secret",
             sync_interval_hours=0,
         )
@@ -459,15 +453,15 @@ class TestLogin:
         user_id = db.get_default_user_id()
         with db._connect() as conn:
             conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (hash_password("testpass123"), user_id),
+                "UPDATE users SET password_hash = ?, username = ? WHERE id = ?",
+                (hash_password("testpass123"), "athlete", user_id),
             )
 
         client = app.test_client()
 
         response = client.post(
             "/login",
-            data={"password": "testpass123", "next": "/"},
+            data={"username": "athlete", "password": "testpass123", "next": "/"},
             follow_redirects=False,
         )
         assert response.status_code == 302
@@ -483,7 +477,7 @@ class TestLogin:
         client = app.test_client()
         response = client.post(
             "/login",
-            data={"password": "definitely-wrong-password"},
+            data={"username": "athlete", "password": "definitely-wrong-password"},
             follow_redirects=True,
         )
         assert response.status_code == 200
@@ -496,7 +490,7 @@ class TestLogin:
         client = app.test_client()
         response = client.post(
             "/login",
-            data={"password": ""},
+            data={"username": "athlete", "password": ""},
             follow_redirects=True,
         )
         assert response.status_code == 200
@@ -509,14 +503,14 @@ class TestLogin:
         user_id = db.get_default_user_id()
         with db._connect() as conn:
             conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (hash_password("testpass123"), user_id),
+                "UPDATE users SET password_hash = ?, username = ? WHERE id = ?",
+                (hash_password("testpass123"), "athlete", user_id),
             )
 
         client = app.test_client()
         response = client.post(
             "/login",
-            data={"password": "testpass123", "next": "https://evil.example.com/steal"},
+            data={"username": "athlete", "password": "testpass123", "next": "https://evil.example.com/steal"},
             follow_redirects=False,
         )
         # Must redirect to index, not the external URL
@@ -528,7 +522,7 @@ class TestLogin:
         """Logout must clear the session and redirect to login."""
         client = app.test_client()
         with client.session_transaction() as sess:
-            sess["logged_in"] = True
+            sess["user_id"] = 1
 
         response = client.post("/logout", follow_redirects=False)
         assert response.status_code == 302
@@ -624,8 +618,6 @@ def strava_app(tmp_path):
         openai_model="gpt-4o",
         data_dir=tmp_path / "data",
         timezone="Europe/London",
-        stryd_email="test@example.com",
-        stryd_password="test-password",
         secret_key="test-secret-key-for-testing",
         sync_interval_hours=24,
         strava_client_id="fake_client_id",
@@ -992,7 +984,7 @@ class TestStravaWebhookEvent:
         call_count = {"n": 0}
         run_id_holder = {}
 
-        def fake_pipeline(config, db_arg):
+        def fake_pipeline(config, db_arg, user_id=1):
             call_count["n"] += 1
             if call_count["n"] == 2:
                 rid = db_arg.insert_run(

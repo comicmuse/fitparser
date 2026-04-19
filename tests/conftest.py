@@ -39,8 +39,6 @@ def test_config(tmp_path):
         openai_model="gpt-4o",
         data_dir=tmp_path / "data",
         timezone="Europe/London",
-        stryd_email="test@example.com",
-        stryd_password="test-password",
     )
 
 

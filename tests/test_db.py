@@ -58,8 +58,8 @@ class TestDatabaseInit:
         db2 = RunCoachDB(db_path)
 
         # Both should work fine
-        runs1 = db1.get_all_runs()
-        runs2 = db2.get_all_runs()
+        runs1 = db1.get_all_runs(1)
+        runs2 = db2.get_all_runs(1)
         assert runs1 == runs2 == []
 
 
@@ -134,7 +134,7 @@ class TestRunsCRUD:
     def test_get_all_runs(self, temp_db):
         """Test retrieving all runs."""
         # Start with empty database
-        assert temp_db.get_all_runs() == []
+        assert temp_db.get_all_runs(1) == []
 
         # Insert multiple runs
         temp_db.insert_run(
@@ -156,7 +156,7 @@ class TestRunsCRUD:
             fit_path="activities/3.fit",
         )
 
-        runs = temp_db.get_all_runs()
+        runs = temp_db.get_all_runs(1)
         assert len(runs) == 3
 
         # Should be ordered by date DESC

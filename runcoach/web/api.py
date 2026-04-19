@@ -203,14 +203,15 @@ def list_runs():
         per_page = 20
 
     db = get_db()
+    user_id = request.user_id
 
     # Get total count
-    total = db.count_runs()
+    total = db.count_runs(user_id=user_id)
     total_pages = (total + per_page - 1) // per_page
 
     # Get paginated runs
     offset = (page - 1) * per_page
-    runs = db.get_runs_paginated(limit=per_page, offset=offset)
+    runs = db.get_runs_paginated(limit=per_page, offset=offset, user_id=user_id)
 
     return jsonify({
         "runs": [format_run_for_api(run) for run in runs],
@@ -240,7 +241,7 @@ def get_run(run_id: int):
     }
     """
     db = get_db()
-    run = db.get_run(run_id)
+    run = db.get_run(run_id, user_id=request.user_id)
 
     if not run:
         return jsonify({"error": "Run not found"}), 404
@@ -295,6 +296,7 @@ def upload_run():
         name=basename,
         date=date_iso,
         fit_path=str(fit_path),
+        user_id=request.user_id,
     )
 
     log.info(f"Manual upload: saved {fit_path}, run_id={run_id}")
@@ -316,7 +318,7 @@ def analyze_run(run_id: int):
     Response: {"message": "Analysis started"}
     """
     db = get_db()
-    run = db.get_run(run_id)
+    run = db.get_run(run_id, user_id=request.user_id)
 
     if not run:
         return jsonify({"error": "Run not found"}), 404
@@ -413,8 +415,8 @@ def sync_status():
     }
     """
     db = get_db()
-    last_sync = db.get_last_sync()
-    stats = db.get_sync_stats()
+    last_sync = db.get_last_sync(user_id=request.user_id)
+    stats = db.get_sync_stats(user_id=request.user_id)
 
     return jsonify({
         "last_sync": last_sync,

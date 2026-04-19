@@ -16,8 +16,6 @@ def app(tmp_path):
         openai_model="gpt-4o",
         data_dir=tmp_path / "data",
         timezone="Europe/London",
-        stryd_email="",
-        stryd_password="",
         secret_key="test-secret-key",
         sync_interval_hours=24,
     )

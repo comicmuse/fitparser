@@ -9,8 +9,6 @@ from dotenv import load_dotenv
 
 @dataclass
 class Config:
-    stryd_email: str = ""
-    stryd_password: str = ""
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     anthropic_api_key: str = ""
@@ -108,8 +106,6 @@ class Config:
             secret_key = secrets.token_hex(32)
 
         return cls(
-            stryd_email=os.environ.get("STRYD_EMAIL", ""),
-            stryd_password=os.environ.get("STRYD_PASSWORD", ""),
             openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
             openai_model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
             anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),

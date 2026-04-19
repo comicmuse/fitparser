@@ -19,7 +19,13 @@ def _sanitize_name(name: str) -> str:
     return clean
 
 
-def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
+def sync_new_activities(
+    config: Config,
+    db: RunCoachDB,
+    stryd_email: str = "",
+    stryd_password: str = "",
+    user_id: int = 1,
+) -> list[dict]:
     """
     Sync recent activities from Stryd, download FIT files for any new ones.
 
@@ -28,11 +34,11 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
     # Import here to avoid hard dependency at module level
     from strydcmd.stryd_api import StrydAPI
 
-    log_id = db.start_sync_log()
+    log_id = db.start_sync_log(user_id=user_id)
     new_runs = []
 
     try:
-        stryd = StrydAPI(config.stryd_email, config.stryd_password)
+        stryd = StrydAPI(stryd_email, stryd_password)
         stryd.authenticate()
 
         activities = stryd.get_activities(days=config.sync_lookback_days)
@@ -45,7 +51,7 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
 
             # Skip if already in our database — but update name if Stryd
             # has since renamed the activity (e.g. after plan-linking).
-            existing = db.get_run_by_stryd_id(activity_id)
+            existing = db.get_run_by_stryd_id(activity_id, user_id=user_id)
             if existing:
                 new_name = activity.get("name", "")
                 if new_name and new_name != existing["name"]:
@@ -68,7 +74,7 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
 
             # If there's a planned workout for this date, prefer its title as
             # the run name — Stryd may not have linked the plan yet at sync time.
-            planned = db.get_planned_workout_for_date(date_str)
+            planned = db.get_planned_workout_for_date(date_str, user_id=user_id)
             if planned and planned[0].get("title"):
                 name = planned[0]["title"]
                 log.debug("Using planned workout title %r for activity %s", name, activity_id)
@@ -108,6 +114,7 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
                 distance_m=distance,
                 moving_time_s=int(moving_time) if moving_time else None,
                 stryd_rss=stryd_rss,
+                user_id=user_id,
             )
 
             new_runs.append({"id": run_id, "name": name, "date": date_str})
@@ -128,7 +135,13 @@ def sync_new_activities(config: Config, db: RunCoachDB) -> list[dict]:
     return new_runs
 
 
-def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
+def sync_planned_workouts(
+    config: Config,
+    db: RunCoachDB,
+    stryd_email: str = "",
+    stryd_password: str = "",
+    user_id: int = 1,
+) -> int:
     """
     Fetch planned workouts from the Stryd training calendar and store them.
 
@@ -141,7 +154,7 @@ def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
 
     from strydcmd.stryd_api import StrydAPI
 
-    stryd = StrydAPI(config.stryd_email, config.stryd_password)
+    stryd = StrydAPI(stryd_email, stryd_password)
     stryd.authenticate()
 
     days_ahead = 30
@@ -183,12 +196,12 @@ def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
     range_end = (today + timedelta(days=days_ahead + 1)).strftime("%Y-%m-%d")
 
     # Remove local workouts in that range that are no longer in Stryd
-    local_workouts = db.get_planned_workouts_in_range(range_start, range_end)
+    local_workouts = db.get_planned_workouts_in_range(range_start, range_end, user_id=user_id)
     removed = 0
     for lw in local_workouts:
         key = (lw["date"], lw["title"])
         if key not in active_keys:
-            if db.delete_planned_workout(lw["date"], lw["title"]):
+            if db.delete_planned_workout(lw["date"], lw["title"], user_id=user_id):
                 removed += 1
                 log.info("Removed stale planned workout: %s on %s", lw["title"], lw["date"])
 
@@ -213,6 +226,7 @@ def sync_planned_workouts(config: Config, db: RunCoachDB) -> int:
         db.upsert_planned_workout(
             date=date_str,
             title=title,
+            user_id=user_id,
             description=description,
             workout_type=workout_type,
             duration_s=duration_s,

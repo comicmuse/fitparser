@@ -59,6 +59,7 @@ def build_weekly_context(
     data_dir: Path,
     db: RunCoachDB,
     current_cp: float | None = None,
+    user_id: int | None = None,
 ) -> dict:
     """
     Build a weekly training context summary for the 7 days before run_date.
@@ -75,7 +76,7 @@ def build_weekly_context(
     window_start = target - timedelta(days=7)
 
     # Get all runs in the 7-day window before (not including) the target date
-    all_runs = db.get_all_runs()
+    all_runs = db.get_all_runs(user_id) if user_id is not None else db.get_all_runs(1)
     week_runs = [
         r for r in all_runs
         if r.get("yaml_path")

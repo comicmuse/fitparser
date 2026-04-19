@@ -48,8 +48,6 @@ class TestSyncPlannedWorkoutsCleanup:
             openai_model="gpt-4o",
             data_dir=tmp_path / "data",
             timezone="UTC",
-            stryd_email="test@example.com",
-            stryd_password="test-password",
             sync_lookback_days=30,
         )
 
@@ -256,8 +254,6 @@ class TestSyncNewActivitiesUsesPlannedName:
             openai_model="gpt-4o",
             data_dir=tmp_path / "data",
             timezone="UTC",
-            stryd_email="a@b.com",
-            stryd_password="pw",
         )
 
     def test_planned_title_used_instead_of_generic_stryd_name(self, tmp_path, temp_db):
@@ -315,8 +311,6 @@ class TestSyncNewActivitiesUpdatesStaleNames:
             openai_model="gpt-4o",
             data_dir=tmp_path / "data",
             timezone="UTC",
-            stryd_email="a@b.com",
-            stryd_password="pw",
         )
 
     def _seed_run(self, temp_db, stryd_id: int, name: str, date_str: str, tmp_path) -> int:

@@ -27,7 +27,7 @@ class TestLoadAthleteProfile:
         assert user_id is not None
         temp_db.update_athlete_profile(user_id, "My custom athlete profile")
 
-        profile = _load_athlete_profile(temp_db)
+        profile = _load_athlete_profile(temp_db, user_id=user_id)
         assert profile == "My custom athlete profile"
 
     def test_load_athlete_profile_no_db(self):
@@ -40,7 +40,7 @@ class TestLoadAthleteProfile:
         user_id = temp_db.get_default_user_id()
         temp_db.update_athlete_profile(user_id, "")
 
-        profile = _load_athlete_profile(temp_db)
+        profile = _load_athlete_profile(temp_db, user_id=user_id)
         assert profile == ""
 
 
@@ -242,7 +242,7 @@ class TestAnalyzeAndWrite:
             date="2026-02-25",
             fit_path="activities/2026/02/20260225_prev.fit",
         )
-        runs = temp_db.get_all_runs()
+        runs = temp_db.get_all_runs(1)
         temp_db.update_parsed(
             run_id=runs[0]["id"],
             yaml_path="activities/2026/02/20260225_prev.yaml",
@@ -509,7 +509,7 @@ class TestAnalyzeRunWithRaceContext:
         temp_db.update_race_goal(user_id, "2026-10-04", "Marathon")
 
         yaml_content = "date: '2026-04-15'\nname: Test Run\n"
-        analyze_run(yaml_content, test_config, db=temp_db, run_date="2026-04-15")
+        analyze_run(yaml_content, test_config, db=temp_db, run_date="2026-04-15", user_id=user_id)
 
         call_args = mock_openai_client.chat.completions.create.call_args
         system_msg = call_args.kwargs["messages"][0]["content"]

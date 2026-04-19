@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RunCoach — Sign in</title>
+  <title>RunCoach — Create account</title>
   <style>
     :root {
       --bg: #faf9f7;
@@ -67,14 +67,6 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.15);
     }
-    .register-link {
-      text-align: center;
-      margin-top: 1rem;
-      font-size: 0.875rem;
-      color: var(--fg-muted);
-    }
-    .register-link a { color: var(--accent); text-decoration: none; }
-    .register-link a:hover { text-decoration: underline; }
     button[type="submit"] {
       width: 100%;
       padding: 0.65rem 1rem;
@@ -96,12 +88,20 @@
       font-size: 0.875rem;
       margin-bottom: 1rem;
     }
+    .login-link {
+      text-align: center;
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: var(--fg-muted);
+    }
+    .login-link a { color: var(--accent); text-decoration: none; }
+    .login-link a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">RunCoach</div>
-    <div class="subtitle">Running training analysis &amp; coaching</div>
+    <div class="subtitle">Create your account</div>
 
     {% with messages = get_flashed_messages() %}
       {% if messages %}
@@ -111,17 +111,18 @@
       {% endif %}
     {% endwith %}
 
-    <form method="post" action="{{ url_for('main.login') }}">
+    <form method="post" action="{{ url_for('main.register') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ next }}">
       <label for="username">Username</label>
       <input type="text" id="username" name="username" autofocus autocomplete="username">
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" autocomplete="current-password">
-      <button type="submit">Sign in</button>
+      <input type="password" id="password" name="password" autocomplete="new-password">
+      <label for="confirm_password">Confirm password</label>
+      <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password">
+      <button type="submit">Create account</button>
     </form>
-    <div class="register-link">
-      Don't have an account? <a href="{{ url_for('main.register') }}">Create one</a>
+    <div class="login-link">
+      Already have an account? <a href="{{ url_for('main.login') }}">Sign in</a>
     </div>
   </div>
 </body>

@@ -134,7 +134,7 @@ class RunCoachDB:
                 log.info("Migrating runs table to allow NULL stryd_activity_id")
                 conn.executescript("""
                     PRAGMA foreign_keys=OFF;
-                    
+
                     CREATE TABLE IF NOT EXISTS runs_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         stryd_activity_id INTEGER UNIQUE,
@@ -162,7 +162,7 @@ class RunCoachDB:
                         is_manual_upload INTEGER NOT NULL DEFAULT 0,
                         stryd_rss REAL
                     );
-                    
+
                     INSERT INTO runs_new SELECT
                         id, stryd_activity_id, name, date, distance_m, moving_time_s,
                         fit_path, yaml_path, md_path, stage, error_message,
@@ -172,13 +172,13 @@ class RunCoachDB:
                         COALESCE(is_manual_upload, 0),
                         NULL
                     FROM runs;
-                    
+
                     DROP TABLE runs;
                     ALTER TABLE runs_new RENAME TO runs;
-                    
+
                     CREATE INDEX IF NOT EXISTS idx_runs_date ON runs(date);
                     CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
-                    
+
                     PRAGMA foreign_keys=ON;
                 """)
 
@@ -218,28 +218,88 @@ class RunCoachDB:
                     except Exception:
                         log.exception("Failed to seed athlete_profile from coach_profile.txt")
 
+            # Migration: add Stryd credentials to users
+            cursor = conn.execute("PRAGMA table_info(users)")
+            user_columns = {row[1] for row in cursor.fetchall()}
+            if "stryd_email" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN stryd_email TEXT")
+            if "stryd_password" not in user_columns:
+                conn.execute("ALTER TABLE users ADD COLUMN stryd_password TEXT")
+
+            # Migration: add user_id to runs
+            cursor = conn.execute("PRAGMA table_info(runs)")
+            run_cols = {row[1] for row in cursor.fetchall()}
+            if "user_id" not in run_cols:
+                conn.execute(
+                    "ALTER TABLE runs ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs(user_id)"
+                )
+
+            # Migration: add user_id to planned_workouts and fix unique index
+            cursor = conn.execute("PRAGMA table_info(planned_workouts)")
+            pw_cols = {row[1] for row in cursor.fetchall()}
+            if "user_id" not in pw_cols:
+                conn.execute(
+                    "ALTER TABLE planned_workouts ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
+                )
+                # Replace old (date, title) unique index with (date, title, user_id)
+                conn.execute("DROP INDEX IF EXISTS idx_planned_date_title")
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_planned_date_title"
+                    " ON planned_workouts(date, title, user_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_planned_workouts_user_id"
+                    " ON planned_workouts(user_id)"
+                )
+
+            # Migration: add user_id to sync_log
+            cursor = conn.execute("PRAGMA table_info(sync_log)")
+            sl_cols = {row[1] for row in cursor.fetchall()}
+            if "user_id" not in sl_cols:
+                conn.execute(
+                    "ALTER TABLE sync_log ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
+                )
+
     # ------ runs ------
 
-    def get_all_runs(self) -> list[dict]:
+    def get_all_runs(self, user_id: int) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM runs ORDER BY date DESC, id DESC"
+                "SELECT * FROM runs WHERE user_id = ? ORDER BY date DESC, id DESC",
+                (user_id,),
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_run(self, run_id: int) -> Optional[dict]:
+    def get_run(self, run_id: int, user_id: int | None = None) -> Optional[dict]:
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE id = ?", (run_id,)
-            ).fetchone()
+            if user_id is not None:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE id = ? AND user_id = ?",
+                    (run_id, user_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE id = ?", (run_id,)
+                ).fetchone()
         return dict(row) if row else None
 
-    def get_run_by_stryd_id(self, stryd_activity_id: int) -> Optional[dict]:
+    def get_run_by_stryd_id(
+        self, stryd_activity_id: int, user_id: int | None = None
+    ) -> Optional[dict]:
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE stryd_activity_id = ?",
-                (stryd_activity_id,),
-            ).fetchone()
+            if user_id is not None:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE stryd_activity_id = ? AND user_id = ?",
+                    (stryd_activity_id, user_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE stryd_activity_id = ?",
+                    (stryd_activity_id,),
+                ).fetchone()
         return dict(row) if row else None
 
     def insert_run(
@@ -248,6 +308,7 @@ class RunCoachDB:
         name: str,
         date: str,
         fit_path: str,
+        user_id: int = 1,
         distance_m: float | None = None,
         moving_time_s: int | None = None,
         stryd_rss: float | None = None,
@@ -257,10 +318,10 @@ class RunCoachDB:
             cur = conn.execute(
                 """INSERT INTO runs
                    (stryd_activity_id, name, date, fit_path,
-                    distance_m, moving_time_s, stage, synced_at, stryd_rss)
-                   VALUES (?, ?, ?, ?, ?, ?, 'synced', ?, ?)""",
+                    distance_m, moving_time_s, stage, synced_at, stryd_rss, user_id)
+                   VALUES (?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)""",
                 (stryd_activity_id, name, date, fit_path,
-                 distance_m, moving_time_s, now, stryd_rss),
+                 distance_m, moving_time_s, now, stryd_rss, user_id),
             )
             return cur.lastrowid
 
@@ -271,6 +332,7 @@ class RunCoachDB:
         fit_path: str,
         distance_m: float | None = None,
         moving_time_s: int | None = None,
+        user_id: int = 1,
     ) -> int:
         """Insert a manually uploaded run (no Stryd activity ID)."""
         now = _now_iso()
@@ -278,19 +340,26 @@ class RunCoachDB:
             cur = conn.execute(
                 """INSERT INTO runs
                    (stryd_activity_id, name, date, fit_path,
-                    distance_m, moving_time_s, stage, synced_at, is_manual_upload)
-                   VALUES (NULL, ?, ?, ?, ?, ?, 'synced', ?, 1)""",
-                (name, date, fit_path, distance_m, moving_time_s, now),
+                    distance_m, moving_time_s, stage, synced_at, is_manual_upload, user_id)
+                   VALUES (NULL, ?, ?, ?, ?, ?, 'synced', ?, 1, ?)""",
+                (name, date, fit_path, distance_m, moving_time_s, now, user_id),
             )
             return cur.lastrowid
 
-    def get_run_by_fit_path(self, fit_path: str) -> Optional[dict]:
+    def get_run_by_fit_path(
+        self, fit_path: str, user_id: int | None = None
+    ) -> Optional[dict]:
         """Get a run by its FIT file path."""
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE fit_path = ?",
-                (fit_path,),
-            ).fetchone()
+            if user_id is not None:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE fit_path = ? AND user_id = ?",
+                    (fit_path, user_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE fit_path = ?", (fit_path,)
+                ).fetchone()
         return dict(row) if row else None
 
     def update_parsed(
@@ -342,9 +411,21 @@ class RunCoachDB:
                 (error_message, now, run_id),
             )
 
-    def get_pending_runs(self, stage: str, date_from: str | None = None) -> list[dict]:
+    def get_pending_runs(
+        self, stage: str, user_id: int | None = None, date_from: str | None = None
+    ) -> list[dict]:
         with self._connect() as conn:
-            if date_from:
+            if user_id is not None and date_from:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE stage = ? AND user_id = ? AND date >= ? ORDER BY date ASC",
+                    (stage, user_id, date_from),
+                ).fetchall()
+            elif user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE stage = ? AND user_id = ? ORDER BY date ASC",
+                    (stage, user_id),
+                ).fetchall()
+            elif date_from:
                 rows = conn.execute(
                     "SELECT * FROM runs WHERE stage = ? AND date >= ? ORDER BY date ASC",
                     (stage, date_from),
@@ -370,12 +451,12 @@ class RunCoachDB:
 
     # ------ sync_log ------
 
-    def start_sync_log(self) -> int:
+    def start_sync_log(self, user_id: int = 1) -> int:
         now = _now_iso()
         with self._connect() as conn:
             cur = conn.execute(
-                "INSERT INTO sync_log (started_at, status) VALUES (?, 'running')",
-                (now,),
+                "INSERT INTO sync_log (started_at, status, user_id) VALUES (?, 'running', ?)",
+                (now, user_id),
             )
             return cur.lastrowid
 
@@ -399,25 +480,45 @@ class RunCoachDB:
                  error_message, log_id),
             )
 
-    def get_last_sync(self) -> Optional[dict]:
+    def get_last_sync(self, user_id: int | None = None) -> Optional[dict]:
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM sync_log ORDER BY id DESC LIMIT 1"
-            ).fetchone()
+            if user_id is not None:
+                row = conn.execute(
+                    "SELECT * FROM sync_log WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                    (user_id,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM sync_log ORDER BY id DESC LIMIT 1"
+                ).fetchone()
         return dict(row) if row else None
 
-    def get_sync_stats(self) -> dict:
+    def get_sync_stats(self, user_id: int | None = None) -> dict:
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
-            pending_parse = conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE stage='synced'"
-            ).fetchone()[0]
-            pending_analyze = conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE stage='parsed'"
-            ).fetchone()[0]
-            errors = conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE stage='error'"
-            ).fetchone()[0]
+            if user_id is not None:
+                total = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE user_id = ?", (user_id,)
+                ).fetchone()[0]
+                pending_parse = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE stage='synced' AND user_id = ?", (user_id,)
+                ).fetchone()[0]
+                pending_analyze = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE stage='parsed' AND user_id = ?", (user_id,)
+                ).fetchone()[0]
+                errors = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE stage='error' AND user_id = ?", (user_id,)
+                ).fetchone()[0]
+            else:
+                total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+                pending_parse = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE stage='synced'"
+                ).fetchone()[0]
+                pending_analyze = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE stage='parsed'"
+                ).fetchone()[0]
+                errors = conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE stage='error'"
+                ).fetchone()[0]
         return {
             "total_runs": total,
             "pending_parse": pending_parse,
@@ -431,6 +532,7 @@ class RunCoachDB:
         self,
         date: str,
         title: str,
+        user_id: int = 1,
         description: str | None = None,
         workout_type: str | None = None,
         duration_s: float | None = None,
@@ -440,16 +542,16 @@ class RunCoachDB:
         activity_id: str | None = None,
         raw_json: str | None = None,
     ) -> int:
-        """Insert or update a planned workout (keyed on date + title)."""
+        """Insert or update a planned workout (keyed on date + title + user_id)."""
         now = _now_iso()
         with self._connect() as conn:
             cur = conn.execute(
                 """INSERT INTO planned_workouts
-                   (date, title, description, workout_type, duration_s,
+                   (date, title, user_id, description, workout_type, duration_s,
                     distance_m, stress, intensity_zones, activity_id,
                     raw_json, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(date, title) DO UPDATE SET
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(date, title, user_id) DO UPDATE SET
                      description = excluded.description,
                      workout_type = excluded.workout_type,
                      duration_s = excluded.duration_s,
@@ -459,121 +561,230 @@ class RunCoachDB:
                      activity_id = excluded.activity_id,
                      raw_json = excluded.raw_json,
                      updated_at = excluded.updated_at""",
-                (date, title, description, workout_type, duration_s,
+                (date, title, user_id, description, workout_type, duration_s,
                  distance_m, stress, intensity_zones, activity_id,
                  raw_json, now, now),
             )
             return cur.lastrowid
 
-    def delete_planned_workout(self, date: str, title: str) -> bool:
+    def delete_planned_workout(
+        self, date: str, title: str, user_id: int | None = None
+    ) -> bool:
         """Delete a planned workout by date and title. Returns True if deleted."""
         with self._connect() as conn:
-            cur = conn.execute(
-                "DELETE FROM planned_workouts WHERE date = ? AND title = ?",
-                (date, title),
-            )
+            if user_id is not None:
+                cur = conn.execute(
+                    "DELETE FROM planned_workouts WHERE date = ? AND title = ? AND user_id = ?",
+                    (date, title, user_id),
+                )
+            else:
+                cur = conn.execute(
+                    "DELETE FROM planned_workouts WHERE date = ? AND title = ?",
+                    (date, title),
+                )
             return cur.rowcount > 0
 
-    def get_planned_workout_for_date(self, date: str) -> list[dict]:
+    def get_planned_workout_for_date(
+        self, date: str, user_id: int | None = None
+    ) -> list[dict]:
         """Get all planned workouts for a given date."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM planned_workouts WHERE date = ? ORDER BY id",
-                (date,),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM planned_workouts WHERE date = ? AND user_id = ? ORDER BY id",
+                    (date, user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM planned_workouts WHERE date = ? ORDER BY id",
+                    (date,),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_upcoming_planned_workouts(self, from_date: str, limit: int = 14) -> list[dict]:
+    def get_upcoming_planned_workouts(
+        self, from_date: str, limit: int = 14, user_id: int | None = None
+    ) -> list[dict]:
         """Get upcoming planned workouts from a date onwards."""
         with self._connect() as conn:
-            rows = conn.execute(
-                """SELECT * FROM planned_workouts
-                   WHERE date >= ?
-                   ORDER BY date ASC
-                   LIMIT ?""",
-                (from_date, limit),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date >= ? AND user_id = ?
+                       ORDER BY date ASC
+                       LIMIT ?""",
+                    (from_date, user_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date >= ?
+                       ORDER BY date ASC
+                       LIMIT ?""",
+                    (from_date, limit),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_all_planned_workouts(self) -> list[dict]:
+    def get_all_planned_workouts(self, user_id: int | None = None) -> list[dict]:
         """Get all planned workouts ordered by date."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM planned_workouts ORDER BY date ASC"
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM planned_workouts WHERE user_id = ? ORDER BY date ASC",
+                    (user_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM planned_workouts ORDER BY date ASC"
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_planned_workouts_in_range(self, start_date: str, end_date: str) -> list[dict]:
+    def get_planned_workouts_in_range(
+        self, start_date: str, end_date: str, user_id: int | None = None
+    ) -> list[dict]:
         """Get planned workouts within a date range [start, end)."""
         with self._connect() as conn:
-            rows = conn.execute(
-                """SELECT * FROM planned_workouts
-                   WHERE date >= ? AND date < ?
-                   ORDER BY date ASC""",
-                (start_date, end_date),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date >= ? AND date < ? AND user_id = ?
+                       ORDER BY date ASC""",
+                    (start_date, end_date, user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date >= ? AND date < ?
+                       ORDER BY date ASC""",
+                    (start_date, end_date),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_past_planned_workouts(self, before_date: str, limit: int = 10, offset: int = 0) -> list[dict]:
+    def get_past_planned_workouts(
+        self,
+        before_date: str,
+        limit: int = 10,
+        offset: int = 0,
+        user_id: int | None = None,
+    ) -> list[dict]:
         """Get past planned workouts (before a date), most recent first."""
         with self._connect() as conn:
-            rows = conn.execute(
-                """SELECT * FROM planned_workouts
-                   WHERE date < ?
-                   ORDER BY date DESC
-                   LIMIT ? OFFSET ?""",
-                (before_date, limit, offset),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date < ? AND user_id = ?
+                       ORDER BY date DESC
+                       LIMIT ? OFFSET ?""",
+                    (before_date, user_id, limit, offset),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date < ?
+                       ORDER BY date DESC
+                       LIMIT ? OFFSET ?""",
+                    (before_date, limit, offset),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def count_past_planned_workouts(self, before_date: str) -> int:
+    def count_past_planned_workouts(
+        self, before_date: str, user_id: int | None = None
+    ) -> int:
         with self._connect() as conn:
+            if user_id is not None:
+                return conn.execute(
+                    "SELECT COUNT(*) FROM planned_workouts WHERE date < ? AND user_id = ?",
+                    (before_date, user_id),
+                ).fetchone()[0]
             return conn.execute(
                 "SELECT COUNT(*) FROM planned_workouts WHERE date < ?",
                 (before_date,),
             ).fetchone()[0]
 
-    def count_upcoming_planned_workouts(self, from_date: str) -> int:
+    def count_upcoming_planned_workouts(
+        self, from_date: str, user_id: int | None = None
+    ) -> int:
         with self._connect() as conn:
+            if user_id is not None:
+                return conn.execute(
+                    "SELECT COUNT(*) FROM planned_workouts WHERE date >= ? AND user_id = ?",
+                    (from_date, user_id),
+                ).fetchone()[0]
             return conn.execute(
                 "SELECT COUNT(*) FROM planned_workouts WHERE date >= ?",
                 (from_date,),
             ).fetchone()[0]
 
-    def get_upcoming_planned_workouts_paged(self, from_date: str, limit: int = 10, offset: int = 0) -> list[dict]:
+    def get_upcoming_planned_workouts_paged(
+        self,
+        from_date: str,
+        limit: int = 10,
+        offset: int = 0,
+        user_id: int | None = None,
+    ) -> list[dict]:
         """Get upcoming planned workouts with pagination."""
         with self._connect() as conn:
-            rows = conn.execute(
-                """SELECT * FROM planned_workouts
-                   WHERE date >= ?
-                   ORDER BY date ASC
-                   LIMIT ? OFFSET ?""",
-                (from_date, limit, offset),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date >= ? AND user_id = ?
+                       ORDER BY date ASC
+                       LIMIT ? OFFSET ?""",
+                    (from_date, user_id, limit, offset),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM planned_workouts
+                       WHERE date >= ?
+                       ORDER BY date ASC
+                       LIMIT ? OFFSET ?""",
+                    (from_date, limit, offset),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_runs_in_date_range(self, start_date: str, end_date: str) -> list[dict]:
+    def get_runs_in_date_range(
+        self, start_date: str, end_date: str, user_id: int | None = None
+    ) -> list[dict]:
         """Get runs within a date range [start, end)."""
         with self._connect() as conn:
-            rows = conn.execute(
-                """SELECT * FROM runs
-                   WHERE date >= ? AND date < ?
-                   ORDER BY date ASC""",
-                (start_date, end_date),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    """SELECT * FROM runs
+                       WHERE date >= ? AND date < ? AND user_id = ?
+                       ORDER BY date ASC""",
+                    (start_date, end_date, user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM runs
+                       WHERE date >= ? AND date < ?
+                       ORDER BY date ASC""",
+                    (start_date, end_date),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_runs_paginated(self, limit: int = 10, offset: int = 0) -> list[dict]:
+    def get_runs_paginated(
+        self, limit: int = 10, offset: int = 0, user_id: int | None = None
+    ) -> list[dict]:
         """Get all runs with pagination, most recent first."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM runs ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
-                (limit, offset),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+                    (user_id, limit, offset),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM runs ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def count_runs(self) -> int:
+    def count_runs(self, user_id: int | None = None) -> int:
         with self._connect() as conn:
+            if user_id is not None:
+                return conn.execute(
+                    "SELECT COUNT(*) FROM runs WHERE user_id = ?", (user_id,)
+                ).fetchone()[0]
             return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
 
     # ------ users ------
@@ -595,6 +806,14 @@ class RunCoachDB:
                 (user_id,),
             ).fetchone()
         return dict(row) if row else None
+
+    def get_all_users(self) -> list[dict]:
+        """Return all users ordered by id."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users ORDER BY id ASC"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def create_user(self, username: str, password_hash: str) -> int:
         """Create a new user."""
@@ -704,7 +923,37 @@ class RunCoachDB:
             row = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
         return row[0] if row else None
 
+    def get_stryd_credentials(self, user_id: int) -> dict:
+        """Return Stryd credentials for a user as {stryd_email, stryd_password}."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT stryd_email, stryd_password FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+        if row:
+            return {"stryd_email": row[0] or "", "stryd_password": row[1] or ""}
+        return {"stryd_email": "", "stryd_password": ""}
+
+    def update_stryd_credentials(
+        self, user_id: int, stryd_email: str, stryd_password: str
+    ) -> None:
+        """Update Stryd login credentials for a user."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET stryd_email = ?, stryd_password = ? WHERE id = ?",
+                (stryd_email, stryd_password, user_id),
+            )
+
     # ------ Strava OAuth tokens ------
+
+    def get_user_by_strava_athlete_id(self, strava_athlete_id: str) -> Optional[dict]:
+        """Find a user by their Strava athlete ID."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE strava_athlete_id = ?",
+                (str(strava_athlete_id),),
+            ).fetchone()
+        return dict(row) if row else None
 
     def get_strava_tokens(self, user_id: int) -> Optional[dict]:
         """Return Strava OAuth tokens for a user, or None if not connected."""
@@ -805,30 +1054,50 @@ class RunCoachDB:
                 (strava_activity_id, strava_map_polyline, run_id),
             )
 
-    def get_run_by_strava_id(self, strava_activity_id: str) -> Optional[dict]:
+    def get_run_by_strava_id(
+        self, strava_activity_id: str, user_id: int | None = None
+    ) -> Optional[dict]:
         """Get a run by its Strava activity ID."""
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE strava_activity_id = ?",
-                (str(strava_activity_id),),
-            ).fetchone()
+            if user_id is not None:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE strava_activity_id = ? AND user_id = ?",
+                    (str(strava_activity_id), user_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM runs WHERE strava_activity_id = ?",
+                    (str(strava_activity_id),),
+                ).fetchone()
         return dict(row) if row else None
 
-    def get_runs_on_date(self, date: str) -> list[dict]:
+    def get_runs_on_date(self, date: str, user_id: int | None = None) -> list[dict]:
         """Get all runs for a specific date."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM runs WHERE date = ? ORDER BY id ASC",
-                (date,),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE date = ? AND user_id = ? ORDER BY id ASC",
+                    (date, user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE date = ? ORDER BY id ASC",
+                    (date,),
+                ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_unlinked_runs(self) -> list[dict]:
+    def get_unlinked_runs(self, user_id: int | None = None) -> list[dict]:
         """Return all runs that have no Strava activity ID linked yet."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM runs WHERE strava_activity_id IS NULL ORDER BY date ASC"
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE strava_activity_id IS NULL AND user_id = ? ORDER BY date ASC",
+                    (user_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE strava_activity_id IS NULL ORDER BY date ASC"
+                ).fetchall()
         return [dict(r) for r in rows]
 
     def get_user_password_hash(self, user_id: int) -> str | None:
@@ -838,4 +1107,3 @@ class RunCoachDB:
                 "SELECT password_hash FROM users WHERE id = ?", (user_id,)
             ).fetchone()
         return row[0] if row else None
-

@@ -102,21 +102,17 @@ def _training_phase(days_until_race: int) -> str:
     return "Base Building"
 
 
-def _load_athlete_profile(db: RunCoachDB | None = None) -> str:
-    """Load the athlete profile from the database (default user)."""
-    if db is not None:
-        user_id = db.get_default_user_id()
-        if user_id is not None:
-            return db.get_athlete_profile(user_id)
+def _load_athlete_profile(db: RunCoachDB | None = None, user_id: int | None = None) -> str:
+    """Load the athlete profile from the database for the given user."""
+    if db is not None and user_id is not None:
+        return db.get_athlete_profile(user_id)
     return ""
 
 
-def _load_race_goal(db: RunCoachDB | None = None) -> dict:
+def _load_race_goal(db: RunCoachDB | None = None, user_id: int | None = None) -> dict:
     """Load the race goal (race_date, race_distance) from the database."""
-    if db is not None:
-        user_id = db.get_default_user_id()
-        if user_id is not None:
-            return db.get_race_goal(user_id)
+    if db is not None and user_id is not None:
+        return db.get_race_goal(user_id)
     return {"race_date": None, "race_distance": None}
 
 
@@ -206,6 +202,7 @@ def analyze_run(
     context_yaml: str | None = None,
     db: RunCoachDB | None = None,
     run_date: str | None = None,
+    user_id: int | None = None,
 ) -> dict:
     """
     Send YAML workout data to the LLM for coaching analysis.
@@ -215,11 +212,11 @@ def analyze_run(
     Returns a dict with keys: commentary, prompt_tokens, completion_tokens.
     """
     schema = _load_schema()
-    profile = _load_athlete_profile(db)
+    profile = _load_athlete_profile(db, user_id)
     system_msg = SYSTEM_PROMPT.format(schema=schema, athlete_profile=profile)
 
     # Append race context if a race goal is set
-    race_goal = _load_race_goal(db)
+    race_goal = _load_race_goal(db, user_id)
     race_date_str = race_goal.get("race_date")
     race_distance = race_goal.get("race_distance")
     if race_date_str and race_distance:
@@ -258,6 +255,7 @@ def analyze_and_write(
     yaml_path: Path,
     config: Config,
     db: RunCoachDB | None = None,
+    user_id: int | None = None,
 ) -> tuple[Path, dict]:
     """
     Read a YAML file, build training context, analyze it, write the .md file.
@@ -281,12 +279,16 @@ def analyze_and_write(
                     config.data_dir,
                     db,
                     current_cp=current_cp,
+                    user_id=user_id,
                 )
                 context_yaml = yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
         except Exception:
             log.exception("Failed to build training context, proceeding without it")
 
-    result = analyze_run(yaml_content, config, context_yaml=context_yaml, db=db, run_date=run_date)
+    result = analyze_run(
+        yaml_content, config, context_yaml=context_yaml, db=db,
+        run_date=run_date, user_id=user_id,
+    )
 
     md_path = yaml_path.with_suffix(".md")
     md_path.write_text(result["commentary"], encoding="utf-8")
