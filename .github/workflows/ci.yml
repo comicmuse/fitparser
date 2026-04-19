@@ -106,24 +106,15 @@ jobs:
             -e FLASK_PORT=5000 \
             runcoach:ci
 
-      - name: Wait for port 5000 to accept connections
-        run: |
-          echo "Waiting for port 5000..."
-          timeout 60 bash -c 'until nc -z localhost 5000; do sleep 1; done' || {
-            echo "Port 5000 never opened. Container logs:"
-            docker logs runcoach-smoke
-            exit 1
-          }
-          echo "Port 5000 is open"
-
       - name: Verify /status responds on port 5000
         run: |
-          response=$(curl -sf http://localhost:5000/status) || {
-            echo "HTTP request to port 5000 failed. Container logs:"
+          echo "Waiting for /status to respond..."
+          timeout 60 bash -c 'until curl -sf http://localhost:5000/status; do sleep 1; done' || {
+            echo "/status never responded. Container logs:"
             docker logs runcoach-smoke
             exit 1
           }
-          echo "/status responded: $response"
+          echo "/status is up"
 
       - name: Check container logs for errors
         run: |
