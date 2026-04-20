@@ -1080,6 +1080,14 @@ class RunCoachDB:
                 (name, run_id),
             )
 
+    def update_run_rss(self, run_id: int, stryd_rss: float) -> None:
+        """Set stryd_rss for a run."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE runs SET stryd_rss = ? WHERE id = ?",
+                (stryd_rss, run_id),
+            )
+
     def update_run_strava_data(
         self,
         run_id: int,

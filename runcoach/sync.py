@@ -60,6 +60,10 @@ def sync_new_activities(
                         activity_id, existing["name"], new_name,
                     )
                     db.update_run_name(existing["id"], new_name)
+                stryd_rss = activity.get("stress")
+                if stryd_rss is not None and existing.get("stryd_rss") is None:
+                    db.update_run_rss(existing["id"], stryd_rss)
+                    log.debug("Backfilled stryd_rss=%.1f for run %s", stryd_rss, activity_id)
                 continue
 
             name = activity.get("name", "Unnamed Activity")

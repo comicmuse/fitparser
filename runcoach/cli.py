@@ -14,10 +14,13 @@ import logging
 import sys
 from pathlib import Path
 
+import yaml
+
 from runcoach.parser import parse_and_write
 from runcoach.analyzer import analyze_and_write
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
+from runcoach.context import compute_rss
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,6 +108,61 @@ def analyze_directory(directory: Path, config: Config, db: RunCoachDB | None = N
             log.error("Failed to analyze %s: %s", yaml_path, e)
 
 
+def backfill_rss(config: Config, db: RunCoachDB, dry_run: bool = False) -> None:
+    """
+    Backfill stryd_rss for runs where it is NULL.
+
+    Reads each run's YAML file. Uses stryd_rss from YAML if present, otherwise
+    computes RSS from avg_power + critical_power + duration. Skips runs with no
+    YAML, no power data, or no critical_power.
+    """
+    with db._connect() as conn:
+        rows = conn.execute(
+            """SELECT id, name, date, yaml_path FROM runs
+               WHERE stryd_rss IS NULL
+                 AND stage IN ('parsed', 'analyzed')
+                 AND yaml_path IS NOT NULL
+               ORDER BY date""",
+        ).fetchall()
+
+    updated = skipped = 0
+    for row in rows:
+        run_id, name, date, yaml_rel = row["id"], row["name"], row["date"], row["yaml_path"]
+        yaml_path = config.data_dir / yaml_rel
+        if not yaml_path.exists():
+            log.warning("YAML not found for run %d (%s %s), skipping", run_id, date, name)
+            skipped += 1
+            continue
+
+        try:
+            with yaml_path.open(encoding="utf-8") as f:
+                parsed = yaml.safe_load(f)
+        except Exception as e:
+            log.warning("Could not read %s: %s", yaml_path, e)
+            skipped += 1
+            continue
+
+        rss = parsed.get("stryd_rss")
+        if rss is None:
+            pwr = parsed.get("avg_power") or 0
+            cp = parsed.get("critical_power") or 0
+            dur = parsed.get("duration_min") or 0
+            if pwr > 0 and cp > 0 and dur > 0:
+                rss = round(compute_rss(pwr, cp, dur), 1)
+
+        if rss is None:
+            log.debug("No RSS data for run %d (%s %s), skipping", run_id, date, name)
+            skipped += 1
+            continue
+
+        log.info("%srun %d (%s %s): stryd_rss = %.1f", "[dry-run] " if dry_run else "", run_id, date, name, rss)
+        if not dry_run:
+            db.update_run_rss(run_id, rss)
+        updated += 1
+
+    log.info("Done: %d updated, %d skipped%s", updated, skipped, " (dry run)" if dry_run else "")
+
+
 def main() -> None:
     """CLI entry point with argparse for subcommands."""
     parser = argparse.ArgumentParser(
@@ -113,6 +171,17 @@ def main() -> None:
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Backfill-rss subcommand
+    backfill_parser = subparsers.add_parser(
+        "backfill-rss",
+        help="Backfill stryd_rss for historical runs missing it",
+    )
+    backfill_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print what would be updated without writing to the database",
+    )
 
     # Parse subcommand
     parse_parser = subparsers.add_parser(
@@ -190,6 +259,11 @@ def main() -> None:
             parse_file(args.file, args.timezone, args.output)
         else:
             parse_directory(args.directory, args.timezone, args.pattern)
+
+    elif args.command == "backfill-rss":
+        config = Config.from_env()
+        db = RunCoachDB(config.db_path)
+        backfill_rss(config, db, dry_run=args.dry_run)
 
     elif args.command == "analyze":
         if not args.file and not args.directory:
