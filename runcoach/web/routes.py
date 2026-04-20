@@ -178,6 +178,12 @@ def index():
     last_sync = db.get_last_sync(user_id=user_id)
     recent_runs = db.get_runs_paginated(limit=5, user_id=user_id)
 
+    from runcoach.context import build_training_summary
+    try:
+        training_summary = build_training_summary(db=db, as_of_date=today, user_id=user_id).get("training_summary")
+    except Exception:
+        training_summary = None
+
     return render_template(
         "index.html",
         calendar_days=calendar_days,
@@ -187,6 +193,7 @@ def index():
         stats=stats,
         last_sync=last_sync,
         syncing=_scheduler().is_syncing,
+        training_summary=training_summary,
     )
 
 

@@ -17,14 +17,11 @@ def app(tmp_path):
         data_dir=tmp_path / "data",
         timezone="Europe/London",
         secret_key="test-secret-key",
-        sync_interval_hours=24,
+        sync_interval_hours=0,
     )
     app = create_app(config)
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    scheduler = app.config.get("scheduler")
-    if scheduler:
-        scheduler.stop()
     yield app
 
 
@@ -204,7 +201,9 @@ class TestAPISync:
         data = resp.get_json()
         assert "stats" in data
 
-    def test_trigger_sync_starts(self, client, auth_headers):
+    def test_trigger_sync_starts(self, client, auth_headers, monkeypatch):
+        from runcoach import scheduler as sched_mod
+        monkeypatch.setattr(sched_mod.Scheduler, "trigger_now", lambda self: None)
         resp = client.post("/api/v1/sync", headers=auth_headers)
         # 202 accepted or 409 if already syncing
         assert resp.status_code in (202, 409)

@@ -313,3 +313,95 @@ def build_weekly_context(
         context["training_context"]["next_scheduled_workouts"] = next_sessions
 
     return context
+
+
+def build_training_summary(
+    db: RunCoachDB,
+    as_of_date: date | None = None,
+    user_id: int | None = None,
+) -> dict:
+    """
+    Compute rolling training summary metrics for 1W, 4W-avg, and 16W-avg windows,
+    plus 16-week RSB history for the home page chart.
+
+    Uses DB columns (stryd_rss, distance_m) directly — no YAML I/O — so it is
+    safe to call on every page load.
+    """
+    today = as_of_date or date.today()
+
+    # Fetch one wide window: 154 days = 112d (16-week summary) + 42d (CTL look-back)
+    window_start = (today - timedelta(days=154)).isoformat()
+    all_runs = db.get_runs_in_date_range(window_start, today.isoformat(), user_id=user_id)
+    valid = [r for r in all_runs if r.get("stage") in ("synced", "parsed", "analyzed")]
+
+    def _window_stats(days: int) -> dict:
+        cutoff = (today - timedelta(days=days)).isoformat()
+        runs_in = [r for r in valid if r["date"] >= cutoff]
+        km_total = sum((r.get("distance_m") or 0) / 1000.0 for r in runs_in)
+        rss_values = [r["stryd_rss"] for r in runs_in if r.get("stryd_rss") is not None]
+        rss_total = sum(rss_values) if rss_values else None
+        weeks = days / 7
+        return {
+            "km": round(km_total / weeks, 1),
+            "rss": round(rss_total / weeks, 1) if rss_total is not None else None,
+            "runs": round(len(runs_in) / weeks, 1),
+        }
+
+    # Current ATL/CTL/RSB (computed as of today)
+    atl_cutoff = (today - timedelta(days=7)).isoformat()
+    ctl_cutoff = (today - timedelta(days=42)).isoformat()
+    atl_rss = [r["stryd_rss"] for r in valid if r["date"] >= atl_cutoff and r.get("stryd_rss") is not None]
+    ctl_rss = [r["stryd_rss"] for r in valid if r["date"] >= ctl_cutoff and r.get("stryd_rss") is not None]
+    atl = sum(atl_rss) / 7 if atl_rss else None
+    ctl = sum(ctl_rss) / 42 if ctl_rss else None
+    rsb = round(ctl - atl, 2) if (atl is not None and ctl is not None) else None
+    if rsb is None:
+        interp = "unknown"
+    elif rsb > 5:
+        interp = "fresh"
+    elif rsb < -10:
+        interp = "fatigued"
+    else:
+        interp = "balanced"
+
+    # 16-week RSB history (oldest → newest for chart)
+    rsb_history = []
+    for i in range(15, -1, -1):
+        week_end = today - timedelta(weeks=i)
+        w_atl_cutoff = (week_end - timedelta(days=7)).isoformat()
+        w_ctl_cutoff = (week_end - timedelta(days=42)).isoformat()
+        w_end_iso = week_end.isoformat()
+        w_atl_rss = [r["stryd_rss"] for r in valid
+                     if r["date"] >= w_atl_cutoff and r["date"] < w_end_iso
+                     and r.get("stryd_rss") is not None]
+        w_ctl_rss = [r["stryd_rss"] for r in valid
+                     if r["date"] >= w_ctl_cutoff and r["date"] < w_end_iso
+                     and r.get("stryd_rss") is not None]
+        w_atl = round(sum(w_atl_rss) / 7, 2) if w_atl_rss else None
+        w_ctl = round(sum(w_ctl_rss) / 42, 2) if w_ctl_rss else None
+        w_rsb = round(w_ctl - w_atl, 2) if (w_atl is not None and w_ctl is not None) else None
+        week_monday = week_end - timedelta(days=week_end.weekday())
+        rsb_history.append({
+            "week_label": week_monday.strftime("%-d %b"),
+            "atl": w_atl,
+            "ctl": w_ctl,
+            "rsb": w_rsb,
+        })
+
+    return {
+        "training_summary": {
+            "as_of": today.isoformat(),
+            "windows": {
+                "1_week": _window_stats(7),
+                "4_week_avg": _window_stats(28),
+                "16_week_avg": _window_stats(112),
+            },
+            "current_rsb": {
+                "atl": round(atl, 2) if atl is not None else None,
+                "ctl": round(ctl, 2) if ctl is not None else None,
+                "rsb": rsb,
+                "interpretation": interp,
+            },
+            "rsb_history": rsb_history,
+        }
+    }

@@ -72,6 +72,78 @@ function toggleUploadForm() {
 }
 </script>
 
+{# ── Training Summary ── #}
+{% if training_summary and training_summary.windows %}
+<div class="card">
+  <h2 style="margin-bottom: 1rem;">Training Load</h2>
+  <div class="summary-grid">
+    {%- set w1 = training_summary.windows['1_week'] %}
+    {%- set w4 = training_summary.windows['4_week_avg'] %}
+    {%- set w16 = training_summary.windows['16_week_avg'] %}
+    <div class="summary-col">
+      <div class="summary-col-label">This Week</div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{{ "%.1f"|format(w1.km) }}</div>
+        <div class="summary-metric-label">km</div>
+      </div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{% if w1.rss is not none %}{{ w1.rss|int }}{% else %}&mdash;{% endif %}</div>
+        <div class="summary-metric-label">RSS</div>
+      </div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{{ w1.runs|int }}</div>
+        <div class="summary-metric-label">runs</div>
+      </div>
+    </div>
+    <div class="summary-col">
+      <div class="summary-col-label">4-Week Avg</div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{{ "%.1f"|format(w4.km) }}</div>
+        <div class="summary-metric-label">km/week</div>
+      </div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{% if w4.rss is not none %}{{ w4.rss|int }}{% else %}&mdash;{% endif %}</div>
+        <div class="summary-metric-label">RSS/week</div>
+      </div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{{ "%.1f"|format(w4.runs) }}</div>
+        <div class="summary-metric-label">runs/week</div>
+      </div>
+    </div>
+    <div class="summary-col">
+      <div class="summary-col-label">16-Week Avg</div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{{ "%.1f"|format(w16.km) }}</div>
+        <div class="summary-metric-label">km/week</div>
+      </div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{% if w16.rss is not none %}{{ w16.rss|int }}{% else %}&mdash;{% endif %}</div>
+        <div class="summary-metric-label">RSS/week</div>
+      </div>
+      <div class="summary-metric">
+        <div class="summary-metric-value">{{ "%.1f"|format(w16.runs) }}</div>
+        <div class="summary-metric-label">runs/week</div>
+      </div>
+    </div>
+  </div>
+
+  {%- if training_summary.rsb_history %}
+  <div style="margin-top: 0.25rem;">
+    <div style="font-size: 0.75rem; color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
+      Training Stress Balance (16 weeks)
+      {%- if training_summary.current_rsb.rsb is not none %}
+        <span style="margin-left: 0.75rem; font-size: 0.8rem; color: {% if training_summary.current_rsb.rsb > 5 %}var(--green){% elif training_summary.current_rsb.rsb < -10 %}var(--red){% else %}var(--fg-muted){% endif %}; font-weight: 700; text-transform: none; letter-spacing: 0;">
+          RSB {{ "%+.1f"|format(training_summary.current_rsb.rsb) }}
+          ({{ training_summary.current_rsb.interpretation }})
+        </span>
+      {%- endif %}
+    </div>
+    <canvas id="rsbHistoryChart" style="max-height: 200px;"></canvas>
+  </div>
+  {%- endif %}
+</div>
+{% endif %}
+
 {# ── Recent Runs ── #}
 {% if recent_runs %}
 <div class="card">
@@ -209,6 +281,113 @@ function toggleUploadForm() {
       if (!d.syncing) { clearInterval(poll); location.reload(); }
     }).catch(function() {});
   }, 10000);
+})();
+</script>
+{% endif %}
+
+{% if training_summary and training_summary.rsb_history %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+  var history = {{ training_summary.rsb_history | tojson | safe }};
+  var labels = history.map(function(h) { return h.week_label; });
+  var rsbData = history.map(function(h) { return h.rsb; });
+  var ctlData = history.map(function(h) { return h.ctl; });
+  var atlData = history.map(function(h) { return h.atl; });
+  var zeros = history.map(function() { return 0; });
+
+  var ctx = document.getElementById('rsbHistoryChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'RSB',
+          data: rsbData,
+          borderColor: '#ea580c',
+          backgroundColor: 'rgba(234,88,12,0.12)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+          spanGaps: false,
+        },
+        {
+          label: 'CTL',
+          data: ctlData,
+          borderColor: '#16a34a',
+          borderDash: [5, 3],
+          fill: false,
+          tension: 0.35,
+          pointRadius: 2,
+          borderWidth: 1.5,
+          spanGaps: false,
+        },
+        {
+          label: 'ATL',
+          data: atlData,
+          borderColor: '#d97706',
+          borderDash: [5, 3],
+          fill: false,
+          tension: 0.35,
+          pointRadius: 2,
+          borderWidth: 1.5,
+          spanGaps: false,
+        },
+        {
+          label: '',
+          data: zeros,
+          borderColor: 'rgba(87,83,78,0.25)',
+          borderDash: [3, 3],
+          fill: false,
+          pointRadius: 0,
+          borderWidth: 1,
+          spanGaps: true,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#57534e',
+            font: { size: 11 },
+            filter: function(item) { return item.text !== ''; },
+            usePointStyle: true,
+            pointStyleWidth: 14,
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              if (!ctx.dataset.label) return null;
+              var v = ctx.parsed.y;
+              if (v === null) return ctx.dataset.label + ': —';
+              return ctx.dataset.label + ': ' + v.toFixed(1);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#57534e', font: { size: 11 }, maxRotation: 45 }
+        },
+        y: {
+          grid: { color: '#e5e2dd' },
+          ticks: { color: '#57534e', font: { size: 11 } }
+        }
+      }
+    }
+  });
 })();
 </script>
 {% endif %}

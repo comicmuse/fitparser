@@ -45,3 +45,33 @@ def test_recent_runs_table_has_rows(logged_in_page, seeded_run_id):
     page = logged_in_page
     # The table shows up to 5 most recent runs; just verify the table has content
     assert page.locator("table tbody tr").count() >= 1
+
+
+def test_training_summary_card_present(logged_in_page, seeded_run_id):
+    """Training summary card renders when at least one run exists."""
+    page = logged_in_page
+    page.reload()
+    assert page.locator(".summary-grid").count() >= 1
+
+
+def test_training_summary_grid_has_three_columns(logged_in_page, seeded_run_id):
+    """Summary grid shows exactly 3 columns (1W, 4W avg, 16W avg)."""
+    page = logged_in_page
+    page.reload()
+    assert page.locator(".summary-col").count() == 3
+
+
+def test_training_summary_column_labels(logged_in_page, seeded_run_id):
+    """Summary columns are labelled for each time window."""
+    page = logged_in_page
+    page.reload()
+    labels = [el.inner_text() for el in page.locator(".summary-col-label").all()]
+    label_text = " ".join(labels).lower()
+    assert "week" in label_text
+
+
+def test_rsb_chart_canvas_present(logged_in_page, seeded_run_id):
+    """RSB history chart canvas is present in the DOM."""
+    page = logged_in_page
+    page.reload()
+    assert page.locator("canvas#rsbHistoryChart").count() == 1

@@ -281,6 +281,21 @@ def analyze_and_write(
                     current_cp=current_cp,
                     user_id=user_id,
                 )
+                try:
+                    from runcoach.context import build_training_summary
+                    from datetime import date as _date
+                    summary = build_training_summary(
+                        db=db,
+                        as_of_date=_date.fromisoformat(run_date),
+                        user_id=user_id,
+                    )
+                    ts = summary["training_summary"]
+                    context["training_summary"] = {
+                        "windows": ts["windows"],
+                        "current_rsb": ts["current_rsb"],
+                    }
+                except Exception:
+                    log.warning("Failed to build training summary for LLM context")
                 context_yaml = yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
         except Exception:
             log.exception("Failed to build training context, proceeding without it")

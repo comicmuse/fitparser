@@ -24,7 +24,7 @@ def app(tmp_path):
         data_dir=tmp_path / "data",
         timezone="Europe/London",
         secret_key="test-secret-key-for-testing",
-        sync_interval_hours=24,  # Don't auto-sync during tests
+        sync_interval_hours=0,  # Disable scheduler to avoid background threads during tests
     )
 
     # Create the app but don't start the scheduler
@@ -66,7 +66,7 @@ class TestAppCreation:
             data_dir=tmp_path / "data",
             timezone="Europe/London",
             secret_key="test-secret",
-            sync_interval_hours=24,
+            sync_interval_hours=0,
         )
 
         app = create_app(config)
@@ -75,9 +75,6 @@ class TestAppCreation:
         assert app.config["config"] == config
         assert app.config["db"] is not None
         assert app.config["scheduler"] is not None
-
-        # Clean up scheduler
-        app.config["scheduler"].stop()
 
     def test_scheduler_disabled_when_interval_zero(self, tmp_path):
         """Scheduler.start() is a no-op when sync_interval_hours=0."""
@@ -619,7 +616,7 @@ def strava_app(tmp_path):
         data_dir=tmp_path / "data",
         timezone="Europe/London",
         secret_key="test-secret-key-for-testing",
-        sync_interval_hours=24,
+        sync_interval_hours=0,
         strava_client_id="fake_client_id",
         strava_client_secret="fake_client_secret",
         strava_webhook_verify_token="test-verify-token",

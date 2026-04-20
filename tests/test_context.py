@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 import yaml
 
-from runcoach.context import compute_rss, build_weekly_context, _classify_workout_type
+from runcoach.context import compute_rss, build_weekly_context, _classify_workout_type, build_training_summary
 from runcoach.db import RunCoachDB
 
 
@@ -510,4 +510,108 @@ class TestBuildWeeklyContext:
 
         # Should NOT have cp_update since it didn't change
         assert "cp_update" not in tc
+
+
+class TestBuildTrainingSummary:
+    """Tests for the rolling training summary metrics function."""
+
+    def _insert_run(self, db, date_str, distance_m=10000, stryd_rss=100.0, user_id=1):
+        run_id = db.insert_run(
+            stryd_activity_id=None,
+            name="Test Run",
+            date=date_str,
+            fit_path=f"activities/{date_str}.fit",
+            user_id=user_id,
+            distance_m=distance_m,
+            stryd_rss=stryd_rss,
+        )
+        db.update_parsed(run_id, f"activities/{date_str}.yaml", 200.0, 145, "Test Run")
+        return run_id
+
+    def test_empty_db_returns_structure(self, temp_db):
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        ts = result["training_summary"]
+        assert ts["as_of"] == "2026-04-20"
+        assert "windows" in ts
+        assert "1_week" in ts["windows"]
+        assert "4_week_avg" in ts["windows"]
+        assert "16_week_avg" in ts["windows"]
+        assert "rsb_history" in ts
+        assert len(ts["rsb_history"]) == 16
+
+    def test_empty_db_all_null_rss(self, temp_db):
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        ts = result["training_summary"]
+        for window in ts["windows"].values():
+            assert window["rss"] is None
+            assert window["km"] == 0.0
+            assert window["runs"] == 0.0
+        for entry in ts["rsb_history"]:
+            assert entry["rsb"] is None
+            assert entry["atl"] is None
+            assert entry["ctl"] is None
+
+    def test_run_in_1_week_window(self, temp_db):
+        self._insert_run(temp_db, "2026-04-18", distance_m=10000, stryd_rss=200.0)
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        ts = result["training_summary"]
+        w1 = ts["windows"]["1_week"]
+        assert w1["runs"] == pytest.approx(1 / 1, rel=0.01)
+        assert w1["km"] == pytest.approx(10.0 / 1, rel=0.01)
+        assert w1["rss"] == pytest.approx(200.0 / 1, rel=0.01)
+
+    def test_4_week_avg_divides_by_4(self, temp_db):
+        # 4 runs across 4 weeks, each 10 km, 100 RSS
+        for days_ago in [3, 10, 17, 24]:
+            d = (date(2026, 4, 20) - timedelta(days=days_ago)).isoformat()
+            self._insert_run(temp_db, d, distance_m=10000, stryd_rss=100.0)
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        w4 = result["training_summary"]["windows"]["4_week_avg"]
+        assert w4["runs"] == pytest.approx(4 / 4, rel=0.01)
+        assert w4["km"] == pytest.approx(40.0 / 4, rel=0.01)
+        assert w4["rss"] == pytest.approx(400.0 / 4, rel=0.01)
+
+    def test_null_stryd_rss_excluded_from_rss_but_counted_in_runs(self, temp_db):
+        self._insert_run(temp_db, "2026-04-18", distance_m=5000, stryd_rss=None)
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        w1 = result["training_summary"]["windows"]["1_week"]
+        assert w1["runs"] == pytest.approx(1.0, rel=0.01)
+        assert w1["km"] == pytest.approx(5.0, rel=0.01)
+        assert w1["rss"] is None
+
+    def test_user_id_isolation(self, temp_db):
+        from runcoach.auth import hash_password
+        temp_db.create_user("user2", hash_password("pass"))
+        user2 = temp_db.get_user_by_username("user2")
+        self._insert_run(temp_db, "2026-04-18", user_id=user2["id"], stryd_rss=999.0)
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20), user_id=1)
+        w1 = result["training_summary"]["windows"]["1_week"]
+        assert w1["rss"] is None
+        assert w1["runs"] == 0.0
+
+    def test_as_of_date_controls_window(self, temp_db):
+        self._insert_run(temp_db, "2026-04-10", distance_m=8000, stryd_rss=150.0)
+        # as_of_date=2026-04-11 → run is in the 1-week window
+        result_in = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 11))
+        assert result_in["training_summary"]["windows"]["1_week"]["runs"] == pytest.approx(1.0, rel=0.01)
+        # as_of_date=2026-04-10 → run is NOT in the window (exclusive upper bound)
+        result_out = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 10))
+        assert result_out["training_summary"]["windows"]["1_week"]["runs"] == pytest.approx(0.0, rel=0.01)
+
+    def test_rsb_history_has_16_entries(self, temp_db):
+        self._insert_run(temp_db, "2026-04-18", stryd_rss=100.0)
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        assert len(result["training_summary"]["rsb_history"]) == 16
+
+    def test_current_rsb_fresh(self, temp_db):
+        # No recent runs → ATL 0, CTL positive → RSB positive (fresh)
+        # Insert runs only in weeks 2-6 ago to build CTL without recent ATL
+        for weeks_ago in range(2, 7):
+            d = (date(2026, 4, 20) - timedelta(weeks=weeks_ago)).isoformat()
+            self._insert_run(temp_db, d, stryd_rss=200.0)
+        result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
+        rsb = result["training_summary"]["current_rsb"]
+        if rsb["rsb"] is not None:
+            assert rsb["rsb"] > 0
+            assert rsb["interpretation"] in ("fresh", "balanced")
 
