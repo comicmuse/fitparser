@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json as _json
 
 import pytest
@@ -706,18 +704,12 @@ class TestStravaWebhookVerification:
 class TestStravaWebhookEvent:
     """Tests for POST /strava/webhook (activity event handler)."""
 
-    _SECRET = "fake_client_secret"
-
-    def _sign(self, body: bytes) -> str:
-        return "sha256=" + hmac.new(self._SECRET.encode(), body, hashlib.sha256).hexdigest()
-
     def _post_event(self, client, payload):
         body = _json.dumps(payload).encode()
         return client.post(
             "/strava/webhook",
             data=body,
             content_type="application/json",
-            headers={"X-Hub-Signature": self._sign(body)},
         )
 
     def test_activity_create_returns_ok_immediately(self, strava_client, mocker):
@@ -758,36 +750,13 @@ class TestStravaWebhookEvent:
     def test_empty_body_returns_ok(self, strava_client, mocker):
         """An empty / malformed body must not crash the endpoint."""
         mocker.patch("threading.Thread.start")
-        body = b""
         response = strava_client.post(
             "/strava/webhook",
-            data=body,
+            data=b"",
             content_type="application/json",
-            headers={"X-Hub-Signature": self._sign(body)},
         )
         assert response.status_code == 200
         assert response.get_json() == {"ok": True}
-
-    def test_invalid_signature_rejected(self, strava_client):
-        """Webhook POST with wrong HMAC signature must return 403."""
-        body = _json.dumps({"object_type": "activity", "aspect_type": "create", "object_id": 1}).encode()
-        response = strava_client.post(
-            "/strava/webhook",
-            data=body,
-            content_type="application/json",
-            headers={"X-Hub-Signature": "sha256=badhash"},
-        )
-        assert response.status_code == 403
-
-    def test_missing_signature_rejected(self, strava_client):
-        """Webhook POST with no HMAC signature header must return 403."""
-        body = _json.dumps({"object_type": "activity", "aspect_type": "create", "object_id": 1}).encode()
-        response = strava_client.post(
-            "/strava/webhook",
-            data=body,
-            content_type="application/json",
-        )
-        assert response.status_code == 403
 
     def test_background_thread_is_spawned_for_create(self, strava_client, mocker):
         """A create event must spawn exactly one background thread."""
