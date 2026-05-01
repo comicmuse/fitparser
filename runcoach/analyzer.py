@@ -235,6 +235,42 @@ def _build_system_prompt(
     return system_msg
 
 
+def _build_context_yaml(
+    yaml_content: str,
+    run_date: str,
+    config: Config,
+    db: RunCoachDB,
+    user_id: int | None,
+) -> str | None:
+    """Build weekly training context YAML for a run. Returns None on failure."""
+    try:
+        parsed = yaml.safe_load(yaml_content)
+        current_cp = parsed.get("critical_power")
+        from runcoach.context import build_weekly_context, build_training_summary
+        from datetime import date as _date
+
+        context = build_weekly_context(
+            run_date, config.data_dir, db, current_cp=current_cp, user_id=user_id
+        )
+        try:
+            summary = build_training_summary(
+                db=db,
+                as_of_date=_date.fromisoformat(run_date),
+                user_id=user_id,
+            )
+            ts = summary["training_summary"]
+            context["training_summary"] = {
+                "windows": ts["windows"],
+                "current_rsb": ts["current_rsb"],
+            }
+        except Exception:
+            log.warning("Failed to build training summary for LLM context")
+        return yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
+    except Exception:
+        log.exception("Failed to build training context, proceeding without it")
+        return None
+
+
 def analyze_run(
     yaml_content: str,
     config: Config,
@@ -278,36 +314,15 @@ def build_chat_context(
     is_manual = bool(run.get("is_manual_upload"))
     system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
 
+    if not run.get("yaml_path"):
+        raise ValueError(f"Run has no yaml_path — must be parsed before chat is available")
+
     yaml_path = config.data_dir / run["yaml_path"]
     yaml_content = yaml_path.read_text(encoding="utf-8")
 
     context_yaml = None
-    try:
-        parsed = yaml.safe_load(yaml_content)
-        current_cp = parsed.get("critical_power")
-        if run_date:
-            from runcoach.context import build_weekly_context, build_training_summary
-            from datetime import date as _date
-
-            context = build_weekly_context(
-                run_date, config.data_dir, db, current_cp=current_cp, user_id=user_id
-            )
-            try:
-                summary = build_training_summary(
-                    db=db,
-                    as_of_date=_date.fromisoformat(run_date),
-                    user_id=user_id,
-                )
-                ts = summary["training_summary"]
-                context["training_summary"] = {
-                    "windows": ts["windows"],
-                    "current_rsb": ts["current_rsb"],
-                }
-            except Exception:
-                log.warning("Failed to build training summary for chat context")
-            context_yaml = yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
-    except Exception:
-        log.exception("Failed to build training context for chat, proceeding without it")
+    if run_date:
+        context_yaml = _build_context_yaml(yaml_content, run_date, config, db, user_id)
 
     parts = []
     if context_yaml:
@@ -345,37 +360,10 @@ def analyze_and_write(
     context_yaml = None
     run_date: str | None = None
     if db is not None:
-        try:
-            parsed = yaml.safe_load(yaml_content)
-            run_date = parsed.get("date")
-            current_cp = parsed.get("critical_power")
-            if run_date:
-                from runcoach.context import build_weekly_context
-                context = build_weekly_context(
-                    run_date,
-                    config.data_dir,
-                    db,
-                    current_cp=current_cp,
-                    user_id=user_id,
-                )
-                try:
-                    from runcoach.context import build_training_summary
-                    from datetime import date as _date
-                    summary = build_training_summary(
-                        db=db,
-                        as_of_date=_date.fromisoformat(run_date),
-                        user_id=user_id,
-                    )
-                    ts = summary["training_summary"]
-                    context["training_summary"] = {
-                        "windows": ts["windows"],
-                        "current_rsb": ts["current_rsb"],
-                    }
-                except Exception:
-                    log.warning("Failed to build training summary for LLM context")
-                context_yaml = yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
-        except Exception:
-            log.exception("Failed to build training context, proceeding without it")
+        parsed = yaml.safe_load(yaml_content)
+        run_date = parsed.get("date")
+        if run_date and db is not None:
+            context_yaml = _build_context_yaml(yaml_content, run_date, config, db, user_id)
 
     result = analyze_run(
         yaml_content, config, context_yaml=context_yaml, db=db,

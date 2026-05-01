@@ -515,18 +515,19 @@ class TestBuildChatContext:
         db.get_athlete_profile.return_value = "Test athlete profile"
         db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
 
-        system_msg, user_msg = build_chat_context(
-            run=run,
-            user_id=1,
-            history=[],
-            new_message="What was my average power?",
-            config=config,
-            db=db,
-        )
+        with patch("runcoach.analyzer._build_context_yaml", return_value=None):
+            system_msg, user_msg = build_chat_context(
+                run=run,
+                user_id=1,
+                history=[],
+                new_message="What was my average power?",
+                config=config,
+                db=db,
+            )
 
         assert isinstance(system_msg, str)
-        assert len(system_msg) > 50
-        assert "What was my average power?" in user_msg
+        assert "Test athlete profile" in system_msg
+        assert "Athlete: What was my average power?" in user_msg
 
     def test_history_included_in_user_message(self, tmp_path):
         from unittest.mock import MagicMock
@@ -547,14 +548,16 @@ class TestBuildChatContext:
             {"role": "assistant", "message": "Your HR averaged 145 bpm."},
         ]
 
-        _, user_msg = build_chat_context(
-            run=run, user_id=1, history=history,
-            new_message="And my power?", config=config, db=db,
-        )
+        with patch("runcoach.analyzer._build_context_yaml", return_value=None):
+            _, user_msg = build_chat_context(
+                run=run, user_id=1, history=history,
+                new_message="And my power?", config=config, db=db,
+            )
 
         assert "How was my heart rate?" in user_msg
         assert "Your HR averaged 145 bpm." in user_msg
         assert "And my power?" in user_msg
+        assert user_msg.index("Athlete: How was my heart rate?") < user_msg.index("Coach: Your HR averaged 145 bpm.") < user_msg.index("Athlete: And my power?")
 
     def test_manual_upload_flag_in_system_prompt(self, tmp_path):
         from unittest.mock import MagicMock
@@ -569,9 +572,10 @@ class TestBuildChatContext:
         db.get_athlete_profile.return_value = ""
         db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
 
-        system_msg, _ = build_chat_context(
-            run=run, user_id=1, history=[], new_message="Test", config=config, db=db
-        )
+        with patch("runcoach.analyzer._build_context_yaml", return_value=None):
+            system_msg, _ = build_chat_context(
+                run=run, user_id=1, history=[], new_message="Test", config=config, db=db
+            )
 
         assert "manually uploaded" in system_msg.lower()
 
