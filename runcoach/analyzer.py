@@ -196,6 +196,45 @@ def _dispatch_llm(system_msg: str, user_msg: str, config: Config) -> dict:
     return _call_openai(system_msg, user_msg, config)
 
 
+def _build_system_prompt(
+    db: RunCoachDB | None,
+    user_id: int | None,
+    run_date: str | None = None,
+    is_manual_upload: bool = False,
+) -> str:
+    schema = _load_schema()
+    profile = _load_athlete_profile(db, user_id)
+    system_msg = SYSTEM_PROMPT.format(schema=schema, athlete_profile=profile)
+
+    race_goal = _load_race_goal(db, user_id)
+    race_date_str = race_goal.get("race_date")
+    race_distance = race_goal.get("race_distance")
+    if race_date_str and race_distance:
+        try:
+            race_date_obj = date.fromisoformat(race_date_str)
+            current = date.fromisoformat(run_date) if run_date else date.today()
+            days_until = (race_date_obj - current).days
+            phase = _training_phase(days_until)
+            system_msg += RACE_CONTEXT_PROMPT.format(
+                race_distance=race_distance,
+                race_date=race_date_str,
+                days_until_race=days_until,
+                training_phase=phase,
+                current_date=current.isoformat(),
+            )
+        except (ValueError, TypeError):
+            pass
+
+    if is_manual_upload:
+        system_msg += (
+            "\n\nNOTE: This run was manually uploaded and may not have Stryd power data. "
+            "Do not penalise or comment on missing power data for manual uploads. "
+            "Focus on HR, pace, and other available metrics instead."
+        )
+
+    return system_msg
+
+
 def analyze_run(
     yaml_content: str,
     config: Config,
@@ -211,37 +250,8 @@ def analyze_run(
 
     Returns a dict with keys: commentary, prompt_tokens, completion_tokens.
     """
-    schema = _load_schema()
-    profile = _load_athlete_profile(db, user_id)
-    system_msg = SYSTEM_PROMPT.format(schema=schema, athlete_profile=profile)
-
-    # Append race context if a race goal is set
-    race_goal = _load_race_goal(db, user_id)
-    race_date_str = race_goal.get("race_date")
-    race_distance = race_goal.get("race_distance")
-    if race_date_str and race_distance:
-        try:
-            race_date = date.fromisoformat(race_date_str)
-            current = date.fromisoformat(run_date) if run_date else date.today()
-            days_until = (race_date - current).days
-            phase = _training_phase(days_until)
-            system_msg += RACE_CONTEXT_PROMPT.format(
-                race_distance=race_distance,
-                race_date=race_date_str,
-                days_until_race=days_until,
-                training_phase=phase,
-                current_date=current.isoformat(),
-            )
-        except (ValueError, TypeError):
-            pass  # Malformed race_date — skip the race context block
-
-    # Check if this is a manual upload and add a note to the prompt
-    if "manual_upload: true" in yaml_content:
-        system_msg += (
-            "\n\nNOTE: This run was manually uploaded and may not have Stryd power data. "
-            "Do not penalise or comment on missing power data for manual uploads. "
-            "Focus on HR, pace, and other available metrics instead."
-        )
+    is_manual = "manual_upload: true" in yaml_content
+    system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
 
     if context_yaml:
         user_msg = context_yaml.rstrip("\n") + "\n---\n" + yaml_content
@@ -249,6 +259,73 @@ def analyze_run(
         user_msg = yaml_content
 
     return _dispatch_llm(system_msg, user_msg, config)
+
+
+def build_chat_context(
+    run: dict,
+    user_id: int,
+    history: list[dict],
+    new_message: str,
+    config: Config,
+    db: RunCoachDB,
+) -> tuple[str, str]:
+    """Build (system_msg, user_msg) for a follow-up chat turn.
+
+    Includes full workout YAML, weekly training context, conversation history,
+    and the new question. Ready to pass directly to _dispatch_llm().
+    """
+    run_date = run.get("date")
+    is_manual = bool(run.get("is_manual_upload"))
+    system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
+
+    yaml_path = config.data_dir / run["yaml_path"]
+    yaml_content = yaml_path.read_text(encoding="utf-8")
+
+    context_yaml = None
+    try:
+        parsed = yaml.safe_load(yaml_content)
+        current_cp = parsed.get("critical_power")
+        if run_date:
+            from runcoach.context import build_weekly_context, build_training_summary
+            from datetime import date as _date
+
+            context = build_weekly_context(
+                run_date, config.data_dir, db, current_cp=current_cp, user_id=user_id
+            )
+            try:
+                summary = build_training_summary(
+                    db=db,
+                    as_of_date=_date.fromisoformat(run_date),
+                    user_id=user_id,
+                )
+                ts = summary["training_summary"]
+                context["training_summary"] = {
+                    "windows": ts["windows"],
+                    "current_rsb": ts["current_rsb"],
+                }
+            except Exception:
+                log.warning("Failed to build training summary for chat context")
+            context_yaml = yaml.safe_dump(context, sort_keys=False, allow_unicode=True)
+    except Exception:
+        log.exception("Failed to build training context for chat, proceeding without it")
+
+    parts = []
+    if context_yaml:
+        parts.append(context_yaml.rstrip("\n"))
+        parts.append("---")
+    parts.append(yaml_content.rstrip("\n"))
+
+    if history:
+        parts.append("---")
+        parts.append("Conversation so far:")
+        for msg in history:
+            prefix = "Athlete" if msg["role"] == "user" else "Coach"
+            parts.append(f"{prefix}: {msg['message']}")
+
+    parts.append("---")
+    parts.append(f"Athlete: {new_message}")
+
+    return system_msg, "\n".join(parts)
 
 
 def analyze_and_write(
