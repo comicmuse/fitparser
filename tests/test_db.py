@@ -34,6 +34,7 @@ class TestDatabaseInit:
         assert "runs" in tables
         assert "sync_log" in tables
         assert "planned_workouts" in tables
+        assert "run_chat" in tables
 
     def test_db_init_creates_indexes(self, tmp_path):
         """Test that indexes are created."""
@@ -595,7 +596,7 @@ class TestRunChat:
         temp_db.add_chat_message(
             run_id, 1, "assistant",
             "Your average power was 200W.",
-            model_used="llama3.2",
+            model_used="test-model",
             prompt_tokens=100,
             completion_tokens=50,
         )
@@ -606,7 +607,7 @@ class TestRunChat:
         assert history[0]["message"] == "What was my power?"
         assert history[1]["role"] == "assistant"
         assert history[1]["message"] == "Your average power was 200W."
-        assert history[1]["model_used"] == "llama3.2"
+        assert history[1]["model_used"] == "test-model"
         assert history[1]["prompt_tokens"] == 100
         assert history[1]["completion_tokens"] == 50
 
@@ -644,7 +645,9 @@ class TestRunChat:
         history = temp_db.get_chat_history(run_id, 1)
         assert history == []
 
-    def test_chat_messages_ordered_by_created_at(self, temp_db):
+    def test_chat_messages_returned_in_insertion_order(self, temp_db):
+        # All insertions happen within the same second so created_at timestamps
+        # may be identical; ordering is guaranteed by id ASC as a secondary sort.
         run_id = temp_db.insert_run(
             stryd_activity_id=9004,
             name="Order Test Run",
