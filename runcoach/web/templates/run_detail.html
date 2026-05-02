@@ -8,9 +8,6 @@
 {% endblock %}
 {% block content %}
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-
 <p style="margin-bottom: 1rem;">
   <a href="{{ url_for('main.index') }}">&larr; Back to runs</a>
 </p>
@@ -140,172 +137,306 @@
 {% endif %}
 
 {% if workout_data and workout_data.blocks %}
+{% set ns = namespace(total_dur=0) %}
+{% for key, block in workout_data.blocks.items() %}
+  {% if block.duration_min %}{% set ns.total_dur = ns.total_dur + block.duration_min %}{% endif %}
+{% endfor %}
+
+<style>
+.workout-chart { margin-top: 0.25rem; }
+.wc-scale-label { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+.wc-grid { display: flex; width: 100%; gap: 4px; }
+.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 28px; cursor: default; }
+.wc-power {
+  position: relative; width: 100%; height: 130px;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 5px; overflow: hidden;
+}
+.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; }
+.wc-fill--in    { background: rgba(63,185,80,0.55); }
+.wc-fill--above { background: rgba(240,136,62,0.65); }
+.wc-fill--below { background: rgba(248,81,73,0.55); }
+.wc-fill--none  { background: rgba(110,118,129,0.35); }
+.wc-target-band {
+  position: absolute; left: 0; right: 0; pointer-events: none;
+  background: rgba(63,185,80,0.1);
+  border-top: 1px dashed rgba(63,185,80,0.5);
+  border-bottom: 1px dashed rgba(63,185,80,0.5);
+}
+.wc-avg-line { position: absolute; left: 0; right: 0; height: 2px; border-radius: 1px; pointer-events: none; z-index: 3; }
+.wc-avg-line--in    { background: #3fb950; box-shadow: 0 0 4px rgba(63,185,80,0.6); }
+.wc-avg-line--above { background: #f0883e; box-shadow: 0 0 4px rgba(240,136,62,0.6); }
+.wc-avg-line--below { background: #f85149; box-shadow: 0 0 4px rgba(248,81,73,0.6); }
+.wc-avg-line--none  { background: #8b949e; }
+.wc-watts {
+  position: absolute; right: 3px; font-size: 0.58rem; font-weight: 700;
+  color: rgba(255,255,255,0.85); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  line-height: 1; pointer-events: none; z-index: 4;
+}
+.wc-badge {
+  position: absolute; top: 4px; left: 0; right: 0; text-align: center;
+  font-size: 0.58rem; font-weight: 700;
+  color: rgba(255,255,255,0.85); text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  pointer-events: none; z-index: 4; line-height: 1.3;
+}
+.wc-tick {
+  position: absolute; left: 3px; font-size: 0.55rem; color: #444d56; line-height: 1;
+  transform: translateY(50%); pointer-events: none; z-index: 2;
+}
+.wc-hr {
+  width: 100%; height: 20px; display: flex;
+  border-radius: 4px; overflow: hidden; border: 1px solid #30363d;
+}
+.wc-hz { height: 100%; flex-shrink: 0; }
+.wc-hz1 { background: #1565c0; }
+.wc-hz2 { background: #4527a0; }
+.wc-hz3 { background: #6a1b9a; }
+.wc-hz4 { background: #ad1457; }
+.wc-hz5 { background: #b71c1c; }
+.wc-name { text-align: center; font-size: 0.68rem; padding-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 14px; font-size: 0.7rem; color: var(--fg-muted); }
+.wc-leg-item { display: flex; align-items: center; gap: 5px; }
+.wc-leg-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.wc-leg-hr { display: flex; gap: 2px; }
+.wc-leg-hr span { display: inline-block; width: 8px; height: 10px; border-radius: 1px; }
+/* Tooltip */
+#wc-tooltip {
+  display: none; position: fixed; z-index: 1000;
+  background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+  padding: 10px 14px; min-width: 180px; max-width: 260px;
+  font-size: 0.78rem; color: #e6edf3; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+#wc-tooltip.wc-tooltip--visible { display: block; }
+.wc-tt-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; border-bottom: 1px solid #30363d; padding-bottom: 5px; }
+.wc-tt-section { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6e7681; margin: 8px 0 4px; }
+.wc-tt-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; color: #8b949e; }
+.wc-tt-row span:last-child { color: #e6edf3; font-weight: 600; }
+@media (max-width: 599px) {
+  .wc-power { height: 90px; }
+  .wc-tick { display: none; }
+  #wc-tooltip {
+    position: fixed; bottom: 0; left: 0; right: 0; top: auto;
+    max-width: 100%; border-radius: 12px 12px 0 0;
+    padding: 16px; pointer-events: auto;
+  }
+}
+</style>
+
 <div class="card">
   <h2>Workout Structure</h2>
-  
-  <!-- Block Timeline -->
-  <div style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">Block Timeline</h3>
-    <div style="display: flex; border-radius: 6px; overflow: hidden; height: 32px;">
-      {% set total_duration = namespace(value=0) %}
-      {% for key, block in workout_data.blocks.items() %}
-        {% if block.duration_min %}
-          {% set total_duration.value = total_duration.value + block.duration_min %}
-        {% endif %}
-      {% endfor %}
-      {% for key, block in workout_data.blocks.items() %}
-        {% if block.duration_min and total_duration.value > 0 %}
-          {% set pct = (block.duration_min / total_duration.value * 100) %}
-          {% set bg_color = '#58a6ff' if block.type == 'warmup' else '#f85149' if block.type == 'work' else '#3fb950' if block.type == 'cooldown' else '#8b949e' %}
-          <div style="width: {{ pct }}%; background: {{ bg_color }}; display: flex; align-items: center; justify-content: center; min-width: 20px;" 
-               title="{{ key }}: {{ block.duration_min|round(1) }} min, {{ block.avg_hr|int if block.avg_hr else '?' }} bpm">
-            <span style="font-size: 0.7rem; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px;">
-              {% if pct > 8 %}{{ block.duration_min|round(0)|int }}'{% endif %}
+  <div class="workout-chart">
+    <div class="wc-scale-label">Power — 0 to {{ power_scale_max }} W</div>
+    <div class="wc-grid">
+      {% for key, block in workout_data.blocks.items() %}{% if block.duration_min and ns.total_dur > 0 %}
+      {% set col_pct  = (block.duration_min / ns.total_dur * 100) | round(2) %}
+      {% set avg_p    = (block.avg_power or 0) | float %}
+      {% set avg_pct  = (avg_p / power_scale_max * 100) | round(2) %}
+      {% set has_tgt  = block.target_power %}
+      {% if has_tgt %}
+        {% set min_w     = block.target_power.min_w | float %}
+        {% set max_w     = block.target_power.max_w | float %}
+        {% set band_bot  = (min_w / power_scale_max * 100) | round(2) %}
+        {% set band_h    = ((max_w - min_w) / power_scale_max * 100) | round(2) %}
+        {% set top_pct   = (max_w / power_scale_max * 100) | round(2) %}
+        {% if avg_p > max_w %}{% set compliance = 'above' %}
+        {% elif avg_p < min_w %}{% set compliance = 'below' %}
+        {% else %}{% set compliance = 'in' %}{% endif %}
+        {% set pct_in    = block.target_power.pct_time_in_range | round(0) | int %}
+        {% set pct_above = block.target_power.pct_time_above | round(0) | int %}
+        {% set pct_below = block.target_power.pct_time_below | round(0) | int %}
+      {% else %}
+        {% set compliance = 'none' %}
+      {% endif %}
+      {% if block.type == 'warmup' %}{% set name_color = '#58a6ff' %}
+      {% elif block.type == 'work' %}
+        {% if compliance == 'in' %}{% set name_color = '#3fb950' %}
+        {% elif compliance == 'above' %}{% set name_color = '#f0883e' %}
+        {% elif compliance == 'below' %}{% set name_color = '#f85149' %}
+        {% else %}{% set name_color = '#e6edf3' %}{% endif %}
+      {% else %}{% set name_color = '#8b949e' %}{% endif %}
+      {% set seg_data = {
+        'name': key,
+        'type': (block.type or 'extra'),
+        'duration_min': block.duration_min,
+        'distance_km': block.distance_km,
+        'avg_power': block.avg_power,
+        'avg_hr': block.avg_hr,
+        'target': block.target_power,
+        'hr_zones': block.hr_zones,
+        'dynamics': block.running_dynamics
+      } %}
+      <div class="wc-col" style="flex:0 0 {{ col_pct }}%;"
+           data-segment='{{ seg_data | tojson }}'>
+
+        <!-- Power bar -->
+        <div class="wc-power">
+          {% if loop.first and avg_p > 0 %}
+            <span class="wc-tick" style="bottom:75%;">{{ (power_scale_max * 0.75) | round(0) | int }}</span>
+            <span class="wc-tick" style="bottom:50%;">{{ (power_scale_max * 0.5) | round(0) | int }}</span>
+            <span class="wc-tick" style="bottom:25%;">{{ (power_scale_max * 0.25) | round(0) | int }}</span>
+          {% endif %}
+          {% if has_tgt %}
+            <div class="wc-target-band" style="bottom:{{ band_bot }}%;height:{{ band_h }}%;"></div>
+          {% endif %}
+          {% if compliance == 'above' %}
+            <div class="wc-fill wc-fill--above" style="height:{{ avg_pct }}%;"></div>
+            <div class="wc-fill wc-fill--in"    style="height:{{ top_pct }}%;"></div>
+          {% elif compliance == 'in' %}
+            <div class="wc-fill wc-fill--in"    style="height:{{ avg_pct }}%;"></div>
+          {% elif compliance == 'below' %}
+            <div class="wc-fill wc-fill--below" style="height:{{ avg_pct }}%;"></div>
+          {% else %}
+            <div class="wc-fill wc-fill--none"  style="height:{{ avg_pct }}%;"></div>
+          {% endif %}
+          {% if avg_p > 0 %}
+            <div class="wc-avg-line wc-avg-line--{{ compliance }}" style="bottom:{{ avg_pct }}%;"></div>
+            {% if col_pct > 6 %}
+              <span class="wc-watts" style="bottom:calc({{ avg_pct }}% + 3px);">{{ avg_p | round(0) | int }}W</span>
+            {% endif %}
+          {% endif %}
+          {% if has_tgt and col_pct > 5 %}
+            <span class="wc-badge">
+              {% if compliance == 'above' %}{{ pct_above }}% above
+              {% elif compliance == 'below' %}{{ pct_below }}% below
+              {% else %}{{ pct_in }}% in zone{% endif %}
             </span>
-          </div>
-        {% endif %}
-      {% endfor %}
-    </div>
-    <div style="display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--fg-muted);">
-      <span><span style="display: inline-block; width: 12px; height: 12px; background: #58a6ff; border-radius: 2px; vertical-align: middle;"></span> Warmup</span>
-      <span><span style="display: inline-block; width: 12px; height: 12px; background: #f85149; border-radius: 2px; vertical-align: middle;"></span> Work</span>
-      <span><span style="display: inline-block; width: 12px; height: 12px; background: #8b949e; border-radius: 2px; vertical-align: middle;"></span> Float/Rest</span>
-      <span><span style="display: inline-block; width: 12px; height: 12px; background: #3fb950; border-radius: 2px; vertical-align: middle;"></span> Cooldown</span>
-    </div>
-  </div>
+          {% endif %}
+        </div>
 
-  <!-- HR Zone Distribution -->
-  <div style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">HR Zone Distribution</h3>
-    <canvas id="hrZoneChart" style="max-height: 120px;"></canvas>
-  </div>
+        <!-- HR zone strip -->
+        <div class="wc-hr">
+          {% if block.hr_zones %}
+            <div class="wc-hz wc-hz1" style="width:{{ block.hr_zones.Z1_pct | default(0) | round(1) }}%;"></div>
+            <div class="wc-hz wc-hz2" style="width:{{ block.hr_zones.Z2_pct | default(0) | round(1) }}%;"></div>
+            <div class="wc-hz wc-hz3" style="width:{{ block.hr_zones.Z3_pct | default(0) | round(1) }}%;"></div>
+            <div class="wc-hz wc-hz4" style="width:{{ block.hr_zones.Z4_pct | default(0) | round(1) }}%;"></div>
+            <div class="wc-hz wc-hz5" style="width:{{ block.hr_zones.Z5_pct | default(0) | round(1) }}%;"></div>
+          {% endif %}
+        </div>
 
-  <!-- Block Cards -->
-  <h3 style="font-size: 0.9rem; color: var(--fg-muted); margin-bottom: 0.5rem;">Block Details</h3>
-  <div class="block-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
-    {% for key, block in workout_data.blocks.items() %}
-    <div class="block-card" style="
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.75rem;
-      border-left: 4px solid {{ '#58a6ff' if block.type == 'warmup' else '#f85149' if block.type == 'work' else '#3fb950' if block.type == 'cooldown' else '#8b949e' }};
-    ">
-      <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem;">{{ key }}</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; font-size: 0.8rem; color: var(--fg-muted);">
-        <span>⏱ {{ block.duration_min|round(1) if block.duration_min else '?' }} min</span>
-        <span>📏 {{ "%.2f"|format(block.distance_km) if block.distance_km else '?' }} km</span>
-        {% if block.avg_hr %}
-        <span style="color: {{ '#3fb950' if block.avg_hr < 140 else '#d29922' if block.avg_hr < 160 else '#f85149' }};">
-          ❤️ {{ block.avg_hr|int }} bpm
+        <!-- Segment name -->
+        <div class="wc-name" style="color:{{ name_color }};">{{ key }}</div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+
+    <!-- Legend -->
+    <div class="wc-legend">
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(63,185,80,0.55);"></span>In target</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(240,136,62,0.65);"></span>Above</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(248,81,73,0.55);"></span>Below</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(110,118,129,0.35);border:1px solid #6e7681;"></span>No target</span>
+      <span class="wc-leg-item">
+        <span class="wc-leg-hr">
+          <span style="background:#1565c0;"></span><span style="background:#4527a0;"></span>
+          <span style="background:#6a1b9a;"></span><span style="background:#ad1457;"></span>
+          <span style="background:#b71c1c;"></span>
         </span>
-        {% endif %}
-        {% if block.avg_power %}
-        <span>⚡ {{ block.avg_power|int }} W</span>
-        {% endif %}
-      </div>
-      {% if block.hr_zones %}
-      <div style="margin-top: 0.5rem; font-size: 0.75rem;">
-        <span style="color: var(--fg-muted);">HR Zones</span>
-        <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.25rem;" title="HR Zones">
-          <div style="width: {{ block.hr_zones.Z1_pct }}%; background: #58a6ff;"></div>
-          <div style="width: {{ block.hr_zones.Z2_pct }}%; background: #3fb950;"></div>
-          <div style="width: {{ block.hr_zones.Z3_pct }}%; background: #d29922;"></div>
-          <div style="width: {{ block.hr_zones.Z4_pct }}%; background: #f0883e;"></div>
-          <div style="width: {{ block.hr_zones.Z5_pct }}%; background: #f85149;"></div>
-        </div>
-      </div>
-      {% endif %}
-      {% if block.target_power and block.target_power.pct_time_in_range is not none %}
-      <div style="margin-top: 0.5rem; font-size: 0.75rem;">
-        <span style="color: var(--fg-muted);">Power compliance</span>
-        <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.25rem;"
-             title="Below: {{ block.target_power.pct_time_below|round(0)|int }}% | In range: {{ block.target_power.pct_time_in_range|round(0)|int }}% | Above: {{ block.target_power.pct_time_above|round(0)|int }}%">
-          {% if block.target_power.pct_time_below %}
-          <div style="width: {{ block.target_power.pct_time_below }}%; background: #58a6ff;"></div>
-          {% endif %}
-          <div style="width: {{ block.target_power.pct_time_in_range }}%; background: #3fb950;"></div>
-          {% if block.target_power.pct_time_above %}
-          <div style="width: {{ block.target_power.pct_time_above }}%; background: #f85149;"></div>
-          {% endif %}
-        </div>
-      </div>
-      {% endif %}
+        HR Z1&rarr;Z5
+      </span>
     </div>
-    {% endfor %}
   </div>
 </div>
 
+<div id="wc-tooltip" role="tooltip"></div>
+
 <script>
-(function() {
-  // Aggregate HR zone data across all blocks
-  const blocks = {{ workout_data.blocks | tojson | safe }};
-  let z1 = 0, z2 = 0, z3 = 0, z4 = 0, z5 = 0;
-  let totalDuration = 0;
-  
-  for (const [key, block] of Object.entries(blocks)) {
-    const dur = block.duration_min || 0;
-    if (block.hr_zones && dur > 0) {
-      z1 += (block.hr_zones.Z1_pct || 0) * dur / 100;
-      z2 += (block.hr_zones.Z2_pct || 0) * dur / 100;
-      z3 += (block.hr_zones.Z3_pct || 0) * dur / 100;
-      z4 += (block.hr_zones.Z4_pct || 0) * dur / 100;
-      z5 += (block.hr_zones.Z5_pct || 0) * dur / 100;
-      totalDuration += dur;
+(function () {
+  var tooltip = document.getElementById('wc-tooltip');
+  if (!tooltip) return;
+
+  function makeRow(label, value) {
+    var div = document.createElement('div');
+    div.className = 'wc-tt-row';
+    var s = document.createElement('span');
+    s.textContent = label;
+    var v = document.createElement('span');
+    v.textContent = value;
+    div.appendChild(s);
+    div.appendChild(v);
+    return div;
+  }
+
+  function makeSection(label) {
+    var div = document.createElement('div');
+    div.className = 'wc-tt-section';
+    div.textContent = label;
+    return div;
+  }
+
+  function buildTooltip(seg) {
+    var frag = document.createDocumentFragment();
+
+    var title = document.createElement('div');
+    title.className = 'wc-tt-title';
+    title.textContent = seg.name;
+    frag.appendChild(title);
+
+    if (seg.duration_min != null) frag.appendChild(makeRow('Duration', seg.duration_min.toFixed(1) + ' min'));
+    if (seg.distance_km  != null) frag.appendChild(makeRow('Distance', seg.distance_km.toFixed(2) + ' km'));
+    if (seg.avg_power    != null) frag.appendChild(makeRow('Avg power', Math.round(seg.avg_power) + ' W'));
+    if (seg.target) {
+      frag.appendChild(makeRow('Target', seg.target.min_w + '–' + seg.target.max_w + ' W'));
+      frag.appendChild(makeRow('In zone', Math.round(seg.target.pct_time_in_range) + '%'));
+      if (seg.target.pct_time_above > 0) frag.appendChild(makeRow('Above', Math.round(seg.target.pct_time_above) + '%'));
+      if (seg.target.pct_time_below > 0) frag.appendChild(makeRow('Below', Math.round(seg.target.pct_time_below) + '%'));
     }
-  }
-  
-  if (totalDuration > 0) {
-    const pcts = [z1, z2, z3, z4, z5].map(v => totalDuration > 0 ? +(v / totalDuration * 100).toFixed(1) : 0);
-    const ctx = document.getElementById('hrZoneChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'],
-        datasets: [{
-          label: 'Time (min)',
-          data: [z1.toFixed(1), z2.toFixed(1), z3.toFixed(1), z4.toFixed(1), z5.toFixed(1)],
-          backgroundColor: ['#58a6ff', '#3fb950', '#d29922', '#f0883e', '#f85149'],
-          borderRadius: 4,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(ctx) {
-                return ctx.parsed.y + ' min (' + pcts[ctx.dataIndex] + '%)';
-              }
-            }
-          },
-          datalabels: {
-            anchor: 'end',
-            align: 'end',
-            formatter: function(value, ctx) {
-              return pcts[ctx.dataIndex] + '%';
-            },
-            color: '#57534e',
-            font: { size: 11, weight: '600' }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: { display: true, text: 'Minutes', color: '#8b949e' },
-            grid: { color: '#e5e2dd' },
-            ticks: { color: '#8b949e' }
-          },
-          x: {
-            grid: { display: false },
-            ticks: { color: '#8b949e' }
-          }
-        }
+    if (seg.avg_hr != null) frag.appendChild(makeRow('Avg HR', Math.round(seg.avg_hr) + ' bpm'));
+
+    var d = seg.dynamics;
+    if (d) {
+      var hasDyn = d.cadence_med || d.gct_med || d.vert_osc_med || d.step_length_med || d.form_power_med;
+      if (hasDyn) {
+        frag.appendChild(makeSection('Running dynamics'));
+        if (d.cadence_med)           frag.appendChild(makeRow('Cadence', d.cadence_med + ' spm'));
+        if (d.gct_med)               frag.appendChild(makeRow('GCT', d.gct_med + ' ms'));
+        if (d.vert_osc_med)          frag.appendChild(makeRow('Vert. osc.', d.vert_osc_med + ' cm'));
+        if (d.step_length_med)       frag.appendChild(makeRow('Step length', d.step_length_med + ' m'));
+        if (d.form_power_med)        frag.appendChild(makeRow('Form power', d.form_power_med + ' W'));
+        if (d.form_power_ratio_mean) frag.appendChild(makeRow('Form pwr ratio', (d.form_power_ratio_mean * 100).toFixed(1) + '%'));
+        if (d.lss_med)               frag.appendChild(makeRow('LSS', d.lss_med));
       }
-    });
+    }
+    return frag;
   }
+
+  function position(col) {
+    if (window.innerWidth < 600) return;
+    var rect = col.getBoundingClientRect();
+    var ttW  = tooltip.offsetWidth  || 220;
+    var ttH  = tooltip.offsetHeight || 200;
+    var left = rect.left + rect.width / 2 - ttW / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - ttW - 8));
+    var above = rect.top - ttH - 8 > 0;
+    tooltip.style.left   = left + 'px';
+    tooltip.style.top    = above ? (rect.top - ttH - 8) + 'px' : (rect.bottom + 8) + 'px';
+    tooltip.style.bottom = 'auto';
+  }
+
+  function show(col) {
+    var seg = JSON.parse(col.dataset.segment);
+    tooltip.textContent = '';
+    tooltip.appendChild(buildTooltip(seg));
+    tooltip.classList.add('wc-tooltip--visible');
+    position(col);
+  }
+
+  function hide() {
+    tooltip.classList.remove('wc-tooltip--visible');
+  }
+
+  document.querySelectorAll('.wc-col').forEach(function (col) {
+    col.addEventListener('mouseenter', function () { show(col); });
+    col.addEventListener('mouseleave', hide);
+    col.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      show(col);
+    }, { passive: false });
+  });
+
+  document.addEventListener('touchstart', function (e) {
+    if (!e.target.closest('.wc-col') && !e.target.closest('#wc-tooltip')) hide();
+  });
 })();
 </script>
 {% endif %}
