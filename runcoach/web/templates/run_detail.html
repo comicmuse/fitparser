@@ -146,7 +146,7 @@
 .workout-chart { margin-top: 0.25rem; }
 .wc-scale-label { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
 .wc-grid { display: flex; width: 100%; gap: 4px; }
-.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 28px; cursor: default; }
+.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 28px; cursor: default; border-right: 1px solid #21262d; }
 .wc-power {
   position: relative; width: 100%; height: 130px;
   background: #0d1117; border: 1px solid #30363d; border-radius: 5px; overflow: hidden;
@@ -249,10 +249,12 @@
       {% endif %}
       {% if block.type == 'warmup' %}{% set name_color = '#58a6ff' %}
       {% elif block.type == 'work' %}
-        {% if compliance == 'in' %}{% set name_color = '#3fb950' %}
-        {% elif compliance == 'above' %}{% set name_color = '#f0883e' %}
-        {% elif compliance == 'below' %}{% set name_color = '#f85149' %}
+        {% if has_tgt %}
+          {% if pct_in >= 70 %}{% set name_color = '#3fb950' %}
+          {% elif pct_above > pct_below %}{% set name_color = '#f0883e' %}
+          {% else %}{% set name_color = '#f85149' %}{% endif %}
         {% else %}{% set name_color = '#e6edf3' %}{% endif %}
+      {% elif block.type in ['float', 'rest'] %}{% set name_color = '#6e7681' %}
       {% else %}{% set name_color = '#8b949e' %}{% endif %}
       {% set seg_data = {
         'name': key,
@@ -290,11 +292,9 @@
           {% endif %}
           {% if avg_p > 0 %}
             <div class="wc-avg-line wc-avg-line--{{ compliance }}" style="bottom:{{ avg_pct }}%;"></div>
-            {% if col_pct > 6 %}
-              <span class="wc-watts" style="bottom:calc({{ avg_pct }}% + 3px);">{{ avg_p | round(0) | int }}W</span>
-            {% endif %}
+            <span class="wc-watts" style="bottom:calc({{ avg_pct }}% + 3px);">{{ avg_p | round(0) | int }}W</span>
           {% endif %}
-          {% if has_tgt and col_pct > 5 %}
+          {% if has_tgt %}
             <span class="wc-badge">
               {% if compliance == 'above' %}{{ pct_above }}% above
               {% elif compliance == 'below' %}{{ pct_below }}% below
@@ -370,6 +370,12 @@
     var title = document.createElement('div');
     title.className = 'wc-tt-title';
     title.textContent = seg.name;
+    if (seg.type) {
+      var badge = document.createElement('span');
+      badge.textContent = ' · ' + seg.type;
+      badge.style.cssText = 'font-size:0.7rem;font-weight:400;color:#6e7681;';
+      title.appendChild(badge);
+    }
     frag.appendChild(title);
 
     if (seg.duration_min != null) frag.appendChild(makeRow('Duration', seg.duration_min.toFixed(1) + ' min'));
@@ -382,6 +388,21 @@
       if (seg.target.pct_time_below > 0) frag.appendChild(makeRow('Below', Math.round(seg.target.pct_time_below) + '%'));
     }
     if (seg.avg_hr != null) frag.appendChild(makeRow('Avg HR', Math.round(seg.avg_hr) + ' bpm'));
+
+    if (seg.hr_zones) {
+      var hz = seg.hr_zones;
+      var zoneNames = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'];
+      var zonePcts  = [hz.Z1_pct, hz.Z2_pct, hz.Z3_pct, hz.Z4_pct, hz.Z5_pct];
+      var hasAny = zonePcts.some(function(p) { return p && p > 0; });
+      if (hasAny) {
+        frag.appendChild(makeSection('HR Zones'));
+        zoneNames.forEach(function(name, i) {
+          if (zonePcts[i] && zonePcts[i] > 0) {
+            frag.appendChild(makeRow(name, zonePcts[i].toFixed(1) + '%'));
+          }
+        });
+      }
+    }
 
     var d = seg.dynamics;
     if (d) {
@@ -437,6 +458,18 @@
   document.addEventListener('touchstart', function (e) {
     if (!e.target.closest('.wc-col') && !e.target.closest('#wc-tooltip')) hide();
   });
+
+  function updateColumnVisibility() {
+    document.querySelectorAll('.wc-col').forEach(function(col) {
+      var w = col.offsetWidth;
+      var watts = col.querySelector('.wc-watts');
+      var badge = col.querySelector('.wc-badge');
+      if (watts) watts.style.display = w < 40 ? 'none' : '';
+      if (badge) badge.style.display = w < 50 ? 'none' : '';
+    });
+  }
+  updateColumnVisibility();
+  window.addEventListener('resize', updateColumnVisibility);
 })();
 </script>
 {% endif %}
