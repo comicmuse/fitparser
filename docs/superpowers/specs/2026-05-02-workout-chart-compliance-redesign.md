@@ -118,6 +118,19 @@ Replace existing legend entries with:
 
 ---
 
+## Containment
+
+The chart must never overflow its card or the browser viewport width. Requirements:
+
+- `.wc-grid` must have `width: 100%` and `overflow: hidden` — the column flex items must not push beyond the card boundary
+- Each `.wc-col` must have `min-width: 0` in addition to the existing `min-width: 28px` floor — this prevents flex items from overflowing when their content (watts label, segment name) is wider than the column; the `min-width: 28px` floor should be applied as a `max(28px, ...)` in Jinja or handled by clamping the flex-basis
+- All inner elements (power bar, compliance strip, HR strip, segment name) must use `width: 100%` and not have fixed pixel widths that could cause overflow
+- The `.chart-card` (or equivalent card wrapper) must have `overflow: hidden` or at minimum `max-width: 100%` to act as a containment boundary
+
+On very narrow screens where even 28px columns would overflow (e.g. a workout with 8+ segments on a 320px screen), the chart may scroll horizontally within the card (`overflow-x: auto` on `.wc-grid`) rather than breaking the page layout.
+
+---
+
 ## Responsive Behaviour
 
 No change from the existing spec. The compliance strip height (20px) and HR strip height (22px) are fixed regardless of breakpoint — only the power bar height changes (130px desktop, 90px mobile).
