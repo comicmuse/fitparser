@@ -136,6 +136,7 @@ pytest --cov=runcoach --cov-report=html
 - Tests use temporary databases and directories (`tmp_path` fixture)
 - Real FIT/YAML files from `data/activities/` are used for integration tests
 - All timestamps use ISO 8601 format like production code
+- Always update **both** Python unit tests (`tests/test_*.py`) **and** Playwright E2E tests (`tests/e2e/`) when making changes to web routes or templates. Run E2E tests with `pytest -m e2e --no-cov -v`.
 
 ## Architecture
 
