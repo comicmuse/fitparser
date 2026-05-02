@@ -232,6 +232,10 @@
       {% set avg_p    = (block.avg_power or 0) | float %}
       {% set avg_pct  = (avg_p / power_scale_max * 100) | round(2) %}
       {% set has_tgt  = block.target_power %}
+      {% set top_pct  = 0 %}
+      {% set pct_in   = 0 %}
+      {% set pct_above = 0 %}
+      {% set pct_below = 0 %}
       {% if has_tgt %}
         {% set min_w     = block.target_power.min_w | float %}
         {% set max_w     = block.target_power.max_w | float %}
@@ -415,7 +419,7 @@
         if (d.step_length_med)       frag.appendChild(makeRow('Step length', d.step_length_med + ' m'));
         if (d.form_power_med)        frag.appendChild(makeRow('Form power', d.form_power_med + ' W'));
         if (d.form_power_ratio_mean) frag.appendChild(makeRow('Form pwr ratio', (d.form_power_ratio_mean * 100).toFixed(1) + '%'));
-        if (d.lss_med)               frag.appendChild(makeRow('LSS', d.lss_med));
+        if (d.lss_med)               frag.appendChild(makeRow('LSS', d.lss_med + ' kN/m'));
       }
     }
     return frag;
@@ -439,7 +443,7 @@
     tooltip.textContent = '';
     tooltip.appendChild(buildTooltip(seg));
     tooltip.classList.add('wc-tooltip--visible');
-    position(col);
+    requestAnimationFrame(function() { position(col); });
   }
 
   function hide() {
