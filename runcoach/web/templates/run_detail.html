@@ -262,14 +262,14 @@
       {% else %}{% set name_color = '#8b949e' %}{% endif %}
       {% set seg_data = {
         'name': key,
-        'type': (block.type or 'extra'),
-        'duration_min': block.duration_min,
-        'distance_km': block.distance_km,
-        'avg_power': block.avg_power,
-        'avg_hr': block.avg_hr,
-        'target': block.target_power,
-        'hr_zones': block.hr_zones,
-        'dynamics': block.running_dynamics
+        'type': (block.type | default('extra')),
+        'duration_min': (block.duration_min | default(none)),
+        'distance_km': (block.distance_km | default(none)),
+        'avg_power': (block.avg_power | default(none)),
+        'avg_hr': (block.avg_hr | default(none)),
+        'target': (block.target_power | default(none)),
+        'hr_zones': (block.hr_zones | default(none)),
+        'dynamics': (block.running_dynamics | default(none))
       } %}
       <div class="wc-col" style="flex:0 0 {{ col_pct }}%;"
            data-segment='{{ seg_data | tojson }}'>

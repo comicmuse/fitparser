@@ -31,10 +31,11 @@ def test_shows_workout_structure_card(logged_in_page, server_url, seeded_run_id)
     assert page.locator("h2", has_text="Workout Structure").is_visible()
 
 
-def test_shows_block_cards(logged_in_page, server_url, seeded_run_id):
+def test_shows_workout_chart(logged_in_page, server_url, seeded_run_id):
     page = logged_in_page
     page.goto(f"{server_url}/run/{seeded_run_id}")
-    assert page.locator(".block-card").count() >= 1
+    assert page.locator(".wc-grid").is_visible()
+    assert page.locator(".wc-col").count() >= 1
 
 
 def test_shows_analyze_button_for_parsed_run(logged_in_page, server_url, seeded_run_id):

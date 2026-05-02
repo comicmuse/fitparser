@@ -1239,3 +1239,93 @@ class TestComputePowerScaleMax:
         from runcoach.web.routes import _compute_power_scale_max
         blocks = {"warmup": {"duration_min": 10.0}}  # no avg_power key
         assert _compute_power_scale_max(blocks) == 300
+
+
+class TestWorkoutChart:
+    """Integration tests for the holistic workout chart."""
+
+    def _write_yaml(self, config, filename, data):
+        import yaml as _yaml
+        act_dir = config.data_dir / "activities"
+        act_dir.mkdir(parents=True, exist_ok=True)
+        (act_dir / filename).write_text(_yaml.dump(data))
+        return "activities/" + filename
+
+    def test_workout_chart_renders_with_targets(self, client, app):
+        """Run detail page renders new chart elements when YAML has power targets."""
+        db = app.config["db"]
+        yaml_path = self._write_yaml(app.config["config"], "chart_test.yaml", {
+            "blocks": {
+                "warmup": {
+                    "type": "warmup", "duration_min": 10.0, "avg_power": 160.0,
+                    "avg_hr": 138.0, "distance_km": 1.8,
+                    "hr_zones": {"Z1_pct": 55.0, "Z2_pct": 35.0, "Z3_pct": 10.0,
+                                 "Z4_pct": 0.0, "Z5_pct": 0.0},
+                },
+                "active_1": {
+                    "type": "work", "duration_min": 22.0, "avg_power": 235.0,
+                    "avg_hr": 155.0, "distance_km": 4.2,
+                    "target_power": {"min_w": 220.0, "max_w": 250.0,
+                                     "pct_time_in_range": 85.0,
+                                     "pct_time_above": 9.0, "pct_time_below": 6.0},
+                    "hr_zones": {"Z1_pct": 5.0, "Z2_pct": 25.0, "Z3_pct": 55.0,
+                                 "Z4_pct": 15.0, "Z5_pct": 0.0},
+                    "running_dynamics": {"cadence_med": 172, "gct_med": 240,
+                                         "vert_osc_med": 8.5, "form_power_med": 62},
+                },
+            }
+        })
+        run_id = db.insert_run(
+            stryd_activity_id=77777, name="Chart Test Run",
+            date="2026-05-01", fit_path="activities/chart_test.fit",
+        )
+        db.update_parsed(run_id=run_id, yaml_path=yaml_path,
+                         avg_power_w=210.0, avg_hr=150, workout_name="Test Workout")
+
+        response = client.get(f"/run/{run_id}")
+        assert response.status_code == 200
+        html = response.data.decode()
+
+        # New chart structure present
+        assert "wc-grid" in html
+        assert "wc-col" in html
+        assert "wc-power" in html
+        assert "wc-hr" in html
+        assert "data-segment" in html
+        assert "wc-tooltip" in html
+
+        # Segment names appear
+        assert "warmup" in html
+        assert "active_1" in html
+
+        # Old elements are gone
+        assert "hrZoneChart" not in html
+        assert "block-grid" not in html
+        assert "Block Timeline" not in html
+
+    def test_workout_chart_no_targets_renders(self, client, app):
+        """Chart renders correctly when no blocks have power targets."""
+        db = app.config["db"]
+        yaml_path = self._write_yaml(app.config["config"], "no_target.yaml", {
+            "blocks": {
+                "easy": {
+                    "type": "work", "duration_min": 30.0, "avg_power": 180.0,
+                    "avg_hr": 145.0, "distance_km": 5.0,
+                    "hr_zones": {"Z1_pct": 20.0, "Z2_pct": 60.0, "Z3_pct": 20.0,
+                                 "Z4_pct": 0.0, "Z5_pct": 0.0},
+                }
+            }
+        })
+        run_id = db.insert_run(
+            stryd_activity_id=77778, name="Easy Run",
+            date="2026-05-02", fit_path="activities/no_target.fit",
+        )
+        db.update_parsed(run_id=run_id, yaml_path=yaml_path,
+                         avg_power_w=180.0, avg_hr=145, workout_name=None)
+
+        response = client.get(f"/run/{run_id}")
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert "wc-grid" in html
+        assert "wc-fill--none" in html
+        assert "easy" in html
