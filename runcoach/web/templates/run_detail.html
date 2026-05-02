@@ -149,44 +149,44 @@
 .wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: default; }
 .wc-power {
   position: relative; width: 100%; height: 130px;
-  background: #0d1117; border: 1px solid #30363d; border-radius: 5px; overflow: hidden;
+  background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; overflow: hidden;
 }
-.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; background: rgba(255,255,255,0.04); }
+.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; background: rgba(0,0,0,0.04); }
 .wc-target-band {
   position: absolute; left: 0; right: 0; pointer-events: none;
-  background: rgba(255,255,255,0.11);
-  border-top: 1px solid rgba(255,255,255,0.38);
-  border-bottom: 1px solid rgba(255,255,255,0.38);
+  background: rgba(0,0,0,0.07);
+  border-top: 1px solid rgba(0,0,0,0.25);
+  border-bottom: 1px solid rgba(0,0,0,0.25);
 }
 .wc-avg-line { position: absolute; left: 0; right: 0; height: 2px; border-radius: 1px; pointer-events: none; z-index: 3; }
-.wc-avg-line--in    { background: #00e676; box-shadow: 0 0 7px 1px rgba(0,230,118,0.75), 0 0 14px rgba(0,230,118,0.4); }
-.wc-avg-line--above { background: #ff3d71; box-shadow: 0 0 7px 1px rgba(255,61,113,0.75), 0 0 14px rgba(255,61,113,0.4); }
-.wc-avg-line--below { background: #2979ff; box-shadow: 0 0 7px 1px rgba(41,121,255,0.75), 0 0 14px rgba(41,121,255,0.4); }
-.wc-avg-line--none  { background: #6e7681; }
+.wc-avg-line--in    { background: #16a34a; box-shadow: 0 0 7px 1px rgba(22,163,74,0.6), 0 0 14px rgba(22,163,74,0.3); }
+.wc-avg-line--above { background: #e11d48; box-shadow: 0 0 7px 1px rgba(225,29,72,0.6), 0 0 14px rgba(225,29,72,0.3); }
+.wc-avg-line--below { background: #2563eb; box-shadow: 0 0 7px 1px rgba(37,99,235,0.6), 0 0 14px rgba(37,99,235,0.3); }
+.wc-avg-line--none  { background: #94a3b8; }
 .comp-strip {
   width: 100%; height: 20px; display: flex;
-  border-radius: 10px; overflow: hidden; border: 1px solid #30363d;
+  border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1;
 }
-.cs-below { background: rgba(41,121,255,0.7); }
-.cs-in    { background: rgba(0,230,118,0.6); }
-.cs-above { background: rgba(255,61,113,0.7); }
+.cs-below { background: rgba(37,99,235,0.55); }
+.cs-in    { background: rgba(22,163,74,0.55); }
+.cs-above { background: rgba(225,29,72,0.55); }
 .cs-none  {
-  flex: 1; background: #1c2128;
+  flex: 1; background: #f1f5f9;
   display: flex; align-items: center; justify-content: center;
-  color: #444d56; font-size: 0.6rem;
+  color: #94a3b8; font-size: 0.6rem;
 }
 .wc-watts {
   position: absolute; right: 3px; font-size: 0.58rem; font-weight: 700;
-  color: rgba(255,255,255,0.85); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  color: rgba(0,0,0,0.7); text-shadow: 0 1px 2px rgba(255,255,255,0.8);
   line-height: 1; pointer-events: none; z-index: 4;
 }
 .wc-tick {
-  position: absolute; left: 3px; font-size: 0.55rem; color: #444d56; line-height: 1;
+  position: absolute; left: 3px; font-size: 0.55rem; color: #94a3b8; line-height: 1;
   transform: translateY(50%); pointer-events: none; z-index: 2;
 }
 .wc-hr {
   width: 100%; height: 22px; display: flex;
-  border-radius: 10px; overflow: hidden; border: 1px solid #30363d;
+  border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1;
 }
 .wc-hz { height: 100%; flex-shrink: 0; container-type: inline-size; display: flex; align-items: center; justify-content: center; }
 .wc-hz span { display: none; font-size: 0.5rem; font-weight: 700; color: rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(0,0,0,0.6); line-height: 1; }
@@ -207,16 +207,16 @@
 /* Tooltip */
 #wc-tooltip {
   display: none; position: fixed; z-index: 1000;
-  background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+  background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
   padding: 10px 14px; min-width: 180px; max-width: 260px;
-  font-size: 0.78rem; color: #e6edf3; pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  font-size: 0.78rem; color: #1c1917; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
 }
 #wc-tooltip.wc-tooltip--visible { display: block; }
-.wc-tt-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; border-bottom: 1px solid #30363d; padding-bottom: 5px; }
-.wc-tt-section { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6e7681; margin: 8px 0 4px; }
-.wc-tt-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; color: #8b949e; }
-.wc-tt-row span:last-child { color: #e6edf3; font-weight: 600; }
+.wc-tt-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+.wc-tt-section { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin: 8px 0 4px; }
+.wc-tt-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; color: #64748b; }
+.wc-tt-row span:last-child { color: #1c1917; font-weight: 600; }
 @media (max-width: 599px) {
   .wc-power { height: 90px; }
   .wc-tick { display: none; }
@@ -269,7 +269,7 @@
         'hr_zones': (block.hr_zones | default(none)),
         'dynamics': (block.running_dynamics | default(none))
       } %}
-      <div class="wc-col" style="flex:1 0 {{ col_pct }}%; min-width: 0;"
+      <div class="wc-col" style="flex:1 1 {{ col_pct }}%; min-width: 0;"
            data-segment='{{ seg_data | tojson }}'>
 
         <!-- Power bar -->
@@ -319,13 +319,13 @@
 
     <!-- Legend -->
     <div class="wc-legend">
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(255,255,255,0.11);border:1px solid rgba(255,255,255,0.38);"></span>Target range</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#00e676;box-shadow:0 0 5px rgba(0,230,118,0.7);"></span>Avg — in target</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#ff3d71;box-shadow:0 0 5px rgba(255,61,113,0.7);"></span>Avg — too high</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#2979ff;box-shadow:0 0 5px rgba(41,121,255,0.7);"></span>Avg — too low</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(41,121,255,0.7);"></span>% time below</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(0,230,118,0.6);"></span>% time in zone</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(255,61,113,0.7);"></span>% time above</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(0,0,0,0.07);border:1px solid rgba(0,0,0,0.25);"></span>Target range</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#16a34a;box-shadow:0 0 5px rgba(22,163,74,0.5);"></span>Avg — in target</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#e11d48;box-shadow:0 0 5px rgba(225,29,72,0.5);"></span>Avg — too high</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#2563eb;box-shadow:0 0 5px rgba(37,99,235,0.5);"></span>Avg — too low</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(37,99,235,0.55);"></span>% time below</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(22,163,74,0.55);"></span>% time in zone</span>
+      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(225,29,72,0.55);"></span>% time above</span>
       <span class="wc-leg-item">
         <span class="wc-leg-hr">
           <span style="background:#1565c0;"></span><span style="background:#4527a0;"></span>
