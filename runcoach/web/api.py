@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import yaml
+from datetime import datetime, timezone
 from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -311,7 +312,6 @@ def post_run_chat(run_id: int):
         log.exception("Chat LLM error for run %s: %s", run_id, e)
         return jsonify({"error": "LLM request failed"}), 502
 
-    from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
 
     db.add_chat_message(run_id, request.user_id, "user", message)
