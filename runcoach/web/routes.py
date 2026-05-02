@@ -23,7 +23,7 @@ from flask import (
 import markdown as md
 import nh3
 
-from runcoach.analyzer import analyze_and_write
+from runcoach.analyzer import analyze_and_write, build_chat_context, _dispatch_llm
 from runcoach.auth import hash_password, verify_password
 from runcoach.config import Config
 from runcoach.pipeline import run_full_pipeline
@@ -256,6 +256,15 @@ def run_detail(run_id: int):
     if run.get("commentary"):
         commentary_html = _safe_markdown(run["commentary"])
 
+    chat_history_raw = db.get_chat_history(run_id, user_id=user_id)
+    chat_history_html = [
+        {
+            **msg,
+            "message_html": _safe_markdown(msg["message"]) if msg["role"] == "assistant" else None,
+        }
+        for msg in chat_history_raw
+    ]
+
     # Load YAML data for visualizations
     workout_data = None
     if run.get("yaml_path"):
@@ -296,6 +305,7 @@ def run_detail(run_id: int):
         "run_detail.html",
         run=run,
         commentary_html=commentary_html,
+        chat_history_html=chat_history_html,
         workout_data=workout_data,
         prescribed=prescribed,
         stryd_athlete_id=stryd_athlete_id,
@@ -360,6 +370,55 @@ def analyze_run_route(run_id: int):
     t.start()
     flash("Analysis started in background")
     return redirect(url_for("main.run_detail", run_id=run_id))
+
+
+@bp.route("/run/<int:run_id>/chat", methods=["POST"])
+@_login_required
+def run_chat(run_id: int):
+    db = _db()
+    user_id = _current_user_id()
+    config: Config = current_app.config["config"]
+    run = db.get_run(run_id, user_id=user_id)
+
+    if run is None:
+        return jsonify({"error": "Run not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+
+    history = db.get_chat_history(run_id, user_id=user_id)
+
+    try:
+        system_msg, user_msg = build_chat_context(
+            run=run,
+            user_id=user_id,
+            history=history,
+            new_message=message,
+            config=config,
+            db=db,
+        )
+        result = _dispatch_llm(system_msg, user_msg, config)
+    except Exception as e:
+        log.exception("Chat LLM error for run %s: %s", run_id, e)
+        return jsonify({"error": "LLM request failed"}), 502
+
+    db.add_chat_message(run_id, user_id, "user", message)
+    db.add_chat_message(
+        run_id, user_id, "assistant",
+        result["commentary"],
+        model_used=config.active_model,
+        prompt_tokens=result.get("prompt_tokens"),
+        completion_tokens=result.get("completion_tokens"),
+    )
+
+    return jsonify({
+        "role": "assistant",
+        "message": result["commentary"],
+        # message_html is nh3-sanitized server-side, same pipeline as commentary_html
+        "message_html": _safe_markdown(result["commentary"]),
+    }), 200
 
 
 @bp.route("/status")

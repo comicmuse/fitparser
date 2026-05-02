@@ -79,6 +79,22 @@ CREATE TABLE IF NOT EXISTS users (
     athlete_profile TEXT
 );
 
+CREATE TABLE IF NOT EXISTS run_chat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+    message TEXT NOT NULL,
+    model_used TEXT,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_chat_run_user ON run_chat(run_id, user_id);
+
 """
 
 
@@ -418,6 +434,39 @@ class RunCoachDB:
                 (md_path, commentary, now, model_used,
                  prompt_tokens, completion_tokens, now, run_id),
             )
+
+    def add_chat_message(
+        self,
+        run_id: int,
+        user_id: int,
+        role: str,
+        message: str,
+        model_used: str | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+    ) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO run_chat
+                   (run_id, user_id, role, message, model_used,
+                    prompt_tokens, completion_tokens, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (run_id, user_id, role, message, model_used,
+                 prompt_tokens, completion_tokens, _now_iso()),
+            )
+            return cur.lastrowid
+
+    def get_chat_history(self, run_id: int, user_id: int) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT id, run_id, user_id, role, message,
+                          model_used, prompt_tokens, completion_tokens, created_at
+                   FROM run_chat
+                   WHERE run_id = ? AND user_id = ?
+                   ORDER BY created_at ASC, id ASC""",
+                (run_id, user_id),
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def update_error(self, run_id: int, error_message: str) -> None:
         now = _now_iso()

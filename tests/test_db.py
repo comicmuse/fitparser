@@ -34,6 +34,7 @@ class TestDatabaseInit:
         assert "runs" in tables
         assert "sync_log" in tables
         assert "planned_workouts" in tables
+        assert "run_chat" in tables
 
     def test_db_init_creates_indexes(self, tmp_path):
         """Test that indexes are created."""
@@ -577,6 +578,94 @@ class TestGetRunsInDateRange:
         assert len(runs) == 2
         assert runs[0]["date"] == "2026-03-05"
         assert runs[1]["date"] == "2026-03-10"
+
+
+class TestRunChat:
+    def test_add_and_get_chat_messages(self, temp_db):
+        run_id = temp_db.insert_run(
+            stryd_activity_id=9001,
+            name="Chat Test Run",
+            date="2026-04-01",
+            fit_path="activities/chat_test.fit",
+            distance_m=8000,
+            moving_time_s=2400,
+        )
+        msg_id = temp_db.add_chat_message(run_id, 1, "user", "What was my power?")
+        assert msg_id > 0
+
+        temp_db.add_chat_message(
+            run_id, 1, "assistant",
+            "Your average power was 200W.",
+            model_used="test-model",
+            prompt_tokens=100,
+            completion_tokens=50,
+        )
+
+        history = temp_db.get_chat_history(run_id, 1)
+        assert len(history) == 2
+        assert history[0]["role"] == "user"
+        assert history[0]["message"] == "What was my power?"
+        assert history[1]["role"] == "assistant"
+        assert history[1]["message"] == "Your average power was 200W."
+        assert history[1]["model_used"] == "test-model"
+        assert history[1]["prompt_tokens"] == 100
+        assert history[1]["completion_tokens"] == 50
+
+    def test_get_chat_history_user_isolation(self, temp_db):
+        run_id = temp_db.insert_run(
+            stryd_activity_id=9002,
+            name="Isolation Run",
+            date="2026-04-02",
+            fit_path="activities/isolation.fit",
+            distance_m=5000,
+            moving_time_s=1500,
+        )
+        temp_db.add_chat_message(run_id, 1, "user", "User 1 question")
+        temp_db.add_chat_message(run_id, 1, "assistant", "Reply to user 1")
+        temp_db.add_chat_message(run_id, 2, "user", "User 2 question")
+        temp_db.add_chat_message(run_id, 2, "assistant", "Reply to user 2")
+
+        history_u1 = temp_db.get_chat_history(run_id, 1)
+        history_u2 = temp_db.get_chat_history(run_id, 2)
+
+        assert len(history_u1) == 2
+        assert history_u1[0]["message"] == "User 1 question"
+        assert len(history_u2) == 2
+        assert history_u2[0]["message"] == "User 2 question"
+
+    def test_get_chat_history_empty(self, temp_db):
+        run_id = temp_db.insert_run(
+            stryd_activity_id=9003,
+            name="Empty Chat Run",
+            date="2026-04-03",
+            fit_path="activities/empty_chat.fit",
+            distance_m=3000,
+            moving_time_s=900,
+        )
+        history = temp_db.get_chat_history(run_id, 1)
+        assert history == []
+
+    def test_chat_messages_returned_in_insertion_order(self, temp_db):
+        # All insertions happen within the same second so created_at timestamps
+        # may be identical; ordering is guaranteed by id ASC as a secondary sort.
+        run_id = temp_db.insert_run(
+            stryd_activity_id=9004,
+            name="Order Test Run",
+            date="2026-04-04",
+            fit_path="activities/order_test.fit",
+            distance_m=4000,
+            moving_time_s=1200,
+        )
+        temp_db.add_chat_message(run_id, 1, "user", "First question")
+        temp_db.add_chat_message(run_id, 1, "assistant", "First reply")
+        temp_db.add_chat_message(run_id, 1, "user", "Second question")
+        temp_db.add_chat_message(run_id, 1, "assistant", "Second reply")
+
+        history = temp_db.get_chat_history(run_id, 1)
+        assert history[0]["message"] == "First question"
+        assert history[1]["message"] == "First reply"
+        assert history[2]["message"] == "Second question"
+        assert history[3]["message"] == "Second reply"
 
 
 class TestRaceGoal:

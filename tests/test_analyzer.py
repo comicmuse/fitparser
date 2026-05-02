@@ -500,6 +500,125 @@ class TestTrainingPhase:
         assert _training_phase(-29) == "Post-race"
 
 
+class TestBuildChatContext:
+    def test_returns_system_and_user_message(self, tmp_path):
+        from unittest.mock import MagicMock
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+
+        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
+        (tmp_path / "test.yaml").write_text(yaml_content)
+
+        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        config = Config(data_dir=tmp_path)
+        db = MagicMock()
+        db.get_athlete_profile.return_value = "Test athlete profile"
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        with patch("runcoach.analyzer._build_context_yaml", return_value=None):
+            system_msg, user_msg = build_chat_context(
+                run=run,
+                user_id=1,
+                history=[],
+                new_message="What was my average power?",
+                config=config,
+                db=db,
+            )
+
+        assert isinstance(system_msg, str)
+        assert "Test athlete profile" in system_msg
+        assert "Athlete: What was my average power?" in user_msg
+
+    def test_history_included_in_user_message(self, tmp_path):
+        from unittest.mock import MagicMock
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+
+        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
+        (tmp_path / "test.yaml").write_text(yaml_content)
+
+        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        config = Config(data_dir=tmp_path)
+        db = MagicMock()
+        db.get_athlete_profile.return_value = ""
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        history = [
+            {"role": "user", "message": "How was my heart rate?"},
+            {"role": "assistant", "message": "Your HR averaged 145 bpm."},
+        ]
+
+        with patch("runcoach.analyzer._build_context_yaml", return_value=None):
+            _, user_msg = build_chat_context(
+                run=run, user_id=1, history=history,
+                new_message="And my power?", config=config, db=db,
+            )
+
+        assert "How was my heart rate?" in user_msg
+        assert "Your HR averaged 145 bpm." in user_msg
+        assert "And my power?" in user_msg
+        assert user_msg.index("Athlete: How was my heart rate?") < user_msg.index("Coach: Your HR averaged 145 bpm.") < user_msg.index("Athlete: And my power?")
+
+    def test_manual_upload_flag_in_system_prompt(self, tmp_path):
+        from unittest.mock import MagicMock
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+
+        (tmp_path / "test.yaml").write_text("date: '2026-04-01'\nblocks: []\n")
+
+        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 1}
+        config = Config(data_dir=tmp_path)
+        db = MagicMock()
+        db.get_athlete_profile.return_value = ""
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        with patch("runcoach.analyzer._build_context_yaml", return_value=None):
+            system_msg, _ = build_chat_context(
+                run=run, user_id=1, history=[], new_message="Test", config=config, db=db
+            )
+
+        assert "manually uploaded" in system_msg.lower()
+
+    def test_raises_when_yaml_path_missing(self):
+        from unittest.mock import MagicMock, patch
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+        import pytest
+
+        run = {"date": "2026-04-01", "yaml_path": None, "is_manual_upload": 0}
+        db = MagicMock()
+        db.get_athlete_profile.return_value = ""
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        with pytest.raises(ValueError, match="yaml_path"):
+            build_chat_context(run=run, user_id=1, history=[], new_message="Q", config=MagicMock(), db=db)
+
+    def test_context_yaml_included_when_available(self, tmp_path):
+        from unittest.mock import MagicMock, patch
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+
+        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
+        (tmp_path / "test.yaml").write_text(yaml_content)
+
+        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        config = Config(data_dir=tmp_path)
+        db = MagicMock()
+        db.get_athlete_profile.return_value = ""
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        fake_context = "atl: 45.0\nctl: 50.0\n"
+        with patch("runcoach.analyzer._build_context_yaml", return_value=fake_context):
+            _, user_msg = build_chat_context(
+                run=run, user_id=1, history=[], new_message="Test question",
+                config=config, db=db,
+            )
+
+        assert "atl: 45.0" in user_msg
+        assert "---" in user_msg
+        assert "Test question" in user_msg
+
+
 class TestAnalyzeRunWithRaceContext:
     """Tests for race context injection in analyze_run."""
 

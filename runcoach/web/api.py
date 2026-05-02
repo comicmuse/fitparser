@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import yaml
+from datetime import datetime, timezone
 from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -18,6 +19,7 @@ from runcoach.auth import (
 )
 from runcoach.db import RunCoachDB
 from runcoach.config import Config
+from runcoach.analyzer import _dispatch_llm, build_chat_context
 
 
 log = logging.getLogger(__name__)
@@ -247,6 +249,88 @@ def get_run(run_id: int):
         return jsonify({"error": "Run not found"}), 404
 
     return jsonify(format_run_for_api(run, include_yaml=True)), 200
+
+
+@api_bp.route("/runs/<int:run_id>/chat", methods=["GET"])
+@require_auth
+def get_run_chat(run_id: int):
+    """
+    Get chat history for a run.
+
+    GET /api/v1/runs/:id/chat
+    Headers: Authorization: Bearer <access_token>
+    Response: {"history": [{"role": "user", "message": "...", "created_at": "..."}]}
+    """
+    db = get_db()
+    run = db.get_run(run_id, user_id=request.user_id)
+    if not run:
+        return jsonify({"error": "Run not found"}), 404
+    history = db.get_chat_history(run_id, user_id=request.user_id)
+    return jsonify({
+        "history": [
+            {"role": h["role"], "message": h["message"], "created_at": h["created_at"]}
+            for h in history
+        ]
+    }), 200
+
+
+@api_bp.route("/runs/<int:run_id>/chat", methods=["POST"])
+@require_auth
+def post_run_chat(run_id: int):
+    """
+    Send a chat message and get an AI coach response.
+
+    POST /api/v1/runs/:id/chat
+    Headers: Authorization: Bearer <access_token>
+    Body: {"message": "How was my power?"}
+    Response: {"role": "assistant", "message": "...", "created_at": "..."}
+    """
+    db = get_db()
+    config = current_app.config["config"]
+    run = db.get_run(run_id, user_id=request.user_id)
+    if not run:
+        return jsonify({"error": "Run not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+
+    history = db.get_chat_history(run_id, user_id=request.user_id)
+
+    try:
+        system_msg, user_msg = build_chat_context(
+            run=run,
+            user_id=request.user_id,
+            history=history,
+            new_message=message,
+            config=config,
+            db=db,
+        )
+        result = _dispatch_llm(system_msg, user_msg, config)
+    except Exception as e:
+        log.exception("Chat LLM error for run %s: %s", run_id, e)
+        return jsonify({"error": "LLM request failed"}), 502
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    db.add_chat_message(run_id, request.user_id, "user", message)
+    db.add_chat_message(
+        run_id, request.user_id, "assistant",
+        result["commentary"],
+        model_used=config.active_model,
+        prompt_tokens=result.get("prompt_tokens"),
+        completion_tokens=result.get("completion_tokens"),
+    )
+
+    return jsonify({
+        "role": "assistant",
+        "message": result["commentary"],
+        "model_used": config.active_model,
+        "prompt_tokens": result.get("prompt_tokens"),
+        "completion_tokens": result.get("completion_tokens"),
+        "created_at": now,
+    }), 200
 
 
 @api_bp.route("/runs/upload", methods=["POST"])
