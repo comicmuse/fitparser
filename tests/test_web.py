@@ -372,9 +372,9 @@ Keep it up!
         response = client.get(f"/run/{run_id}")
         assert response.status_code == 200
 
-        # Script tag should be stripped
-        assert b"<script>" not in response.data
+        # Injected script tag and its content should be stripped from commentary
         assert b"alert" not in response.data
+        assert b"alert('XSS')" not in response.data
         # But safe content should remain
         assert b"Good run" in response.data
 

@@ -374,6 +374,41 @@
       font-size: 0.68rem;
       color: var(--fg-muted);
     }
+    .chat-history {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .chat-message--user { align-self: flex-end; max-width: 80%; }
+    .chat-message--assistant { align-self: flex-start; max-width: 90%; }
+    .chat-bubble--user {
+      background: var(--accent, #3b82f6);
+      color: #fff;
+      border-radius: 1rem 1rem 0.25rem 1rem;
+      padding: 0.5rem 0.9rem;
+      margin: 0;
+    }
+    .chat-bubble--assistant {
+      background: var(--card-bg, #f9fafb);
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 1rem 1rem 1rem 0.25rem;
+      padding: 0.5rem 0.9rem;
+    }
+    .chat-form { display: flex; flex-direction: column; gap: 0.5rem; }
+    .chat-form textarea {
+      width: 100%;
+      resize: vertical;
+      padding: 0.5rem;
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 0.375rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    .chat-form-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .chat-error { color: #dc2626; font-size: 0.875rem; margin-top: 0.25rem; }
   </style>
   <link rel="manifest" href="/static/manifest.json">
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">

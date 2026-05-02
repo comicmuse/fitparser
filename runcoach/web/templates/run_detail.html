@@ -346,21 +346,99 @@
 </p>
 {% endif %}
 
-{% if chat_history_html %}
-<div class="card" id="chat-history">
-  <h2>Coach Chat</h2>
-  <div class="chat-messages">
+{% if run.stage == 'analyzed' %}
+<div class="card" id="chat-panel">
+  <h2>Ask the Coach</h2>
+
+  <div class="chat-history" id="chat-history">
     {% for msg in chat_history_html %}
     <div class="chat-message chat-message--{{ msg.role }}">
-      {% if msg.role == 'assistant' %}
-        <div class="commentary">{{ msg.message_html|safe }}</div>
+      {% if msg.role == 'user' %}
+        <p class="chat-bubble chat-bubble--user">{{ msg.message }}</p>
       {% else %}
-        <p>{{ msg.message }}</p>
+        <div class="chat-bubble chat-bubble--assistant">{{ msg.message_html | safe }}</div>
       {% endif %}
     </div>
     {% endfor %}
   </div>
+
+  <form id="chat-form" class="chat-form">
+    <textarea
+      id="chat-input"
+      name="message"
+      placeholder="Ask a follow-up question…"
+      rows="2"
+      required
+    ></textarea>
+    <div class="chat-form-actions">
+      <button type="submit" id="chat-submit">Ask</button>
+      <span id="chat-spinner" style="display:none">Thinking…</span>
+    </div>
+  </form>
+  <p id="chat-error" class="chat-error" style="display:none"></p>
 </div>
+
+<script>
+(function () {
+  var form = document.getElementById('chat-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var input = document.getElementById('chat-input');
+    var message = input.value.trim();
+    if (!message) return;
+
+    var submitBtn = document.getElementById('chat-submit');
+    var spinner   = document.getElementById('chat-spinner');
+    var errorEl   = document.getElementById('chat-error');
+    var history   = document.getElementById('chat-history');
+
+    submitBtn.disabled = true;
+    spinner.style.display = 'inline';
+    errorEl.style.display = 'none';
+    input.value = '';
+
+    var userDiv = document.createElement('div');
+    userDiv.className = 'chat-message chat-message--user';
+    var userBubble = document.createElement('p');
+    userBubble.className = 'chat-bubble chat-bubble--user';
+    userBubble.textContent = message;
+    userDiv.appendChild(userBubble);
+    history.appendChild(userDiv);
+    history.scrollTop = history.scrollHeight;
+
+    try {
+      var resp = await fetch(window.location.pathname + '/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: message }),
+      });
+      var data = await resp.json();
+      if (!resp.ok) {
+        errorEl.textContent = data.error || 'Something went wrong. Please try again.';
+        errorEl.style.display = 'block';
+      } else {
+        var assistantDiv = document.createElement('div');
+        assistantDiv.className = 'chat-message chat-message--assistant';
+        var assistantBubble = document.createElement('div');
+        assistantBubble.className = 'chat-bubble chat-bubble--assistant';
+        // message_html is sanitized server-side by nh3 (same pipeline as commentary_html)
+        assistantBubble.innerHTML = data.message_html;
+        assistantDiv.appendChild(assistantBubble);
+        history.appendChild(assistantDiv);
+        history.scrollTop = history.scrollHeight;
+      }
+    } catch (err) {
+      errorEl.textContent = 'Network error. Please try again.';
+      errorEl.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      spinner.style.display = 'none';
+    }
+  });
+})();
+</script>
 {% endif %}
 
 {% if run.stage == 'parsed' %}
