@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+from unittest.mock import patch
 
 import pytest
 from pathlib import Path
@@ -1109,3 +1110,95 @@ class TestRaceGoal:
         goal = db.get_race_goal(user_id)
         assert goal["race_date"] is None
         assert goal["race_distance"] is None
+
+
+class TestRunChat:
+    def test_run_detail_includes_chat_history(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        run_id = db.insert_run(
+            stryd_activity_id=7001,
+            name="Chat Web Run",
+            date="2026-04-01",
+            fit_path="activities/chat_web.fit",
+            distance_m=8000,
+            moving_time_s=2400,
+        )
+        db.update_analyzed(
+            run_id=run_id,
+            md_path="activities/chat_web.md",
+            commentary="Good run.",
+            model_used="llama3.2",
+            prompt_tokens=50,
+            completion_tokens=20,
+        )
+        db.add_chat_message(run_id, user_id, "user", "How was my power?")
+        db.add_chat_message(run_id, user_id, "assistant", "Your power was **200W**.")
+
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp = client.get(f"/run/{run_id}")
+        assert resp.status_code == 200
+        assert b"How was my power?" in resp.data
+        assert b"200W" in resp.data  # markdown rendered
+
+    def test_chat_route_returns_assistant_response(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        run_id = db.insert_run(
+            stryd_activity_id=7002,
+            name="Chat Route Run",
+            date="2026-04-02",
+            fit_path="activities/chat_route.fit",
+            distance_m=8000,
+            moving_time_s=2400,
+        )
+        db.update_analyzed(
+            run_id=run_id,
+            md_path="activities/chat_route.md",
+            commentary="Nice session.",
+            model_used="llama3.2",
+            prompt_tokens=50,
+            completion_tokens=20,
+        )
+
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("runcoach.web.routes.build_chat_context") as mock_ctx, \
+             patch("runcoach.web.routes._dispatch_llm") as mock_llm:
+            mock_ctx.return_value = ("sys", "usr")
+            mock_llm.return_value = {
+                "commentary": "Your HR looked great.",
+                "prompt_tokens": 80,
+                "completion_tokens": 25,
+            }
+            resp = client.post(
+                f"/run/{run_id}/chat",
+                json={"message": "How was my HR?"},
+                content_type="application/json",
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["role"] == "assistant"
+        assert data["message"] == "Your HR looked great."
+        assert "message_html" in data
+
+    def test_chat_route_unauthenticated_redirects(self, client, app):
+        db = app.config["db"]
+        run_id = db.insert_run(
+            stryd_activity_id=7003,
+            name="Auth Run",
+            date="2026-04-03",
+            fit_path="activities/auth.fit",
+            distance_m=5000,
+            moving_time_s=1500,
+        )
+        resp = app.test_client().post(
+            f"/run/{run_id}/chat",
+            json={"message": "test"},
+            content_type="application/json",
+        )
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["Location"]

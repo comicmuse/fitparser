@@ -346,6 +346,23 @@
 </p>
 {% endif %}
 
+{% if chat_history_html %}
+<div class="card" id="chat-history">
+  <h2>Coach Chat</h2>
+  <div class="chat-messages">
+    {% for msg in chat_history_html %}
+    <div class="chat-message chat-message--{{ msg.role }}">
+      {% if msg.role == 'assistant' %}
+        <div class="commentary">{{ msg.message_html|safe }}</div>
+      {% else %}
+        <p>{{ msg.message }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if run.stage == 'parsed' %}
 <script>
 (function() {
