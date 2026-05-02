@@ -579,6 +579,45 @@ class TestBuildChatContext:
 
         assert "manually uploaded" in system_msg.lower()
 
+    def test_raises_when_yaml_path_missing(self):
+        from unittest.mock import MagicMock, patch
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+        import pytest
+
+        run = {"date": "2026-04-01", "yaml_path": None, "is_manual_upload": 0}
+        db = MagicMock()
+        db.get_athlete_profile.return_value = ""
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        with pytest.raises(ValueError, match="yaml_path"):
+            build_chat_context(run=run, user_id=1, history=[], new_message="Q", config=MagicMock(), db=db)
+
+    def test_context_yaml_included_when_available(self, tmp_path):
+        from unittest.mock import MagicMock, patch
+        from runcoach.analyzer import build_chat_context
+        from runcoach.config import Config
+
+        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
+        (tmp_path / "test.yaml").write_text(yaml_content)
+
+        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        config = Config(data_dir=tmp_path)
+        db = MagicMock()
+        db.get_athlete_profile.return_value = ""
+        db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
+
+        fake_context = "atl: 45.0\nctl: 50.0\n"
+        with patch("runcoach.analyzer._build_context_yaml", return_value=fake_context):
+            _, user_msg = build_chat_context(
+                run=run, user_id=1, history=[], new_message="Test question",
+                config=config, db=db,
+            )
+
+        assert "atl: 45.0" in user_msg
+        assert "---" in user_msg
+        assert "Test question" in user_msg
+
 
 class TestAnalyzeRunWithRaceContext:
     """Tests for race context injection in analyze_run."""
