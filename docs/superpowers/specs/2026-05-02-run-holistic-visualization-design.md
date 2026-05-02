@@ -117,10 +117,35 @@ The Y-axis scale max is computed in `web.py` inside the `run_detail` view functi
 
 ---
 
+## Hover Tooltips
+
+Each segment column shows a tooltip on hover containing the fuller per-segment metrics not visible in the chart itself.
+
+**Trigger:** `mouseenter` / `mouseleave` on the segment column (both the power bar and the HR strip). On touch devices the tooltip appears on tap and dismisses on tap-away.
+
+**Tooltip content:**
+- Segment name + type badge
+- Duration and distance
+- Avg power (W) + compliance summary if target exists (e.g. "85% in zone · 9% above · 6% below")
+- Target zone if present (e.g. "Target: 220–250 W")
+- Avg HR (bpm)
+- HR zone breakdown (Z1–Z5 %)
+- Running dynamics (shown only if present in the block data):
+  - Cadence (steps/min)
+  - Ground contact time (ms)
+  - Vertical oscillation (cm)
+  - Step length (m)
+  - Form power (W) and form power ratio (%)
+  - Leg spring stiffness
+
+**Positioning:** Tooltip floats above the hovered column, centred on it, flipping to below if it would overflow the top of the viewport. On mobile, the tooltip is fixed to the bottom of the screen to avoid clipping.
+
+**Implementation:** A single shared tooltip `<div>` positioned with JS (`mousemove`/`mouseenter` on each column populates and repositions it). Tooltip content rendered from `data-*` attributes on each column element, populated by Jinja at render time. Pure JS — no library required.
+
+---
+
 ## Out of Scope
 
-- Running dynamics (cadence, GCT, form power, vertical oscillation, LSS) — considered for a future iteration
-- Interactive hover tooltips — can be added later
 - Collapsible/expandable segment detail — can be added later once the chart proves its value
 
 ---
@@ -131,5 +156,7 @@ The Y-axis scale max is computed in `web.py` inside the `run_detail` view functi
 2. Load a run with no power targets on any segment — confirm all bars render in grey with watts labels, no target bands shown
 3. Load a run with a mix of targeted and untargeted segments — correct rendering for both within the same chart
 4. Resize browser to ~375px width — confirm chart remains readable, no overflow, labels truncate gracefully
-5. Confirm the old segment cards, HR zone chart, and block timeline bar are no longer present
-6. Run existing web tests (`pytest tests/test_web.py`) — no regressions
+5. Hover each segment — confirm tooltip appears with correct data, running dynamics shown where available and absent where not
+6. On mobile (~375px): tap a segment, confirm tooltip appears at bottom of screen and dismisses on tap-away
+7. Confirm the old segment cards, HR zone chart, and block timeline bar are no longer present
+8. Run existing web tests (`pytest tests/test_web.py`) — no regressions
