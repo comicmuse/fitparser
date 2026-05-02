@@ -145,48 +145,54 @@
 <style>
 .workout-chart { margin-top: 0.25rem; }
 .wc-scale-label { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
-.wc-grid { display: flex; width: 100%; gap: 4px; }
-.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 28px; cursor: default; border-right: 1px solid #21262d; }
+.wc-grid { display: flex; width: 100%; gap: 6px; overflow: hidden; }
+.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: default; }
 .wc-power {
   position: relative; width: 100%; height: 130px;
   background: #0d1117; border: 1px solid #30363d; border-radius: 5px; overflow: hidden;
 }
-.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; }
-.wc-fill--in    { background: rgba(63,185,80,0.55); }
-.wc-fill--above { background: rgba(240,136,62,0.65); }
-.wc-fill--below { background: rgba(248,81,73,0.55); }
-.wc-fill--none  { background: rgba(110,118,129,0.35); }
+.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; background: rgba(255,255,255,0.04); }
 .wc-target-band {
   position: absolute; left: 0; right: 0; pointer-events: none;
-  background: rgba(63,185,80,0.1);
-  border-top: 1px dashed rgba(63,185,80,0.5);
-  border-bottom: 1px dashed rgba(63,185,80,0.5);
+  background: rgba(255,255,255,0.11);
+  border-top: 1px solid rgba(255,255,255,0.38);
+  border-bottom: 1px solid rgba(255,255,255,0.38);
 }
 .wc-avg-line { position: absolute; left: 0; right: 0; height: 2px; border-radius: 1px; pointer-events: none; z-index: 3; }
-.wc-avg-line--in    { background: #3fb950; box-shadow: 0 0 4px rgba(63,185,80,0.6); }
-.wc-avg-line--above { background: #f0883e; box-shadow: 0 0 4px rgba(240,136,62,0.6); }
-.wc-avg-line--below { background: #f85149; box-shadow: 0 0 4px rgba(248,81,73,0.6); }
-.wc-avg-line--none  { background: #8b949e; }
+.wc-avg-line--in    { background: #00e676; box-shadow: 0 0 7px 1px rgba(0,230,118,0.75), 0 0 14px rgba(0,230,118,0.4); }
+.wc-avg-line--above { background: #ff3d71; box-shadow: 0 0 7px 1px rgba(255,61,113,0.75), 0 0 14px rgba(255,61,113,0.4); }
+.wc-avg-line--below { background: #2979ff; box-shadow: 0 0 7px 1px rgba(41,121,255,0.75), 0 0 14px rgba(41,121,255,0.4); }
+.wc-avg-line--none  { background: #6e7681; }
+.comp-strip {
+  width: 100%; height: 20px; display: flex;
+  border-radius: 10px; overflow: hidden; border: 1px solid #30363d;
+}
+.cs-below { background: rgba(41,121,255,0.7); }
+.cs-in    { background: rgba(0,230,118,0.6); }
+.cs-above { background: rgba(255,61,113,0.7); }
+.cs-none  {
+  flex: 1; background: #1c2128;
+  display: flex; align-items: center; justify-content: center;
+  color: #444d56; font-size: 0.6rem;
+}
 .wc-watts {
   position: absolute; right: 3px; font-size: 0.58rem; font-weight: 700;
   color: rgba(255,255,255,0.85); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   line-height: 1; pointer-events: none; z-index: 4;
-}
-.wc-badge {
-  position: absolute; top: 4px; left: 0; right: 0; text-align: center;
-  font-size: 0.58rem; font-weight: 700;
-  color: rgba(255,255,255,0.85); text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  pointer-events: none; z-index: 4; line-height: 1.3;
 }
 .wc-tick {
   position: absolute; left: 3px; font-size: 0.55rem; color: #444d56; line-height: 1;
   transform: translateY(50%); pointer-events: none; z-index: 2;
 }
 .wc-hr {
-  width: 100%; height: 20px; display: flex;
-  border-radius: 4px; overflow: hidden; border: 1px solid #30363d;
+  width: 100%; height: 22px; display: flex;
+  border-radius: 10px; overflow: hidden; border: 1px solid #30363d;
 }
-.wc-hz { height: 100%; flex-shrink: 0; }
+.wc-hz { height: 100%; flex-shrink: 0; container-type: inline-size; display: flex; align-items: center; justify-content: center; }
+.wc-hz span { display: none; font-size: 0.5rem; font-weight: 700; color: rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(0,0,0,0.6); line-height: 1; }
+@container (min-width: 20px) {
+  .wc-hz span { display: block; }
+}
 .wc-hz1 { background: #1565c0; }
 .wc-hz2 { background: #4527a0; }
 .wc-hz3 { background: #6a1b9a; }
