@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math as _math
 import threading
 import time
 
@@ -43,6 +44,20 @@ def _sanitize_profile(text: str) -> str:
     text = unicodedata.normalize("NFC", text)
     text = _CONTROL_CHAR_RE.sub("", text)
     return text[:_PROFILE_MAX_LEN]
+
+
+def _compute_power_scale_max(blocks: dict) -> int:
+    """Compute Y-axis scale ceiling for the power chart across all blocks."""
+    values: list[float] = []
+    for block in blocks.values():
+        if block.get("avg_power"):
+            values.append(float(block["avg_power"]))
+        tp = block.get("target_power") or {}
+        if tp.get("max_w"):
+            values.append(float(tp["max_w"]))
+    if not values:
+        return 300
+    return max(300, _math.ceil(max(values) * 1.15 / 50) * 50)
 
 
 def _login_required(f):
@@ -276,6 +291,10 @@ def run_detail(run_id: int):
             except Exception:
                 pass
 
+    power_scale_max = 300
+    if workout_data and workout_data.get("blocks"):
+        power_scale_max = _compute_power_scale_max(workout_data["blocks"])
+
     # Load prescribed workout for this date
     prescribed = db.get_planned_workout_for_date(run["date"], user_id=user_id)
 
@@ -310,6 +329,7 @@ def run_detail(run_id: int):
         prescribed=prescribed,
         stryd_athlete_id=stryd_athlete_id,
         map_coords=map_coords,
+        power_scale_max=power_scale_max,
     )
 
 

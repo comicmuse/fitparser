@@ -1202,3 +1202,40 @@ class TestRunChat:
         )
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
+
+
+class TestComputePowerScaleMax:
+    """Tests for _compute_power_scale_max helper."""
+
+    def test_with_targets_returns_rounded_scale(self):
+        from runcoach.web.routes import _compute_power_scale_max
+        blocks = {
+            "warmup":   {"avg_power": 160.0, "duration_min": 10.0},
+            "active_1": {"avg_power": 235.0, "duration_min": 22.0,
+                         "target_power": {"min_w": 220.0, "max_w": 250.0}},
+            "active_2": {"avg_power": 268.0, "duration_min": 24.0,
+                         "target_power": {"min_w": 240.0, "max_w": 260.0}},
+        }
+        # max value is 268W, * 1.15 = 308.2, ceil(308.2/50)*50 = 350
+        assert _compute_power_scale_max(blocks) == 350
+
+    def test_minimum_is_300(self):
+        from runcoach.web.routes import _compute_power_scale_max
+        blocks = {"warmup": {"avg_power": 100.0, "duration_min": 10.0}}
+        assert _compute_power_scale_max(blocks) == 300
+
+    def test_empty_blocks_returns_300(self):
+        from runcoach.web.routes import _compute_power_scale_max
+        assert _compute_power_scale_max({}) == 300
+
+    def test_target_max_w_included_in_scale(self):
+        from runcoach.web.routes import _compute_power_scale_max
+        # target max_w = 320W > avg_power 200W; 320 * 1.15 = 368 -> ceil to 400
+        blocks = {"active_1": {"avg_power": 200.0,
+                               "target_power": {"min_w": 280.0, "max_w": 320.0}}}
+        assert _compute_power_scale_max(blocks) == 400
+
+    def test_no_avg_power_key_is_skipped(self):
+        from runcoach.web.routes import _compute_power_scale_max
+        blocks = {"warmup": {"duration_min": 10.0}}  # no avg_power key
+        assert _compute_power_scale_max(blocks) == 300
