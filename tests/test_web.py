@@ -1294,6 +1294,15 @@ class TestWorkoutChart:
         assert "data-segment" in html
         assert "wc-tooltip" in html
 
+        # Compliance strip present for run with targets
+        assert "comp-strip" in html
+        assert "cs-in" in html
+
+        # Coloured fills are gone — fill is always neutral
+        assert "wc-fill--in" not in html
+        assert "wc-fill--above" not in html
+        assert "wc-fill--below" not in html
+
         # Segment names appear
         assert "warmup" in html
         assert "active_1" in html
@@ -1327,5 +1336,10 @@ class TestWorkoutChart:
         assert response.status_code == 200
         html = response.data.decode()
         assert "wc-grid" in html
-        assert "wc-fill--none" in html
+        assert "comp-strip" in html
+        assert "cs-none" in html
+
+        # Old coloured fill class must be gone
+        assert "wc-fill--none" not in html
+
         assert "easy" in html
