@@ -90,7 +90,6 @@ def flask_server(e2e_data_dir, mock_ollama, e2e_ollama_model):
         llm_auto_analyse=False,
     )
     app = create_app(config)
-    app.config["WTF_CSRF_ENABLED"] = False
 
     def _run():
         app.run(host="127.0.0.1", port=port, threaded=True, use_reloader=False)

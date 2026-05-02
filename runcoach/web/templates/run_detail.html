@@ -363,6 +363,7 @@
   </div>
 
   <form id="chat-form" class="chat-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <textarea
       id="chat-input"
       name="message"
@@ -409,9 +410,10 @@
     history.scrollTop = history.scrollHeight;
 
     try {
+      var csrfToken = document.querySelector('#chat-form input[name="csrf_token"]').value;
       var resp = await fetch(window.location.pathname + '/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
         body: JSON.stringify({ message: message }),
       });
       var data = await resp.json();
