@@ -529,6 +529,7 @@ def get_athlete_profile():
         "profile": profile,
         "display_name": user["display_name"] if user and user["display_name"] else "",
         "username": user["username"] if user else "",
+        "strava_athlete_id": user.get("strava_athlete_id") if user else None,
     }), 200
 
 
@@ -579,4 +580,5 @@ def update_athlete_profile():
         "profile": profile,
         "display_name": user["display_name"] if user and user["display_name"] else "",
         "username": user["username"] if user else "",
+        "strava_athlete_id": user.get("strava_athlete_id") if user else None,
     }), 200

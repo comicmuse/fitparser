@@ -271,6 +271,28 @@ class TestAPIAthleteProfile:
         assert resp.status_code == 200
         assert "profile" in resp.get_json()
 
+    def test_profile_includes_strava_athlete_id(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET strava_athlete_id = ? WHERE id = ?",
+                ("athlete_456", user_id),
+            )
+
+        resp = client.get("/api/v1/athlete/profile", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "strava_athlete_id" in data
+        assert data["strava_athlete_id"] == "athlete_456"
+
+    def test_profile_strava_athlete_id_null_when_not_connected(self, client, auth_headers):
+        resp = client.get("/api/v1/athlete/profile", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "strava_athlete_id" in data
+        assert data["strava_athlete_id"] is None
+
     def test_update_profile(self, client, auth_headers):
         new_text = "Training for Berlin Marathon. CP: 280 W."
         resp = client.put(
