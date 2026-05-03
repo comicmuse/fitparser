@@ -15,42 +15,41 @@
 <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
 <div class="card" style="flex:1; min-width:260px;">
   <h2>{{ run.workout_name or run.name }}</h2>
-  <div class="run-header">
-    <div class="metric">
-      <span class="label">Date</span>
-      <span class="value">{{ run.date }}</span>
-    </div>
-    {% if run.distance_m %}
-    <div class="metric">
-      <span class="label">Distance</span>
-      <span class="value">{{ "%.2f"|format(run.distance_m / 1000) }} km</span>
-    </div>
-    {% endif %}
-    {% if run.moving_time_s %}
-    <div class="metric">
-      <span class="label">Duration</span>
-      <span class="value">{{ (run.moving_time_s // 60) }}:{{ "%02d"|format(run.moving_time_s % 60) }}</span>
-    </div>
-    {% endif %}
-    {% if run.avg_power_w %}
-    <div class="metric">
-      <span class="label">Avg Power</span>
-      <span class="value">{{ run.avg_power_w|int }} W</span>
-    </div>
-    {% endif %}
-    {% if run.avg_hr %}
-    <div class="metric">
-      <span class="label">Avg HR</span>
-      <span class="value">{{ run.avg_hr|int }} bpm</span>
-    </div>
-    {% endif %}
-    {% if run.model_used %}
-    <div class="metric">
-      <span class="label">Model</span>
-      <span class="value" style="font-size: 0.85rem;">{{ run.model_used }}</span>
-    </div>
-    {% endif %}
-  </div>
+  <table style="width:100%; border:none; margin-top:0.25rem;">
+    <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+    <tbody>
+      <tr>
+        <td style="padding:0.3rem 0.5rem 0.3rem 0; border:none; vertical-align:top;">
+          <div style="font-size:0.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.05em;">Date</div>
+          <div style="font-weight:600;">{{ run.date }}</div>
+        </td>
+        <td style="padding:0.3rem 0 0.3rem 0.5rem; border:none; vertical-align:top;">
+          <div style="font-size:0.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.05em;">Distance</div>
+          <div style="font-weight:600;">{% if run.distance_m %}{{ "%.2f"|format(run.distance_m / 1000) }} km{% else %}&mdash;{% endif %}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0.3rem 0.5rem 0.3rem 0; border:none; vertical-align:top;">
+          <div style="font-size:0.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.05em;">Duration</div>
+          <div style="font-weight:600;">{% if run.moving_time_s %}{{ (run.moving_time_s // 60) }}:{{ "%02d"|format(run.moving_time_s % 60) }}{% else %}&mdash;{% endif %}</div>
+        </td>
+        <td style="padding:0.3rem 0 0.3rem 0.5rem; border:none; vertical-align:top;">
+          <div style="font-size:0.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.05em;">Avg Power</div>
+          <div style="font-weight:600;">{% if run.avg_power_w %}{{ run.avg_power_w|int }} W{% else %}&mdash;{% endif %}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0.3rem 0.5rem 0.3rem 0; border:none; vertical-align:top;">
+          <div style="font-size:0.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.05em;">Avg HR</div>
+          <div style="font-weight:600;">{% if run.avg_hr %}{{ run.avg_hr|int }} bpm{% else %}&mdash;{% endif %}</div>
+        </td>
+        <td style="padding:0.3rem 0 0.3rem 0.5rem; border:none; vertical-align:top;">
+          <div style="font-size:0.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.05em;">Model</div>
+          <div style="font-weight:600; font-size:0.82rem;">{% if run.model_used %}{{ run.model_used }}{% else %}&mdash;{% endif %}</div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
   {% if run.stryd_activity_id or run.strava_activity_id or run.garmin_connect_id %}
   <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
     {% if run.stryd_activity_id and stryd_athlete_id %}
@@ -104,37 +103,6 @@
 </div>
 {% endif %}
 </div>
-
-{% if prescribed %}
-<div class="card" style="border-left: 3px solid #d29922;">
-  <h2 style="font-size: 1rem; color: #d29922;">Prescribed Workout</h2>
-  {% for pw in prescribed %}
-  <div style="margin-bottom: {{ '0.75rem' if not loop.last else '0' }};">
-    <div style="font-weight: 600; margin-bottom: 0.25rem;">{{ pw.title }}</div>
-    {% if pw.workout_type %}
-      <span class="badge badge-blue" style="margin-bottom: 0.5rem;">{{ pw.workout_type }}</span>
-    {% endif %}
-    <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: var(--fg-muted); margin-bottom: 0.5rem;">
-      {% if pw.distance_m %}
-        <span>{{ "%.1f"|format(pw.distance_m / 1000) }} km planned</span>
-      {% endif %}
-      {% if pw.duration_s %}
-        <span>{{ (pw.duration_s|int // 60) }}:{{ "%02d"|format(pw.duration_s|int % 60) }} planned</span>
-      {% endif %}
-      {% if pw.stress %}
-        <span>Stress: {{ "%.0f"|format(pw.stress) }}</span>
-      {% endif %}
-    </div>
-    {% if pw.description %}
-      <details style="font-size: 0.82rem; color: var(--fg-muted);">
-        <summary style="cursor: pointer;">Workout description</summary>
-        <pre style="white-space: pre-wrap; margin-top: 0.5rem; font-family: inherit; line-height: 1.5;">{{ pw.description }}</pre>
-      </details>
-    {% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
 
 {% if workout_data and workout_data.blocks %}
 {% set ns = namespace(total_dur=0) %}
@@ -624,6 +592,37 @@
 </script>
 
 
+{% endif %}
+
+{% if prescribed %}
+<div class="card" style="border-left: 3px solid #d29922;">
+  <h2 style="font-size: 1rem; color: #d29922;">Prescribed Workout</h2>
+  {% for pw in prescribed %}
+  <div style="margin-bottom: {{ '0.75rem' if not loop.last else '0' }};">
+    <div style="font-weight: 600; margin-bottom: 0.25rem;">{{ pw.title }}</div>
+    {% if pw.workout_type %}
+      <span class="badge badge-blue" style="margin-bottom: 0.5rem;">{{ pw.workout_type }}</span>
+    {% endif %}
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: var(--fg-muted); margin-bottom: 0.5rem;">
+      {% if pw.distance_m %}
+        <span>{{ "%.1f"|format(pw.distance_m / 1000) }} km planned</span>
+      {% endif %}
+      {% if pw.duration_s %}
+        <span>{{ (pw.duration_s|int // 60) }}:{{ "%02d"|format(pw.duration_s|int % 60) }} planned</span>
+      {% endif %}
+      {% if pw.stress %}
+        <span>Stress: {{ "%.0f"|format(pw.stress) }}</span>
+      {% endif %}
+    </div>
+    {% if pw.description %}
+      <details style="font-size: 0.82rem; color: var(--fg-muted);">
+        <summary style="cursor: pointer;">Workout description</summary>
+        <pre style="white-space: pre-wrap; margin-top: 0.5rem; font-family: inherit; line-height: 1.5;">{{ pw.description }}</pre>
+      </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
 {% endif %}
 
 {% if commentary_html %}
