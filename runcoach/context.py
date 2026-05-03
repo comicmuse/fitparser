@@ -364,9 +364,9 @@ def build_training_summary(
     else:
         interp = "balanced"
 
-    # 28-day daily RSB history (oldest → newest for chart)
+    # 30-day daily RSB history (oldest → newest for chart)
     rsb_history = []
-    for i in range(27, -1, -1):
+    for i in range(29, -1, -1):
         day = today - timedelta(days=i)
         day_iso = day.isoformat()
         d_atl_cutoff = (day - timedelta(days=7)).isoformat()
@@ -382,6 +382,7 @@ def build_training_summary(
         d_ctl = round(sum(d_ctl_rss) / 42, 2) if d_ctl_rss else None
         d_rsb = round(d_ctl - d_atl, 2) if (d_atl is not None and d_ctl is not None) else None
         rsb_history.append({
+            "date": day.strftime("%Y-%m-%d"),
             "date_label": day.strftime("%-d %b"),
             "atl": d_atl,
             "ctl": d_ctl,
