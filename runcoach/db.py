@@ -854,6 +854,66 @@ class RunCoachDB:
                 ).fetchone()[0]
             return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
 
+    def get_runs_paginated_filtered(
+        self,
+        limit: int = 10,
+        offset: int = 0,
+        user_id: int | None = None,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> list[dict]:
+        """Get runs with optional year/month filter, most recent first."""
+        conditions = []
+        params: list = []
+
+        if user_id is not None:
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        if year is not None:
+            conditions.append("strftime('%Y', date) = ?")
+            params.append(str(year))
+        if month is not None:
+            conditions.append("strftime('%m', date) = ?")
+            params.append(f"{month:02d}")
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        params.extend([limit, offset])
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM runs {where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_runs_filtered(
+        self,
+        user_id: int | None = None,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> int:
+        """Count runs with optional year/month filter."""
+        conditions = []
+        params: list = []
+
+        if user_id is not None:
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        if year is not None:
+            conditions.append("strftime('%Y', date) = ?")
+            params.append(str(year))
+        if month is not None:
+            conditions.append("strftime('%m', date) = ?")
+            params.append(f"{month:02d}")
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+        with self._connect() as conn:
+            return conn.execute(
+                f"SELECT COUNT(*) FROM runs {where}",
+                params,
+            ).fetchone()[0]
+
     def get_year_month_summary(self, user_id: int | None = None) -> list[dict]:
         """Return [{year, month, count}] for every month that has runs, newest first."""
         with self._connect() as conn:

@@ -200,8 +200,9 @@ def list_runs():
     """
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 20))
+    year = request.args.get("year", type=int)
+    month = request.args.get("month", type=int)
 
-    # Validate pagination parameters
     if page < 1:
         page = 1
     if per_page < 1 or per_page > 100:
@@ -210,13 +211,10 @@ def list_runs():
     db = get_db()
     user_id = request.user_id
 
-    # Get total count
-    total = db.count_runs(user_id=user_id)
+    total = db.count_runs_filtered(user_id=user_id, year=year, month=month)
     total_pages = (total + per_page - 1) // per_page
-
-    # Get paginated runs
     offset = (page - 1) * per_page
-    runs = db.get_runs_paginated(limit=per_page, offset=offset, user_id=user_id)
+    runs = db.get_runs_paginated_filtered(limit=per_page, offset=offset, user_id=user_id, year=year, month=month)
 
     return jsonify({
         "runs": [format_run_for_api(run) for run in runs],

@@ -190,6 +190,32 @@ class TestAPIRuns:
         assert resp.status_code == 200
         assert resp.get_json()["pagination"]["per_page"] == 20
 
+    def test_list_runs_filter_by_year(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.insert_run(stryd_activity_id=None, name="Run April", date="2026-04-15T06:00:00", fit_path="", user_id=user_id)
+        db.insert_run(stryd_activity_id=None, name="Run March", date="2026-03-10T06:00:00", fit_path="", user_id=user_id)
+        db.insert_run(stryd_activity_id=None, name="Run 2025", date="2025-11-01T06:00:00", fit_path="", user_id=user_id)
+
+        resp = client.get("/api/v1/runs?year=2026", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [r["name"] for r in resp.get_json()["runs"]]
+        assert "Run April" in names
+        assert "Run March" in names
+        assert "Run 2025" not in names
+
+    def test_list_runs_filter_by_year_and_month(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.insert_run(stryd_activity_id=None, name="Run April", date="2026-04-15T06:00:00", fit_path="", user_id=user_id)
+        db.insert_run(stryd_activity_id=None, name="Run March", date="2026-03-10T06:00:00", fit_path="", user_id=user_id)
+
+        resp = client.get("/api/v1/runs?year=2026&month=4", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [r["name"] for r in resp.get_json()["runs"]]
+        assert "Run April" in names
+        assert "Run March" not in names
+
     def test_run_response_includes_strava_stryd_ids(self, client, auth_headers, app):
         db = app.config["db"]
         user_id = db.get_default_user_id()
