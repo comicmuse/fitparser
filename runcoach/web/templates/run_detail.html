@@ -257,7 +257,7 @@
            data-segment='{{ seg_data | tojson }}'>
 
         <!-- Power bar -->
-        <div class="wc-power">
+        <div class="wc-power" title="{% if avg_p > 0 %}Avg Power — {{ avg_p | round(0) | int }} W{% else %}No power data{% endif %}{% if has_tgt %} (target {{ block.target_power.min_w | int }}–{{ block.target_power.max_w | int }} W){% endif %}">
           {% if loop.first and avg_p > 0 %}
             <span class="wc-tick" style="bottom:75%;">{{ (power_scale_max * 0.75) | round(0) | int }}</span>
             <span class="wc-tick" style="bottom:50%;">{{ (power_scale_max * 0.5) | round(0) | int }}</span>
@@ -274,29 +274,30 @@
         </div>
 
         <!-- Compliance strip -->
-        <div class="comp-strip">
+        <div class="comp-strip" title="{% if has_tgt %}Compliance — Below {{ pct_below }}% / In Zone {{ pct_in }}% / Above {{ pct_above }}%{% else %}No power target{% endif %}">
           {% if has_tgt %}
-            {% if pct_below > 0 %}<div class="cs-below" style="width:{{ pct_below }}%;"></div>{% endif %}
-            {% if pct_in > 0 %}<div class="cs-in" style="width:{{ pct_in }}%;"></div>{% endif %}
-            {% if pct_above > 0 %}<div class="cs-above" style="width:{{ pct_above }}%;"></div>{% endif %}
+            {% if pct_below > 0 %}<div class="cs-below" style="width:{{ pct_below }}%;" title="Below target — {{ pct_below }}%"></div>{% endif %}
+            {% if pct_in > 0 %}<div class="cs-in" style="width:{{ pct_in }}%;" title="In zone — {{ pct_in }}%"></div>{% endif %}
+            {% if pct_above > 0 %}<div class="cs-above" style="width:{{ pct_above }}%;" title="Above target — {{ pct_above }}%"></div>{% endif %}
           {% else %}
             <div class="cs-none">no target</div>
           {% endif %}
         </div>
 
         <!-- HR zone strip -->
-        <div class="wc-hr">
+        {% set hz = block.hr_zones %}
+        <div class="wc-hr" title="{% if hz %}HR Zones — Z1 {{ hz.Z1_pct | default(0) | round(0) | int }}% / Z2 {{ hz.Z2_pct | default(0) | round(0) | int }}% / Z3 {{ hz.Z3_pct | default(0) | round(0) | int }}% / Z4 {{ hz.Z4_pct | default(0) | round(0) | int }}% / Z5 {{ hz.Z5_pct | default(0) | round(0) | int }}%{% else %}No HR data{% endif %}">
           {% if block.hr_zones %}
-            <div class="wc-hz wc-hz1" style="width:{{ block.hr_zones.Z1_pct | default(0) | round(1) }}%;"><span>Z1</span></div>
-            <div class="wc-hz wc-hz2" style="width:{{ block.hr_zones.Z2_pct | default(0) | round(1) }}%;"><span>Z2</span></div>
-            <div class="wc-hz wc-hz3" style="width:{{ block.hr_zones.Z3_pct | default(0) | round(1) }}%;"><span>Z3</span></div>
-            <div class="wc-hz wc-hz4" style="width:{{ block.hr_zones.Z4_pct | default(0) | round(1) }}%;"><span>Z4</span></div>
-            <div class="wc-hz wc-hz5" style="width:{{ block.hr_zones.Z5_pct | default(0) | round(1) }}%;"><span>Z5</span></div>
+            <div class="wc-hz wc-hz1" style="width:{{ hz.Z1_pct | default(0) | round(1) }}%;" title="HR Zone 1 — {{ hz.Z1_pct | default(0) | round(0) | int }}%"><span>Z1</span></div>
+            <div class="wc-hz wc-hz2" style="width:{{ hz.Z2_pct | default(0) | round(1) }}%;" title="HR Zone 2 — {{ hz.Z2_pct | default(0) | round(0) | int }}%"><span>Z2</span></div>
+            <div class="wc-hz wc-hz3" style="width:{{ hz.Z3_pct | default(0) | round(1) }}%;" title="HR Zone 3 — {{ hz.Z3_pct | default(0) | round(0) | int }}%"><span>Z3</span></div>
+            <div class="wc-hz wc-hz4" style="width:{{ hz.Z4_pct | default(0) | round(1) }}%;" title="HR Zone 4 — {{ hz.Z4_pct | default(0) | round(0) | int }}%"><span>Z4</span></div>
+            <div class="wc-hz wc-hz5" style="width:{{ hz.Z5_pct | default(0) | round(1) }}%;" title="HR Zone 5 — {{ hz.Z5_pct | default(0) | round(0) | int }}%"><span>Z5</span></div>
           {% endif %}
         </div>
 
         <!-- Segment name -->
-        <div class="wc-name" style="color:{{ name_color }};">{{ key }}</div>
+        <div class="wc-name" style="color:{{ name_color }};" title="{{ key }} — {{ block.type | default('block') }}{% if block.duration_min %} — {{ block.duration_min | round(1) }} min{% endif %}{% if block.distance_km %} / {{ block.distance_km | round(2) }} km{% endif %}">{{ key }}</div>
       </div>
       {% endif %}{% endfor %}
     </div>
