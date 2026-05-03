@@ -537,7 +537,7 @@ class TestBuildTrainingSummary:
         assert "4_week_avg" in ts["windows"]
         assert "16_week_avg" in ts["windows"]
         assert "rsb_history" in ts
-        assert len(ts["rsb_history"]) == 16
+        assert len(ts["rsb_history"]) == 28
 
     def test_empty_db_all_null_rss(self, temp_db):
         result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
@@ -601,7 +601,7 @@ class TestBuildTrainingSummary:
     def test_rsb_history_has_16_entries(self, temp_db):
         self._insert_run(temp_db, "2026-04-18", stryd_rss=100.0)
         result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
-        assert len(result["training_summary"]["rsb_history"]) == 16
+        assert len(result["training_summary"]["rsb_history"]) == 28
 
     def test_current_rsb_fresh(self, temp_db):
         # No recent runs → ATL 0, CTL positive → RSB positive (fresh)

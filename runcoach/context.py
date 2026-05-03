@@ -364,28 +364,28 @@ def build_training_summary(
     else:
         interp = "balanced"
 
-    # 16-week RSB history (oldest → newest for chart)
+    # 28-day daily RSB history (oldest → newest for chart)
     rsb_history = []
-    for i in range(15, -1, -1):
-        week_end = today - timedelta(weeks=i)
-        w_atl_cutoff = (week_end - timedelta(days=7)).isoformat()
-        w_ctl_cutoff = (week_end - timedelta(days=42)).isoformat()
-        w_end_iso = week_end.isoformat()
-        w_atl_rss = [r["stryd_rss"] for r in valid
-                     if r["date"] >= w_atl_cutoff and r["date"] < w_end_iso
+    for i in range(27, -1, -1):
+        day = today - timedelta(days=i)
+        day_iso = day.isoformat()
+        d_atl_cutoff = (day - timedelta(days=7)).isoformat()
+        d_ctl_cutoff = (day - timedelta(days=42)).isoformat()
+        # include runs on this day (date <= day_iso) up to and including today
+        d_atl_rss = [r["stryd_rss"] for r in valid
+                     if r["date"] >= d_atl_cutoff and r["date"] <= day_iso
                      and r.get("stryd_rss") is not None]
-        w_ctl_rss = [r["stryd_rss"] for r in valid
-                     if r["date"] >= w_ctl_cutoff and r["date"] < w_end_iso
+        d_ctl_rss = [r["stryd_rss"] for r in valid
+                     if r["date"] >= d_ctl_cutoff and r["date"] <= day_iso
                      and r.get("stryd_rss") is not None]
-        w_atl = round(sum(w_atl_rss) / 7, 2) if w_atl_rss else None
-        w_ctl = round(sum(w_ctl_rss) / 42, 2) if w_ctl_rss else None
-        w_rsb = round(w_ctl - w_atl, 2) if (w_atl is not None and w_ctl is not None) else None
-        week_monday = week_end - timedelta(days=week_end.weekday())
+        d_atl = round(sum(d_atl_rss) / 7, 2) if d_atl_rss else None
+        d_ctl = round(sum(d_ctl_rss) / 42, 2) if d_ctl_rss else None
+        d_rsb = round(d_ctl - d_atl, 2) if (d_atl is not None and d_ctl is not None) else None
         rsb_history.append({
-            "week_label": week_monday.strftime("%-d %b"),
-            "atl": w_atl,
-            "ctl": w_ctl,
-            "rsb": w_rsb,
+            "date_label": day.strftime("%-d %b"),
+            "atl": d_atl,
+            "ctl": d_ctl,
+            "rsb": d_rsb,
         })
 
     return {
