@@ -538,6 +538,10 @@ class TestBuildTrainingSummary:
         assert "16_week_avg" in ts["windows"]
         assert "rsb_history" in ts
         assert len(ts["rsb_history"]) == 28
+        # Verify the keys expected by the chart JS
+        entry = ts["rsb_history"][0]
+        assert "date_label" in entry, "rsb_history must use 'date_label' (chart JS depends on this)"
+        assert "week_label" not in entry
 
     def test_empty_db_all_null_rss(self, temp_db):
         result = build_training_summary(db=temp_db, as_of_date=date(2026, 4, 20))
