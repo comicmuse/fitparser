@@ -202,6 +202,81 @@ class StravaClient:
         return tokens["strava_access_token"]
 
 
+def link_unlinked_runs(db: RunCoachDB, user_id: int, config) -> int:
+    """Match unlinked runs to Strava activities by date and store activity IDs + polylines.
+
+    Returns the number of runs newly linked.
+    """
+    import datetime
+
+    if not config.strava_client_id:
+        return 0
+
+    unlinked = db.get_unlinked_runs(user_id=user_id)
+    if not unlinked:
+        return 0
+
+    client = StravaClient(config.strava_client_id, config.strava_client_secret)
+    access_token = client.get_valid_access_token(db, user_id)
+    if not access_token:
+        log.warning("Strava: no valid access token for user %d, skipping link step", user_id)
+        return 0
+
+    runs_by_date: dict[str, list[dict]] = {}
+    for run in unlinked:
+        date = (run.get("date") or "")[:10]
+        if date:
+            runs_by_date.setdefault(date, []).append(run)
+
+    oldest_date = min(runs_by_date.keys())
+    after_ts = int(
+        datetime.datetime(
+            *[int(p) for p in oldest_date.split("-")],
+            tzinfo=datetime.timezone.utc,
+        ).timestamp()
+    ) - 86400
+
+    RUNNING_TYPES = {"Run", "TrailRun", "VirtualRun", "Treadmill"}
+    linked = 0
+    page = 1
+    while True:
+        try:
+            activities = client.list_activities(access_token, after=after_ts, per_page=100, page=page)
+        except Exception as exc:
+            log.error("Strava link: error fetching page %d: %s", page, exc)
+            break
+        if not activities:
+            break
+        for activity in activities:
+            sport = activity.get("sport_type") or activity.get("type", "")
+            if sport not in RUNNING_TYPES:
+                continue
+            act_date = (activity.get("start_date_local") or "")[:10]
+            if act_date not in runs_by_date:
+                continue
+            strava_id = str(activity["id"])
+            if db.get_run_by_strava_id(strava_id):
+                continue
+            polyline = (activity.get("map") or {}).get("summary_polyline") or None
+            candidates = [r for r in runs_by_date[act_date] if not r.get("strava_activity_id")]
+            if not candidates:
+                continue
+            run = candidates[-1]
+            db.update_run_strava_data(
+                run_id=run["id"],
+                strava_activity_id=strava_id,
+                strava_map_polyline=polyline,
+            )
+            run["strava_activity_id"] = strava_id
+            linked += 1
+            log.info("Strava: linked activity %s to run %s (%s)", strava_id, run["id"], act_date)
+        if len(activities) < 100:
+            break
+        page += 1
+
+    return linked
+
+
 def decode_polyline(encoded: str) -> list[list[float]]:
     """
     Decode a Google-encoded polyline string into a list of [lat, lng] pairs.

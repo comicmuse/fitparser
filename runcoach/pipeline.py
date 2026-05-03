@@ -63,6 +63,17 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
             except Exception as e:
                 log.error("Planned workouts sync failed for user %d: %s", user_id, e)
 
+        # 1c. Link unlinked runs to Strava activities (if Strava is configured)
+        if config.strava_client_id:
+            try:
+                from runcoach.strava import link_unlinked_runs
+                strava_linked = link_unlinked_runs(db, user_id, config)
+                if strava_linked:
+                    log.info("Strava: linked %d run(s) for user %d", strava_linked, user_id)
+                summary["strava_linked"] = strava_linked
+            except Exception as e:
+                log.error("Strava link stage failed for user %d: %s", user_id, e)
+
         # 2. Parse all pending FIT files for this user
         for run in db.get_pending_runs("synced", user_id=user_id):
             try:
