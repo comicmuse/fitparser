@@ -854,6 +854,51 @@ class RunCoachDB:
                 ).fetchone()[0]
             return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
 
+    def get_year_month_summary(self, user_id: int | None = None) -> list[dict]:
+        """Return [{year, month, count}] for every month that has runs, newest first."""
+        with self._connect() as conn:
+            if user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT CAST(strftime('%Y', date) AS INTEGER) AS year,
+                           CAST(strftime('%m', date) AS INTEGER) AS month,
+                           COUNT(*) AS count
+                    FROM runs
+                    WHERE user_id = ?
+                    GROUP BY year, month
+                    ORDER BY year DESC, month DESC
+                    """,
+                    (user_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT CAST(strftime('%Y', date) AS INTEGER) AS year,
+                           CAST(strftime('%m', date) AS INTEGER) AS month,
+                           COUNT(*) AS count
+                    FROM runs
+                    GROUP BY year, month
+                    ORDER BY year DESC, month DESC
+                    """
+                ).fetchall()
+        return [{"year": r["year"], "month": r["month"], "count": r["count"]} for r in rows]
+
+    def get_runs_for_month(self, year: int, month: int, user_id: int | None = None) -> list[dict]:
+        """Return all runs for a given year/month, most recent first."""
+        prefix = f"{year:04d}-{month:02d}-"
+        with self._connect() as conn:
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE date LIKE ? AND user_id = ? ORDER BY date DESC, id DESC",
+                    (prefix + "%", user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM runs WHERE date LIKE ? ORDER BY date DESC, id DESC",
+                    (prefix + "%",),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
     # ------ users ------
 
     def get_user_by_username(self, username: str) -> Optional[dict]:

@@ -1,275 +1,123 @@
 {% extends "base.html" %}
-{% block title %}RunCoach - All Workouts{% endblock %}
+{% block title %}RunCoach - All Activities{% endblock %}
+
 {% block content %}
-
-{# ── Upcoming Planned Workouts ── #}
 <div class="card">
-  <h2>Upcoming Planned Workouts</h2>
-  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
-    {{ upcoming_total }} upcoming session{{ 's' if upcoming_total != 1 }}
-  </p>
-  {% if upcoming_workouts %}
-  <div class="table-scroll">
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Workout</th>
-        <th>Type</th>
-        <th class="hide-mobile">Distance</th>
-        <th class="hide-mobile">Duration</th>
-        <th class="hide-mobile">Stress</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for pw in upcoming_workouts %}
-      <tr>
-        <td>{{ pw.date }}</td>
-        <td>
-          <span title="{{ pw.description or '' }}">{{ pw.title }}</span>
-        </td>
-        <td>
-          {% if pw.workout_type %}
-            <span class="badge badge-blue">{{ pw.workout_type }}</span>
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if pw.distance_m %}
-            {{ "%.1f"|format(pw.distance_m / 1000) }} km
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if pw.duration_s %}
-            {{ (pw.duration_s|int // 60) }}:{{ "%02d"|format(pw.duration_s|int % 60) }}
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if pw.stress %}
-            {{ "%.0f"|format(pw.stress) }}
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% if upcoming_pages > 1 %}
-  <div class="pagination">
-    {% if upcoming_page > 1 %}
-      <a href="{{ url_for('main.workouts', upcoming_page=upcoming_page-1, past_page=past_page, runs_page=runs_page) }}">&laquo; Prev</a>
-    {% else %}
-      <span class="disabled">&laquo; Prev</span>
-    {% endif %}
-    {% for p in range(1, upcoming_pages + 1) %}
-      {% if p == upcoming_page %}
-        <span class="current">{{ p }}</span>
-      {% else %}
-        <a href="{{ url_for('main.workouts', upcoming_page=p, past_page=past_page, runs_page=runs_page) }}">{{ p }}</a>
-      {% endif %}
+  <h2 style="margin-bottom: 1rem;">All Activities</h2>
+
+  {# ── Year pills ── #}
+  {% if years_nav %}
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0.6rem;">
+    {% for y in years_nav %}
+    <a href="{{ url_for('main.workouts', year=y.year, month=y.months[0].month) }}"
+       style="text-decoration:none;">
+      <span style="display:inline-block;padding:3px 13px;border-radius:20px;font-size:0.78rem;
+                   font-weight:{% if y.year == selected_year %}700{% else %}400{% endif %};
+                   background:{% if y.year == selected_year %}var(--accent){% else %}var(--surface){% endif %};
+                   color:{% if y.year == selected_year %}#fff{% else %}var(--fg-muted){% endif %};">
+        {{ y.year }}
+      </span>
+    </a>
     {% endfor %}
-    {% if upcoming_page < upcoming_pages %}
-      <a href="{{ url_for('main.workouts', upcoming_page=upcoming_page+1, past_page=past_page, runs_page=runs_page) }}">Next &raquo;</a>
-    {% else %}
-      <span class="disabled">Next &raquo;</span>
-    {% endif %}
   </div>
-  {% endif %}
-  {% else %}
-  <p style="color: var(--fg-muted);">No upcoming workouts.</p>
-  {% endif %}
-</div>
 
-{# ── Past Planned Workouts ── #}
-<div class="card">
-  <h2>Past Planned Workouts</h2>
-  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
-    {{ past_total }} past session{{ 's' if past_total != 1 }}
-  </p>
-  {% if past_workouts %}
-  <div class="table-scroll">
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Workout</th>
-        <th>Type</th>
-        <th class="hide-mobile">Distance</th>
-        <th class="hide-mobile">Duration</th>
-        <th class="hide-mobile">Stress</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for pw in past_workouts %}
-      <tr>
-        <td>{{ pw.date }}</td>
-        <td>
-          <span title="{{ pw.description or '' }}">{{ pw.title }}</span>
-        </td>
-        <td>
-          {% if pw.workout_type %}
-            <span class="badge badge-blue">{{ pw.workout_type }}</span>
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if pw.distance_m %}
-            {{ "%.1f"|format(pw.distance_m / 1000) }} km
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if pw.duration_s %}
-            {{ (pw.duration_s|int // 60) }}:{{ "%02d"|format(pw.duration_s|int % 60) }}
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if pw.stress %}
-            {{ "%.0f"|format(pw.stress) }}
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% if past_pages > 1 %}
-  <div class="pagination">
-    {% if past_page > 1 %}
-      <a href="{{ url_for('main.workouts', past_page=past_page-1, upcoming_page=upcoming_page, runs_page=runs_page) }}">&laquo; Prev</a>
+  {# ── Month pills for selected year ── #}
+  {% if months_in_year %}
+  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:1rem;">
+    {% set month_names_short = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+    {% for mn in range(1, 13) %}
+    {% set cnt = months_in_year.get(mn, 0) %}
+    {% if cnt > 0 %}
+    <a href="{{ url_for('main.workouts', year=selected_year, month=mn) }}"
+       style="text-decoration:none;">
+      <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.72rem;
+                   background:{% if mn == selected_month %}var(--accent){% else %}var(--surface){% endif %};
+                   color:{% if mn == selected_month %}#fff{% else %}var(--fg-muted){% endif %};
+                   font-weight:{% if mn == selected_month %}600{% else %}400{% endif %};">
+        {{ month_names_short[mn - 1] }} <span style="opacity:0.75;">{{ cnt }}</span>
+      </span>
+    </a>
     {% else %}
-      <span class="disabled">&laquo; Prev</span>
+    <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.72rem;
+                 background:var(--surface);color:var(--fg-muted);opacity:0.4;">
+      {{ month_names_short[mn - 1] }}
+    </span>
     {% endif %}
-    {% for p in range(1, past_pages + 1) %}
-      {% if p == past_page %}
-        <span class="current">{{ p }}</span>
-      {% else %}
-        <a href="{{ url_for('main.workouts', past_page=p, upcoming_page=upcoming_page, runs_page=runs_page) }}">{{ p }}</a>
-      {% endif %}
     {% endfor %}
-    {% if past_page < past_pages %}
-      <a href="{{ url_for('main.workouts', past_page=past_page+1, upcoming_page=upcoming_page, runs_page=runs_page) }}">Next &raquo;</a>
-    {% else %}
-      <span class="disabled">Next &raquo;</span>
-    {% endif %}
   </div>
   {% endif %}
-  {% else %}
-  <p style="color: var(--fg-muted);">No past planned workouts.</p>
   {% endif %}
-</div>
 
-{# ── All Runs (Activity Log) ── #}
-<div class="card">
-  <h2>Activity Log</h2>
-  <p style="color: var(--fg-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
-    {{ runs_total }} runs total
-  </p>
+  {# ── Month heading ── #}
+  {% set month_names = ['January','February','March','April','May','June','July','August','September','October','November','December'] %}
+  <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;
+              color:var(--fg-muted);margin-bottom:0.75rem;">
+    {{ month_names[selected_month - 1] }} {{ selected_year }}
+    &middot; {{ runs|length }} run{{ 's' if runs|length != 1 }}
+  </div>
+
+  {# ── Run cards ── #}
   {% if runs %}
-  <div class="table-scroll">
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Name</th>
-        <th>Distance</th>
-        <th>Duration</th>
-        <th class="hide-mobile">Avg Power</th>
-        <th class="hide-mobile">Avg HR</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for run in runs %}
-      <tr>
-        <td>{{ run.date }}</td>
-        <td>
-          <a href="{{ url_for('main.run_detail', run_id=run.id) }}">{{ run.workout_name or run.name }}</a>
-          {% if run.is_manual_upload %}
-            <span class="badge badge-blue" title="Manual upload">Manual</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if run.distance_m %}
-            {{ "%.1f"|format(run.distance_m / 1000) }} km
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td>
-          {% if run.moving_time_s %}
-            {{ (run.moving_time_s // 60) }}:{{ "%02d"|format(run.moving_time_s % 60) }}
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if run.avg_power_w %}
-            {{ run.avg_power_w|int }} W
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td class="hide-mobile">
-          {% if run.avg_hr %}
-            {{ run.avg_hr|int }} bpm
-          {% else %}
-            &mdash;
-          {% endif %}
-        </td>
-        <td>
-          {% if run.stage == 'analyzed' %}
-            <span class="badge badge-green">Analyzed</span>
-          {% elif run.stage == 'parsed' %}
-            <span class="badge badge-blue">Parsed</span>
-          {% elif run.stage == 'synced' %}
-            <span class="badge badge-yellow">Synced</span>
-          {% elif run.stage == 'error' %}
-            <span class="badge badge-red" title="{{ run.error_message }}">Error</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% if runs_pages > 1 %}
-  <div class="pagination">
-    {% if runs_page > 1 %}
-      <a href="{{ url_for('main.workouts', runs_page=runs_page-1, past_page=past_page, upcoming_page=upcoming_page) }}">&laquo; Prev</a>
-    {% else %}
-      <span class="disabled">&laquo; Prev</span>
-    {% endif %}
-    {% for p in range(1, runs_pages + 1) %}
-      {% if p == runs_page %}
-        <span class="current">{{ p }}</span>
-      {% else %}
-        <a href="{{ url_for('main.workouts', runs_page=p, past_page=past_page, upcoming_page=upcoming_page) }}">{{ p }}</a>
-      {% endif %}
-    {% endfor %}
-    {% if runs_page < runs_pages %}
-      <a href="{{ url_for('main.workouts', runs_page=runs_page+1, past_page=past_page, upcoming_page=upcoming_page) }}">Next &raquo;</a>
-    {% else %}
-      <span class="disabled">Next &raquo;</span>
-    {% endif %}
-  </div>
-  {% endif %}
-  {% else %}
-  <p style="color: var(--fg-muted);">No runs yet.</p>
-  {% endif %}
-</div>
+  <div style="display:flex;flex-direction:column;gap:7px;">
+    {% for run in runs %}
+    <a href="{{ url_for('main.run_detail', run_id=run.id) }}"
+       style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:10px;
+              background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:8px;
+              padding:10px 12px;transition:box-shadow 0.15s;">
 
+      {# Route thumbnail #}
+      <div style="flex-shrink:0;width:52px;height:52px;background:var(--surface);border-radius:6px;
+                  border:{% if run.route_svg %}1px solid var(--border){% else %}1px dashed var(--border){% endif %};
+                  overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        {% if run.route_svg %}
+        <svg viewBox="0 0 52 52" width="52" height="52" style="display:block;">
+          {{ run.route_svg | safe }}
+        </svg>
+        {% endif %}
+      </div>
+
+      {# Run info #}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:0.85rem;margin-bottom:2px;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {{ run.workout_name or run.name }}
+          {% if run.is_manual_upload %}
+            <span class="badge badge-blue" style="margin-left:4px;">Manual</span>
+          {% endif %}
+        </div>
+        <div style="font-size:0.72rem;color:var(--fg-muted);">
+          {{ run.date }}
+          {% if run.distance_m %}&nbsp;·&nbsp;{{ "%.1f"|format(run.distance_m / 1000) }} km{% endif %}
+          {% if run.moving_time_s %}
+            {% set total_min = run.moving_time_s | int // 60 %}
+            {% set hrs = total_min // 60 %}
+            {% set mins = total_min % 60 %}
+            &nbsp;·&nbsp;{% if hrs > 0 %}{{ hrs }}h {{ "%02d"|format(mins) }}m{% else %}{{ mins }} min{% endif %}
+          {% endif %}
+          {% if run.avg_power_w %}&nbsp;·&nbsp;{{ run.avg_power_w | int }} W{% endif %}
+          {% if run.avg_hr %}&nbsp;·&nbsp;{{ run.avg_hr | int }} bpm{% endif %}
+        </div>
+      </div>
+
+      {# Status badge #}
+      {% if run.stage == 'analyzed' %}
+        <span class="badge badge-green" style="flex-shrink:0;">Analyzed</span>
+      {% elif run.stage == 'parsed' %}
+        <span class="badge badge-blue" style="flex-shrink:0;">Parsed</span>
+      {% elif run.stage == 'synced' %}
+        <span class="badge badge-yellow" style="flex-shrink:0;">Synced</span>
+      {% elif run.stage == 'error' %}
+        <span class="badge badge-red" title="{{ run.error_message }}" style="flex-shrink:0;">Error</span>
+      {% endif %}
+
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:var(--fg-muted);font-size:0.85rem;">
+    No runs recorded for {{ month_names[selected_month - 1] }} {{ selected_year }}.
+  </p>
+  {% endif %}
+
+</div>
 {% endblock %}

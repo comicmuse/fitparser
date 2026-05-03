@@ -232,32 +232,76 @@ class TestAPIEndpoints:
 class TestWorkoutsView:
     """Tests for workouts list view."""
 
-    def test_workouts_pagination(self, client, app):
-        """Test that workouts page handles pagination."""
-        db = app.config["db"]
-
-        # Insert multiple runs
-        for i in range(15):
-            db.insert_run(
-                stryd_activity_id=i,
-                name=f"Run {i}",
-                date=f"2026-03-{i+1:02d}",
-                fit_path=f"activities/run{i}.fit",
-            )
-
-        # First page
+    def test_workouts_page_loads(self, client):
         response = client.get("/workouts")
         assert response.status_code == 200
 
-        # Page 2
-        response = client.get("/workouts?page=2")
+    def test_workouts_with_year_month_params(self, client, app):
+        db = app.config["db"]
+        db.insert_run(stryd_activity_id=None, name="May Run", date="2026-05-01", fit_path="a.fit", user_id=1)
+        response = client.get("/workouts?year=2026&month=5")
         assert response.status_code == 200
+        assert b"May Run" in response.data
 
     def test_workouts_with_no_runs(self, client):
-        """Test workouts page with empty database."""
         response = client.get("/workouts")
         assert response.status_code == 200
-        # Should render successfully even with no data
+
+    def test_workouts_no_planned_workouts_in_response(self, client):
+        response = client.get("/workouts")
+        assert response.status_code == 200
+        assert b"Upcoming Planned" not in response.data
+        assert b"Past Planned" not in response.data
+
+    def test_get_year_month_summary(self, app):
+        db = app.config["db"]
+        db.insert_run(stryd_activity_id=None, name="Run A", date="2026-05-01", fit_path="a.fit", user_id=1)
+        db.insert_run(stryd_activity_id=None, name="Run B", date="2026-05-15", fit_path="b.fit", user_id=1)
+        db.insert_run(stryd_activity_id=None, name="Run C", date="2026-03-10", fit_path="c.fit", user_id=1)
+        db.insert_run(stryd_activity_id=None, name="Run D", date="2025-12-20", fit_path="d.fit", user_id=1)
+        summary = db.get_year_month_summary(user_id=1)
+        assert len(summary) == 3
+        assert summary[0] == {"year": 2026, "month": 5, "count": 2}
+        assert summary[1] == {"year": 2026, "month": 3, "count": 1}
+        assert summary[2] == {"year": 2025, "month": 12, "count": 1}
+
+    def test_get_runs_for_month(self, app):
+        db = app.config["db"]
+        db.insert_run(stryd_activity_id=None, name="May Run 1", date="2026-05-03", fit_path="a.fit", user_id=1)
+        db.insert_run(stryd_activity_id=None, name="May Run 2", date="2026-05-01", fit_path="b.fit", user_id=1)
+        db.insert_run(stryd_activity_id=None, name="Apr Run",   date="2026-04-28", fit_path="c.fit", user_id=1)
+        runs = db.get_runs_for_month(2026, 5, user_id=1)
+        assert len(runs) == 2
+        assert runs[0]["name"] == "May Run 1"
+        assert runs[1]["name"] == "May Run 2"
+        assert all(r["date"].startswith("2026-05") for r in runs)
+
+
+class TestPolylineSvg:
+    def test_basic(self):
+        from runcoach.strava import polyline_to_svg_path
+        import re
+        coords = [[53.3, -6.2], [53.31, -6.21], [53.32, -6.19]]
+        result = polyline_to_svg_path(coords, size=52)
+        assert result.startswith("<polyline points=")
+        assert 'stroke="#fc4c02"' in result
+        pts = re.findall(r"[\d.]+,[\d.]+", result)
+        assert len(pts) >= 2
+
+    def test_empty(self):
+        from runcoach.strava import polyline_to_svg_path
+        assert polyline_to_svg_path([], size=52) == ""
+        assert polyline_to_svg_path([[1.0, 2.0]], size=52) == ""
+
+    def test_fits_within_size(self):
+        from runcoach.strava import polyline_to_svg_path
+        import re
+        coords = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+        result = polyline_to_svg_path(coords, size=52)
+        pts = re.findall(r"([\d.]+),([\d.]+)", result)
+        for x_str, y_str in pts:
+            assert 0.0 <= float(x_str) <= 52.0
+            assert 0.0 <= float(y_str) <= 52.0
 
 
 class TestCalendarView:

@@ -312,3 +312,31 @@ def decode_polyline(encoded: str) -> list[list[float]]:
         lng += -(result >> 1) if (result & 1) else (result >> 1)
         coords.append([lat * 1e-5, lng * 1e-5])
     return coords
+
+
+def polyline_to_svg_path(coords: list[list[float]], size: int = 52) -> str:
+    """
+    Convert [lat, lng] pairs to an SVG <polyline> string scaled to fit within size×size
+    with 4px padding. Returns empty string if fewer than 2 points.
+    """
+    if len(coords) < 2:
+        return ""
+    pad = 4
+    inner = size - 2 * pad
+    lats = [c[0] for c in coords]
+    lngs = [c[1] for c in coords]
+    min_lat, max_lat = min(lats), max(lats)
+    min_lng, max_lng = min(lngs), max(lngs)
+    lat_span = max_lat - min_lat or 1e-9
+    lng_span = max_lng - min_lng or 1e-9
+    scale = inner / max(lat_span, lng_span)
+    points = []
+    for lat, lng in coords:
+        x = pad + (lng - min_lng) * scale
+        y = pad + (max_lat - lat) * scale  # invert y so north is up
+        points.append(f"{x:.1f},{y:.1f}")
+    pts_str = " ".join(points)
+    return (
+        f'<polyline points="{pts_str}" fill="none" stroke="#fc4c02" '
+        f'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    )

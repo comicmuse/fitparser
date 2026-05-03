@@ -213,42 +213,50 @@ def index():
 @bp.route("/workouts")
 @_login_required
 def workouts():
-    """Full paginated list of past and upcoming planned workouts."""
     from datetime import date as _date
+    from collections import defaultdict
+    from runcoach.strava import decode_polyline, polyline_to_svg_path
 
     db = _db()
     user_id = _current_user_id()
-    today = _date.today().isoformat()
-    per_page = 10
+    today = _date.today()
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
 
-    past_page = request.args.get("past_page", 1, type=int)
-    upcoming_page = request.args.get("upcoming_page", 1, type=int)
+    year_month_summary = db.get_year_month_summary(user_id=user_id)
 
-    past_total = db.count_past_planned_workouts(today, user_id=user_id)
-    upcoming_total = db.count_upcoming_planned_workouts(today, user_id=user_id)
+    if year_month_summary:
+        valid = {(r["year"], r["month"]) for r in year_month_summary}
+        if (year, month) not in valid:
+            year = year_month_summary[0]["year"]
+            month = year_month_summary[0]["month"]
 
-    past = db.get_past_planned_workouts(today, limit=per_page, offset=(past_page - 1) * per_page, user_id=user_id)
-    upcoming = db.get_upcoming_planned_workouts_paged(today, limit=per_page, offset=(upcoming_page - 1) * per_page, user_id=user_id)
+    years_map: dict[int, list[dict]] = defaultdict(list)
+    for row in year_month_summary:
+        years_map[row["year"]].append({"month": row["month"], "count": row["count"]})
+    years_nav = [
+        {"year": y, "months": years_map[y]}
+        for y in sorted(years_map.keys(), reverse=True)
+    ]
 
-    runs_page = request.args.get("runs_page", 1, type=int)
-    runs_total = db.count_runs(user_id=user_id)
-    runs = db.get_runs_paginated(limit=per_page, offset=(runs_page - 1) * per_page, user_id=user_id)
+    months_in_year: dict[int, int] = {
+        row["month"]: row["count"]
+        for row in year_month_summary
+        if row["year"] == year
+    }
 
-    import math
+    runs = db.get_runs_for_month(year, month, user_id=user_id)
+    for run in runs:
+        polyline = run.get("strava_map_polyline") or ""
+        run["route_svg"] = polyline_to_svg_path(decode_polyline(polyline), size=52) if polyline else ""
+
     return render_template(
         "workouts.html",
-        past_workouts=past,
-        upcoming_workouts=upcoming,
         runs=runs,
-        past_page=past_page,
-        past_pages=math.ceil(past_total / per_page),
-        past_total=past_total,
-        upcoming_page=upcoming_page,
-        upcoming_pages=math.ceil(upcoming_total / per_page),
-        upcoming_total=upcoming_total,
-        runs_page=runs_page,
-        runs_pages=math.ceil(runs_total / per_page),
-        runs_total=runs_total,
+        years_nav=years_nav,
+        months_in_year=months_in_year,
+        selected_year=year,
+        selected_month=month,
         stats=db.get_sync_stats(user_id=user_id),
         syncing=_scheduler().is_syncing,
     )
