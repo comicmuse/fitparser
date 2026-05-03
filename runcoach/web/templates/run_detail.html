@@ -207,7 +207,8 @@
 	.wc-detail-footer { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 10px; flex-shrink: 0; }
 	.wc-seg-dot { width: 7px; height: 7px; border-radius: 50%; background: #e2e8f0; transition: background 0.2s, transform 0.2s; cursor: pointer; flex-shrink: 0; }
 	.wc-seg-dot--active { background: #ea580c; transform: scale(1.3); }
-	.wc-swipe-hint { font-size: 0.6rem; color: #cbd5e1; margin-left: 8px; }
+	.wc-chevron { font-size: 1.1rem; color: #cbd5e1; line-height: 1; user-select: none; cursor: pointer; padding: 0 4px; transition: color 0.15s; }
+	.wc-chevron:active { color: #94a3b8; }
 	</style>
 
 <div class="card">
@@ -549,10 +550,16 @@
       })(si);
       footer.appendChild(dot);
     });
-    var hint = document.createElement('span');
-    hint.className = 'wc-swipe-hint';
-    hint.textContent = '← swipe →';
-    footer.appendChild(hint);
+    var chevL = document.createElement('span');
+    chevL.className = 'wc-chevron';
+    chevL.textContent = '‹';
+    chevL.addEventListener('click', function (e) { e.stopPropagation(); goToSeg(idx - 1); });
+    footer.insertBefore(chevL, footer.firstChild);
+    var chevR = document.createElement('span');
+    chevR.className = 'wc-chevron';
+    chevR.textContent = '›';
+    chevR.addEventListener('click', function (e) { e.stopPropagation(); goToSeg(idx + 1); });
+    footer.appendChild(chevR);
   }
 
   var tX = 0, tY = 0, tMoved = false;
