@@ -620,7 +620,7 @@ def dashboard():
         },
         "rsb_history": [
             {
-                "date": h["date_label"],
+                "date": h["date"],
                 "rsb": h.get("rsb"),
                 "ctl": h.get("ctl"),
                 "atl": h.get("atl"),
