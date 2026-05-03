@@ -130,7 +130,7 @@ function toggleUploadForm() {
   {%- if training_summary.rsb_history %}
   <div style="margin-top: 0.25rem;">
     <div style="font-size: 0.75rem; color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
-      Training Stress Balance (16 weeks)
+      Training Stress Balance (4 weeks)
       {%- if training_summary.current_rsb.rsb is not none %}
         <span style="margin-left: 0.75rem; font-size: 0.8rem; color: {% if training_summary.current_rsb.rsb > 5 %}var(--green){% elif training_summary.current_rsb.rsb < -10 %}var(--red){% else %}var(--fg-muted){% endif %}; font-weight: 700; text-transform: none; letter-spacing: 0;">
           RSB {{ "%+.1f"|format(training_summary.current_rsb.rsb) }}
@@ -290,7 +290,7 @@ function toggleUploadForm() {
 <script>
 (function() {
   var history = {{ training_summary.rsb_history | tojson | safe }};
-  var labels = history.map(function(h) { return h.week_label; });
+  var labels = history.map(function(h) { return h.date_label; });
   var rsbData = history.map(function(h) { return h.rsb; });
   var ctlData = history.map(function(h) { return h.ctl; });
   var atlData = history.map(function(h) { return h.atl; });
