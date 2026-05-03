@@ -41,6 +41,9 @@ def test_correct_password_lands_on_dashboard(page, server_url):
 
 def test_logout_clears_session(logged_in_page, server_url):
     page = logged_in_page
+    page.wait_for_load_state("networkidle")
+    page.locator("#hamburger-btn").click()
+    page.wait_for_timeout(300)
     page.locator("form[action*='logout'] button").click()
     page.wait_for_load_state("networkidle")
     page.goto(f"{server_url}/")

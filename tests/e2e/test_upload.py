@@ -15,12 +15,18 @@ def _copy_fit(tmp_path, name="upload_test.fit"):
     return dest
 
 
+def _open_upload_form(page):
+    page.locator("#hamburger-btn").click()
+    page.wait_for_timeout(300)
+    page.locator("#menu-upload-btn").click()
+    page.wait_for_timeout(200)
+
+
 def test_upload_fit_file_creates_run(logged_in_page, server_url, tmp_path):
     page = logged_in_page
     fit_copy = _copy_fit(tmp_path)
 
-    # Reveal upload form and submit
-    page.locator("button", has_text="Upload").first.click()
+    _open_upload_form(page)
     page.locator("#upload-form input[type='file']").set_input_files(str(fit_copy))
     page.locator("#upload-form").locator("button[type='submit']").click()
 
@@ -34,7 +40,7 @@ def test_upload_non_fit_file_rejected(logged_in_page, server_url, tmp_path):
     txt_file = tmp_path / "notafit.txt"
     txt_file.write_text("not a fit file")
 
-    page.locator("button", has_text="Upload").first.click()
+    _open_upload_form(page)
     page.locator("#upload-form input[type='file']").set_input_files(str(txt_file))
     page.locator("#upload-form").locator("button[type='submit']").click()
 
@@ -48,7 +54,7 @@ def test_upload_invalid_magic_bytes_rejected(logged_in_page, server_url, tmp_pat
     bad_fit = tmp_path / "bad.fit"
     bad_fit.write_bytes(b"\x00" * 20)  # .fit extension but wrong magic bytes
 
-    page.locator("button", has_text="Upload").first.click()
+    _open_upload_form(page)
     page.locator("#upload-form input[type='file']").set_input_files(str(bad_fit))
     page.locator("#upload-form").locator("button[type='submit']").click()
 
@@ -61,7 +67,7 @@ def test_upload_sets_custom_activity_name(logged_in_page, server_url, tmp_path):
     page = logged_in_page
     fit_copy = _copy_fit(tmp_path, "named_run.fit")
 
-    page.locator("button", has_text="Upload").first.click()
+    _open_upload_form(page)
     page.locator("#upload-form input[type='file']").set_input_files(str(fit_copy))
     page.locator("#upload-form input[name='activity_name']").fill("My Custom Run")
     page.locator("#upload-form").locator("button[type='submit']").click()
@@ -74,7 +80,7 @@ def test_upload_with_explicit_date(logged_in_page, server_url, tmp_path):
     page = logged_in_page
     fit_copy = _copy_fit(tmp_path, "dated_run.fit")
 
-    page.locator("button", has_text="Upload").first.click()
+    _open_upload_form(page)
     page.locator("#upload-form input[type='file']").set_input_files(str(fit_copy))
     page.locator("#upload-form input[name='activity_date']").fill("2026-03-15")
     page.locator("#upload-form").locator("button[type='submit']").click()
