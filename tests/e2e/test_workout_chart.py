@@ -33,29 +33,26 @@ def test_power_bars_visible(logged_in_page, server_url, seeded_run_id):
     assert hr_strips.count() >= 2
 
 
-def test_tooltip_appears_on_hover(logged_in_page, server_url, seeded_run_id):
-    """Hovering a segment column shows the tooltip with segment data."""
+def test_flip_card_appears_on_click(logged_in_page, server_url, seeded_run_id):
+    """Clicking a segment column flips to the detail card."""
     page = logged_in_page
     page.goto(f"{server_url}/run/{seeded_run_id}")
     page.wait_for_load_state("networkidle")
 
-    tooltip = page.locator("#wc-tooltip")
-
-    # Move mouse to top-left to ensure no column is hovered
-    page.mouse.move(0, 0)
-    expect(tooltip).not_to_be_visible()
+    detail = page.locator("#wc-detail")
+    expect(detail).not_to_be_visible()
 
     first_col = page.locator(".wc-col").first
-    first_col.hover()
+    first_col.click()
+    page.wait_for_timeout(500)
 
-    expect(tooltip).to_be_visible()
-
-    content = tooltip.text_content()
+    expect(detail).to_be_visible()
+    content = detail.text_content()
     assert content and len(content.strip()) > 5
 
 
-def test_tooltip_shows_running_dynamics(logged_in_page, server_url, seeded_run_id):
-    """Hovering a segment that has running_dynamics shows dynamics in the tooltip."""
+def test_flip_card_shows_running_dynamics(logged_in_page, server_url, seeded_run_id):
+    """Clicking a segment that has running_dynamics shows Cadence in the detail card."""
     page = logged_in_page
     page.goto(f"{server_url}/run/{seeded_run_id}")
     page.wait_for_load_state("networkidle")
@@ -63,14 +60,18 @@ def test_tooltip_shows_running_dynamics(logged_in_page, server_url, seeded_run_i
     cols = page.locator(".wc-col").all()
     found = False
     for col in cols:
-        col.hover()
-        tooltip = page.locator("#wc-tooltip")
-        expect(tooltip).to_be_visible()
-        if "Cadence" in (tooltip.text_content() or ""):
+        col.click()
+        page.wait_for_timeout(500)
+        detail = page.locator("#wc-detail")
+        expect(detail).to_be_visible()
+        if "Cadence" in (detail.text_content() or ""):
             found = True
             break
+        # Close and try next
+        detail.click()
+        page.wait_for_timeout(500)
 
-    assert found, "No segment tooltip showed running dynamics (Cadence)"
+    assert found, "No segment detail card showed running dynamics (Cadence)"
 
 
 def test_old_chart_elements_absent(logged_in_page, server_url, seeded_run_id):
