@@ -1292,7 +1292,9 @@ class TestWorkoutChart:
         assert "wc-power" in html
         assert "wc-hr" in html
         assert "data-segment" in html
-        assert "wc-tooltip" in html
+        assert "wc-detail" in html
+        assert "wc-tooltip" not in html
+        assert "wc-legend" not in html
 
         # Compliance strip present for run with targets
         assert "comp-strip" in html
