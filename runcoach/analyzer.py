@@ -28,6 +28,9 @@ Use metrics from the data in your summary. Do not guess metrics.
 If you can, recommend actionable takeaways for my training, but only if there's \
 something real to address or work on.
 
+Format your response as markdown. Use only `###` or smaller headings — never `#` or `##`, \
+as those are reserved for the page layout. Keep section headings brief.
+
 You will receive two YAML documents separated by a "---" delimiter:
 
 1. **Training context** – a summary of the previous 7 days of training, including \
