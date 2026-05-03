@@ -46,6 +46,125 @@
     nav .brand:hover { color: var(--accent-hover); text-decoration: none; }
     nav .nav-right { display: flex; align-items: center; gap: 1rem; }
 
+    /* ── Hamburger Menu ── */
+    .hamburger-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.4rem 0.5rem;
+      font-size: 1.5rem;
+      line-height: 1;
+      color: var(--fg);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .hamburger-btn:hover { background: var(--accent-light); color: var(--accent); }
+    .hamburger-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .menu-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+    }
+    .menu-overlay.open { display: block; }
+
+    .menu-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      animation: fadeIn 0.2s ease;
+    }
+
+    .menu-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 260px;
+      max-width: 90vw;
+      height: 100%;
+      background: #fff;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.13);
+      display: flex;
+      flex-direction: column;
+      animation: slideIn 0.22s ease;
+      overflow-y: auto;
+    }
+
+    .menu-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .menu-header-title {
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    .menu-close-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.4rem;
+      color: var(--fg-muted);
+      padding: 0.25rem 0.4rem;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .menu-close-btn:hover { color: var(--fg); background: var(--accent-light); }
+    .menu-close-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .menu-items {
+      flex: 1;
+      padding: 0.75rem 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .menu-item {
+      display: block;
+      padding: 0.7rem 1.25rem;
+      font-size: 0.95rem;
+      color: var(--fg);
+      text-decoration: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      text-align: left;
+      width: 100%;
+      transition: background 0.12s, color 0.12s;
+    }
+    .menu-item:hover { background: var(--accent-light); color: var(--accent); text-decoration: none; }
+    .menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .menu-item--primary {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .menu-item--muted { color: var(--fg-muted); }
+    .menu-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0.4rem 0;
+    }
+    .menu-syncing-badge {
+      margin: 0.25rem 1.25rem 0.5rem;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); }
+      to   { transform: translateX(0); }
+    }
+
     .btn {
       display: inline-block;
       padding: 0.4rem 0.9rem;
@@ -309,7 +428,6 @@
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .container { max-width: 100%; }
-      nav .nav-right { gap: 0.5rem; }
       .btn { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
       .run-header { gap: 1rem; }
       .run-header .metric .value { font-size: 1rem; }
@@ -329,7 +447,6 @@
 
     @media (max-width: 480px) {
       .container { padding: 0 0.5rem; }
-      nav .nav-right { gap: 0.35rem; }
       .btn { padding: 0.3rem 0.5rem; font-size: 0.75rem; }
       .run-header { gap: 0.75rem; }
       .card { padding: 0.75rem; margin-bottom: 1rem; }
@@ -420,24 +537,47 @@
   <nav>
     <div class="container">
       <a href="/" class="brand">RunCoach</a>
-      <div class="nav-right">
+      <button
+        class="hamburger-btn"
+        id="hamburger-btn"
+        aria-label="Open navigation menu"
+        aria-expanded="false"
+        aria-controls="menu-overlay"
+      >&#9776;</button>
+    </div>
+  </nav>
+
+  <!-- Navigation menu overlay -->
+  <div class="menu-overlay" id="menu-overlay" role="dialog" aria-modal="true" aria-label="Navigation menu">
+    <div class="menu-backdrop" id="menu-backdrop"></div>
+    <div class="menu-panel" id="menu-panel">
+      <div class="menu-header">
+        <span class="menu-header-title">Menu</span>
+        <button class="menu-close-btn" id="menu-close-btn" aria-label="Close navigation menu">&#x2715;</button>
+      </div>
+      <div class="menu-items" role="navigation">
         {% if syncing is defined and syncing %}
-          <span class="badge badge-yellow">Syncing...</span>
+          <div class="menu-syncing-badge"><span class="badge badge-yellow">Syncing...</span></div>
         {% endif %}
-        {% if current_user_is_admin %}<a href="{{ url_for('main.admin_users') }}" class="btn">Admin</a>{% endif %}
-        <a href="{{ url_for('main.athlete_profile') }}" class="btn">Athlete Profile</a>
-        <button type="button" class="btn" onclick="toggleUploadForm()">Upload</button>
-        <form action="/sync" method="post" style="display:inline">
+        {% if current_user_is_admin %}
+          <a href="{{ url_for('main.admin_users') }}" class="menu-item">&#128272; Admin</a>
+          <div class="menu-divider"></div>
+        {% endif %}
+        <a href="{{ url_for('main.athlete_profile') }}" class="menu-item">&#128100; Athlete Profile</a>
+        <button type="button" class="menu-item" id="menu-upload-btn">&#8679; Upload FIT</button>
+        <div class="menu-divider"></div>
+        <form action="/sync" method="post" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-primary">Sync Now</button>
+          <button type="submit" class="menu-item menu-item--primary">&#8635; Sync Now</button>
         </form>
-        <form action="{{ url_for('main.logout') }}" method="post" style="display:inline">
+        <div class="menu-divider"></div>
+        <form action="{{ url_for('main.logout') }}" method="post" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn" style="color:var(--fg-muted);">Sign out</button>
+          <button type="submit" class="menu-item menu-item--muted">&#x2715; Sign out</button>
         </form>
       </div>
     </div>
-  </nav>
+  </div>
 
   {% block hero %}{% endblock %}
 
@@ -455,5 +595,70 @@
   </footer>
 
   <script src="/static/app.js"></script>
+  <script>
+    (function () {
+      var btn = document.getElementById('hamburger-btn');
+      var overlay = document.getElementById('menu-overlay');
+      var backdrop = document.getElementById('menu-backdrop');
+      var closeBtn = document.getElementById('menu-close-btn');
+      var panel = document.getElementById('menu-panel');
+      var uploadBtn = document.getElementById('menu-upload-btn');
+
+      var FOCUSABLE = 'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+      function openMenu() {
+        overlay.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+        // Focus the close button so screen reader users can easily dismiss the menu
+        closeBtn.focus();
+      }
+
+      function closeMenu() {
+        overlay.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.focus();
+      }
+
+      btn.addEventListener('click', function () {
+        if (overlay.classList.contains('open')) {
+          closeMenu();
+        } else {
+          openMenu();
+        }
+      });
+
+      closeBtn.addEventListener('click', closeMenu);
+      backdrop.addEventListener('click', closeMenu);
+
+      // Upload button: close menu then trigger upload form
+      if (uploadBtn) {
+        uploadBtn.addEventListener('click', function () {
+          closeMenu();
+          if (typeof toggleUploadForm === 'function') toggleUploadForm();
+        });
+      }
+
+      // ESC key closes the menu
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && overlay.classList.contains('open')) {
+          closeMenu();
+        }
+      });
+
+      // Trap focus within the menu panel while open
+      panel.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab') return;
+        var focusable = panel.querySelectorAll(FOCUSABLE);
+        if (!focusable.length) return;
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
