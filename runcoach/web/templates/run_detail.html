@@ -143,90 +143,67 @@
 {% endfor %}
 
 <style>
-.workout-chart { margin-top: 0.25rem; }
-.wc-scale-label { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
-.wc-grid { display: flex; width: 100%; gap: 6px; overflow: hidden; }
-.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: default; }
-.wc-power {
-  position: relative; width: 100%; height: 130px;
-  background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; overflow: hidden;
-}
-.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; background: rgba(0,0,0,0.04); }
-.wc-target-band {
-  position: absolute; left: 0; right: 0; pointer-events: none;
-  background: rgba(0,0,0,0.07);
-  border-top: 1px solid rgba(0,0,0,0.25);
-  border-bottom: 1px solid rgba(0,0,0,0.25);
-}
-.wc-avg-line { position: absolute; left: 0; right: 0; height: 2px; border-radius: 1px; pointer-events: none; z-index: 3; }
-.wc-avg-line--in    { background: #16a34a; box-shadow: 0 0 7px 1px rgba(22,163,74,0.6), 0 0 14px rgba(22,163,74,0.3); }
-.wc-avg-line--above { background: #e11d48; box-shadow: 0 0 7px 1px rgba(225,29,72,0.6), 0 0 14px rgba(225,29,72,0.3); }
-.wc-avg-line--below { background: #2563eb; box-shadow: 0 0 7px 1px rgba(37,99,235,0.6), 0 0 14px rgba(37,99,235,0.3); }
-.wc-avg-line--none  { background: #94a3b8; }
-.comp-strip {
-  width: 100%; height: 20px; display: flex;
-  border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1;
-}
-.cs-below { background: rgba(37,99,235,0.55); }
-.cs-in    { background: rgba(22,163,74,0.55); }
-.cs-above { background: rgba(225,29,72,0.55); }
-.cs-none  {
-  flex: 1; background: #f1f5f9;
-  display: flex; align-items: center; justify-content: center;
-  color: #94a3b8; font-size: 0.6rem;
-}
-.wc-watts {
-  position: absolute; right: 3px; font-size: 0.58rem; font-weight: 700;
-  color: rgba(0,0,0,0.7); text-shadow: 0 1px 2px rgba(255,255,255,0.8);
-  line-height: 1; pointer-events: none; z-index: 4;
-}
-.wc-tick {
-  position: absolute; left: 3px; font-size: 0.55rem; color: #94a3b8; line-height: 1;
-  transform: translateY(50%); pointer-events: none; z-index: 2;
-}
-.wc-hr {
-  width: 100%; height: 22px; display: flex;
-  border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1;
-}
-.wc-hz { height: 100%; flex-shrink: 0; container-type: inline-size; display: flex; align-items: center; justify-content: center; }
-.wc-hz span { display: none; font-size: 0.5rem; font-weight: 700; color: rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(0,0,0,0.6); line-height: 1; }
-@container (min-width: 20px) {
-  .wc-hz span { display: block; }
-}
-.wc-hz1 { background: #1565c0; }
-.wc-hz2 { background: #4527a0; }
-.wc-hz3 { background: #6a1b9a; }
-.wc-hz4 { background: #ad1457; }
-.wc-hz5 { background: #b71c1c; }
-.wc-name { text-align: center; font-size: 0.68rem; padding-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wc-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 14px; font-size: 0.7rem; color: var(--fg-muted); }
-.wc-leg-item { display: flex; align-items: center; gap: 5px; }
-.wc-leg-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.wc-leg-hr { display: flex; gap: 2px; }
-.wc-leg-hr span { display: inline-block; width: 8px; height: 10px; border-radius: 1px; }
-/* Tooltip */
-#wc-tooltip {
-  display: none; position: fixed; z-index: 1000;
-  background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
-  padding: 10px 14px; min-width: 180px; max-width: 260px;
-  font-size: 0.78rem; color: #1c1917; pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-}
-#wc-tooltip.wc-tooltip--visible { display: block; }
-.wc-tt-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
-.wc-tt-section { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin: 8px 0 4px; }
-.wc-tt-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; color: #64748b; }
-.wc-tt-row span:last-child { color: #1c1917; font-weight: 600; }
-@media (max-width: 599px) {
-  .wc-power { height: 90px; }
-  .wc-tick { display: none; }
-  #wc-tooltip {
-    position: fixed; bottom: 0; left: 0; right: 0; top: auto;
-    max-width: 100%; border-radius: 12px 12px 0 0;
-    padding: 16px; pointer-events: auto;
-  }
-}
-</style>
+	.workout-chart { margin-top: 0.25rem; }
+	.wc-scale-label { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+	.wc-grid { display: flex; width: 100%; gap: 6px; overflow: hidden; }
+	.wc-col { display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
+	.wc-power {
+	  position: relative; width: 100%; height: 130px;
+	  background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; overflow: hidden;
+	}
+	.wc-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; background: rgba(0,0,0,0.04); }
+	.wc-target-band {
+	  position: absolute; left: 0; right: 0; pointer-events: none;
+	  background: rgba(0,0,0,0.07);
+	  border-top: 1px solid rgba(0,0,0,0.25);
+	  border-bottom: 1px solid rgba(0,0,0,0.25);
+	}
+	.wc-avg-line { position: absolute; left: 0; right: 0; height: 2px; border-radius: 1px; pointer-events: none; z-index: 3; }
+	.wc-avg-line--in    { background: #16a34a; box-shadow: 0 0 7px 1px rgba(22,163,74,0.6), 0 0 14px rgba(22,163,74,0.3); }
+	.wc-avg-line--above { background: #e11d48; box-shadow: 0 0 7px 1px rgba(225,29,72,0.6), 0 0 14px rgba(225,29,72,0.3); }
+	.wc-avg-line--below { background: #2563eb; box-shadow: 0 0 7px 1px rgba(37,99,235,0.6), 0 0 14px rgba(37,99,235,0.3); }
+	.wc-avg-line--none  { background: #94a3b8; }
+	.comp-strip {
+	  width: 100%; height: 20px; display: flex;
+	  border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1;
+	}
+	.cs-below { background: rgba(37,99,235,0.55); }
+	.cs-in    { background: rgba(22,163,74,0.55); }
+	.cs-above { background: rgba(225,29,72,0.55); }
+	.cs-none  {
+	  flex: 1; background: #f1f5f9;
+	  display: flex; align-items: center; justify-content: center;
+	  color: #94a3b8; font-size: 0.6rem;
+	}
+	.wc-watts {
+	  position: absolute; right: 3px; font-size: 0.58rem; font-weight: 700;
+	  color: rgba(0,0,0,0.7); text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+	  line-height: 1; pointer-events: none; z-index: 4;
+	}
+	.wc-tick {
+	  position: absolute; left: 3px; font-size: 0.55rem; color: #94a3b8; line-height: 1;
+	  transform: translateY(50%); pointer-events: none; z-index: 2;
+	}
+	.wc-hr {
+	  width: 100%; height: 22px; display: flex;
+	  border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1;
+	}
+	.wc-hz { height: 100%; flex-shrink: 0; container-type: inline-size; display: flex; align-items: center; justify-content: center; }
+	.wc-hz span { display: none; font-size: 0.5rem; font-weight: 700; color: rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(0,0,0,0.6); line-height: 1; }
+	@container (min-width: 20px) {
+	  .wc-hz span { display: block; }
+	}
+	.wc-hz1 { background: #1565c0; }
+	.wc-hz2 { background: #4527a0; }
+	.wc-hz3 { background: #6a1b9a; }
+	.wc-hz4 { background: #ad1457; }
+	.wc-hz5 { background: #b71c1c; }
+	.wc-name { text-align: center; font-size: 0.68rem; padding-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	@media (max-width: 599px) {
+	  .wc-power { height: 90px; }
+	  .wc-tick { display: none; }
+	}
+	</style>
 
 <div class="card">
   <h2>Workout Structure</h2>
@@ -317,161 +294,10 @@
       {% endif %}{% endfor %}
     </div>
 
-    <!-- Legend -->
-    <div class="wc-legend">
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(0,0,0,0.07);border:1px solid rgba(0,0,0,0.25);"></span>Target range</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#16a34a;box-shadow:0 0 5px rgba(22,163,74,0.5);"></span>Avg — in target</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#e11d48;box-shadow:0 0 5px rgba(225,29,72,0.5);"></span>Avg — too high</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:#2563eb;box-shadow:0 0 5px rgba(37,99,235,0.5);"></span>Avg — too low</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(37,99,235,0.55);"></span>% time below</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(22,163,74,0.55);"></span>% time in zone</span>
-      <span class="wc-leg-item"><span class="wc-leg-swatch" style="background:rgba(225,29,72,0.55);"></span>% time above</span>
-      <span class="wc-leg-item">
-        <span class="wc-leg-hr">
-          <span style="background:#1565c0;"></span><span style="background:#4527a0;"></span>
-          <span style="background:#6a1b9a;"></span><span style="background:#ad1457;"></span>
-          <span style="background:#b71c1c;"></span>
-        </span>
-        HR Z1&rarr;Z5
-      </span>
-    </div>
   </div>
 </div>
 
-<div id="wc-tooltip" role="tooltip"></div>
 
-<script>
-(function () {
-  var tooltip = document.getElementById('wc-tooltip');
-  if (!tooltip) return;
-
-  function makeRow(label, value) {
-    var div = document.createElement('div');
-    div.className = 'wc-tt-row';
-    var s = document.createElement('span');
-    s.textContent = label;
-    var v = document.createElement('span');
-    v.textContent = value;
-    div.appendChild(s);
-    div.appendChild(v);
-    return div;
-  }
-
-  function makeSection(label) {
-    var div = document.createElement('div');
-    div.className = 'wc-tt-section';
-    div.textContent = label;
-    return div;
-  }
-
-  function buildTooltip(seg) {
-    var frag = document.createDocumentFragment();
-
-    var title = document.createElement('div');
-    title.className = 'wc-tt-title';
-    title.textContent = seg.name;
-    if (seg.type) {
-      var badge = document.createElement('span');
-      badge.textContent = ' · ' + seg.type;
-      badge.style.cssText = 'font-size:0.7rem;font-weight:400;color:#6e7681;';
-      title.appendChild(badge);
-    }
-    frag.appendChild(title);
-
-    if (seg.duration_min != null) frag.appendChild(makeRow('Duration', seg.duration_min.toFixed(1) + ' min'));
-    if (seg.distance_km  != null) frag.appendChild(makeRow('Distance', seg.distance_km.toFixed(2) + ' km'));
-    if (seg.avg_power    != null) frag.appendChild(makeRow('Avg power', Math.round(seg.avg_power) + ' W'));
-    if (seg.target) {
-      frag.appendChild(makeRow('Target', seg.target.min_w + '–' + seg.target.max_w + ' W'));
-      frag.appendChild(makeRow('In zone', Math.round(seg.target.pct_time_in_range) + '%'));
-      if (seg.target.pct_time_above > 0) frag.appendChild(makeRow('Above', Math.round(seg.target.pct_time_above) + '%'));
-      if (seg.target.pct_time_below > 0) frag.appendChild(makeRow('Below', Math.round(seg.target.pct_time_below) + '%'));
-    }
-    if (seg.avg_hr != null) frag.appendChild(makeRow('Avg HR', Math.round(seg.avg_hr) + ' bpm'));
-
-    if (seg.hr_zones) {
-      var hz = seg.hr_zones;
-      var zoneNames = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'];
-      var zonePcts  = [hz.Z1_pct, hz.Z2_pct, hz.Z3_pct, hz.Z4_pct, hz.Z5_pct];
-      var hasAny = zonePcts.some(function(p) { return p && p > 0; });
-      if (hasAny) {
-        frag.appendChild(makeSection('HR Zones'));
-        zoneNames.forEach(function(name, i) {
-          if (zonePcts[i] && zonePcts[i] > 0) {
-            frag.appendChild(makeRow(name, zonePcts[i].toFixed(1) + '%'));
-          }
-        });
-      }
-    }
-
-    var d = seg.dynamics;
-    if (d) {
-      var hasDyn = d.cadence_med || d.gct_med || d.vert_osc_med || d.step_length_med || d.form_power_med;
-      if (hasDyn) {
-        frag.appendChild(makeSection('Running dynamics'));
-        if (d.cadence_med)           frag.appendChild(makeRow('Cadence', d.cadence_med + ' spm'));
-        if (d.gct_med)               frag.appendChild(makeRow('GCT', d.gct_med + ' ms'));
-        if (d.vert_osc_med)          frag.appendChild(makeRow('Vert. osc.', d.vert_osc_med + ' cm'));
-        if (d.step_length_med)       frag.appendChild(makeRow('Step length', d.step_length_med + ' m'));
-        if (d.form_power_med)        frag.appendChild(makeRow('Form power', d.form_power_med + ' W'));
-        if (d.form_power_ratio_mean) frag.appendChild(makeRow('Form pwr ratio', (d.form_power_ratio_mean * 100).toFixed(1) + '%'));
-        if (d.lss_med)               frag.appendChild(makeRow('LSS', d.lss_med + ' kN/m'));
-      }
-    }
-    return frag;
-  }
-
-  function position(col) {
-    if (window.innerWidth < 600) return;
-    var rect = col.getBoundingClientRect();
-    var ttW  = tooltip.offsetWidth  || 220;
-    var ttH  = tooltip.offsetHeight || 200;
-    var left = rect.left + rect.width / 2 - ttW / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - ttW - 8));
-    var above = rect.top - ttH - 8 > 0;
-    tooltip.style.left   = left + 'px';
-    tooltip.style.top    = above ? (rect.top - ttH - 8) + 'px' : (rect.bottom + 8) + 'px';
-    tooltip.style.bottom = 'auto';
-  }
-
-  function show(col) {
-    var seg = JSON.parse(col.dataset.segment);
-    tooltip.textContent = '';
-    tooltip.appendChild(buildTooltip(seg));
-    tooltip.classList.add('wc-tooltip--visible');
-    requestAnimationFrame(function() { position(col); });
-  }
-
-  function hide() {
-    tooltip.classList.remove('wc-tooltip--visible');
-  }
-
-  document.querySelectorAll('.wc-col').forEach(function (col) {
-    col.addEventListener('mouseenter', function () { show(col); });
-    col.addEventListener('mouseleave', hide);
-    col.addEventListener('touchstart', function (e) {
-      e.preventDefault();
-      show(col);
-    }, { passive: false });
-  });
-
-  document.addEventListener('touchstart', function (e) {
-    if (!e.target.closest('.wc-col') && !e.target.closest('#wc-tooltip')) hide();
-  });
-
-  function updateColumnVisibility() {
-    document.querySelectorAll('.wc-col').forEach(function(col) {
-      var w = col.offsetWidth;
-      var watts = col.querySelector('.wc-watts');
-      var badge = col.querySelector('.wc-badge');
-      if (watts) watts.style.display = w < 40 ? 'none' : '';
-      if (badge) badge.style.display = w < 50 ? 'none' : '';
-    });
-  }
-  updateColumnVisibility();
-  window.addEventListener('resize', updateColumnVisibility);
-})();
-</script>
 {% endif %}
 
 {% if commentary_html %}
