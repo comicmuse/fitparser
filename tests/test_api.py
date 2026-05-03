@@ -302,6 +302,8 @@ class TestAPIAthleteProfile:
         )
         assert resp.status_code == 200
         assert resp.get_json()["profile"] == new_text
+        # Ensure API returns Strava link field even when not connected (null) or when connected
+        assert "strava_athlete_id" in resp.get_json()
 
     def test_update_profile_strips_control_chars(self, client, auth_headers):
         resp = client.put(

@@ -519,7 +519,7 @@ def get_athlete_profile():
 
     GET /api/v1/athlete/profile
     Headers: Authorization: Bearer <access_token>
-    Response: {"profile": "...", "display_name": "...", "username": "..."}
+    Response: {"profile": "...", "display_name": "...", "username": "...", "strava_athlete_id": "..."|null}
     """
     db = get_db()
     user_id = request.user_id
