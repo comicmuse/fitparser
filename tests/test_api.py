@@ -190,6 +190,31 @@ class TestAPIRuns:
         assert resp.status_code == 200
         assert resp.get_json()["pagination"]["per_page"] == 20
 
+    def test_run_response_includes_strava_stryd_ids(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.insert_run(
+            stryd_activity_id=None,
+            name="Test Run",
+            date="2026-04-01T06:00:00",
+            fit_path="",
+            user_id=user_id,
+        )
+        with db._connect() as conn:
+            run = conn.execute("SELECT id FROM runs WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
+            conn.execute(
+                "UPDATE runs SET strava_activity_id = ?, stryd_activity_id = ? WHERE id = ?",
+                ("strava123", "9876543", run["id"]),
+            )
+            run_id = run["id"]
+
+        resp = client.get(f"/api/v1/runs/{run_id}", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["strava_activity_id"] == "strava123"
+        assert data["stryd_activity_id"] == 9876543 or data["stryd_activity_id"] == "9876543"
+        assert "strava_map_polyline" in data
+
 
 # ---------------------------------------------------------------------------
 # Sync

@@ -68,6 +68,9 @@ def format_run_for_api(run: dict, include_yaml: bool = False) -> dict:
         "analyzed_at": run["analyzed_at"],
         "model_used": run["model_used"],
         "error_message": run["error_message"],
+        "strava_activity_id": run.get("strava_activity_id"),
+        "stryd_activity_id": run.get("stryd_activity_id"),
+        "strava_map_polyline": run.get("strava_map_polyline"),
     }
 
     # Include full YAML data if requested
