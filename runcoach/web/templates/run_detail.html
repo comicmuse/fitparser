@@ -204,7 +204,7 @@
 	  .wc-tick { display: none; }
 	}
 	/* Flip interaction */
-	.flip-stage { perspective: 1200px; position: relative; }
+	.flip-stage { perspective: 1200px; position: relative; overflow: hidden; transition: height 0.35s cubic-bezier(0.4,0,0.2,1); }
 	.overview { transition: opacity 0.2s, transform 0.25s; transform-origin: center center; }
 	.overview.wc-hiding { opacity: 0; transform: scale(0.97); pointer-events: none; }
 	.overview.wc-gone   { display: none; }
@@ -383,21 +383,33 @@
     currentSeg = idx;
     renderDetail(idx);
 
-    stage.style.height = overview.offsetHeight + 'px';
+    var overviewH = overview.offsetHeight;
+
+    // Briefly make detail absolute+visible-but-transparent to measure its natural height
+    detail.style.visibility = 'hidden';
+    detail.classList.add('wc-phase-fly');
+    var detailH = detail.scrollHeight;
+    detail.classList.remove('wc-phase-fly');
+    detail.style.visibility = '';
+
+    // Freeze stage at overview height, then animate to detail height immediately
+    stage.style.height = overviewH + 'px';
     overview.classList.add('wc-hiding');
 
     detail.classList.add('wc-phase-fly');
-    detail.getBoundingClientRect();
+    detail.getBoundingClientRect(); // force reflow
 
-    if (card) {
-      var cardTop = card.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({ top: cardTop - 8, behavior: 'smooth' });
-    }
-
+    // Start the height expansion and flip together
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
+        stage.style.height = detailH + 'px';
         detail.style.transform = 'rotateY(0deg) scale(1)';
         detail.style.opacity = '1';
+
+        if (card) {
+          var cardTop = card.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({ top: cardTop - 8, behavior: 'smooth' });
+        }
 
         setTimeout(function () {
           overview.classList.add('wc-gone');
@@ -414,24 +426,39 @@
     if (animating || !detail.classList.contains('wc-phase-open')) return;
     animating = true;
 
+    // Pin stage height, then make detail absolute so it overlays the overview during the flip
     stage.style.height = detail.offsetHeight + 'px';
-    detail.classList.remove('wc-phase-open');
-    detail.classList.add('wc-phase-fly');
+    detail.style.position = 'absolute';
+    detail.style.inset = '0';
+
+    // Restore overview to layout (still invisible via wc-hiding) and measure it
     overview.classList.remove('wc-gone');
-    detail.getBoundingClientRect();
+    var overviewH = overview.scrollHeight;
 
-    detail.style.transform = 'rotateY(-180deg) scale(0.92)';
-    detail.style.opacity = '0';
-    overview.classList.remove('wc-hiding');
+    stage.getBoundingClientRect(); // force reflow
 
-    setTimeout(function () {
-      detail.classList.remove('wc-phase-fly');
-      detail.style.transform = '';
-      detail.style.opacity = '';
-      stage.style.height = '';
-      currentSeg = -1;
-      animating = false;
-    }, 410);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        // Shrink stage and flip detail away
+        stage.style.height = overviewH + 'px';
+        detail.style.transform = 'rotateY(-180deg) scale(0.92)';
+        detail.style.opacity = '0';
+
+        // Delay overview fade-in until flip is nearly done
+        setTimeout(function () { overview.classList.remove('wc-hiding'); }, 250);
+
+        setTimeout(function () {
+          detail.classList.remove('wc-phase-open');
+          detail.style.position = '';
+          detail.style.inset = '';
+          detail.style.transform = '';
+          detail.style.opacity = '';
+          stage.style.height = '';
+          currentSeg = -1;
+          animating = false;
+        }, 410);
+      });
+    });
   }
 
   function goToSeg(idx) {
