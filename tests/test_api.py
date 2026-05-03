@@ -520,3 +520,45 @@ class TestRunChat:
 
         assert resp.status_code == 502
         assert db.get_chat_history(run_id, user_id) == []
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+class TestDashboard:
+    def test_dashboard_requires_auth(self, client):
+        resp = client.get("/api/v1/dashboard")
+        assert resp.status_code == 401
+
+    def test_dashboard_returns_structure(self, client, auth_headers):
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "latest_run" in data
+        assert "next_workout" in data
+        assert "training_summary" in data
+
+    def test_dashboard_latest_run_is_most_recent(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.insert_run(stryd_activity_id=None, name="Older Run", date="2026-04-01T06:00:00", fit_path="", user_id=user_id)
+        db.insert_run(stryd_activity_id=None, name="Newer Run", date="2026-04-15T06:00:00", fit_path="", user_id=user_id)
+
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["latest_run"]["name"] == "Newer Run"
+
+    def test_dashboard_no_runs_returns_null_latest(self, client, auth_headers):
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["latest_run"] is None
+
+    def test_dashboard_training_summary_shape(self, client, auth_headers):
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        ts = resp.get_json()["training_summary"]
+        assert "current_rsb" in ts
+        assert "rsb_history" in ts

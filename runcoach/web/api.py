@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import yaml
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_type
 from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -20,6 +20,7 @@ from runcoach.auth import (
 from runcoach.db import RunCoachDB
 from runcoach.config import Config
 from runcoach.analyzer import _dispatch_llm, build_chat_context
+from runcoach.context import build_training_summary
 
 
 log = logging.getLogger(__name__)
@@ -581,4 +582,55 @@ def update_athlete_profile():
         "display_name": user["display_name"] if user and user["display_name"] else "",
         "username": user["username"] if user else "",
         "strava_athlete_id": user.get("strava_athlete_id") if user else None,
+    }), 200
+
+
+@api_bp.route("/dashboard", methods=["GET"])
+@require_auth
+def dashboard():
+    db = get_db()
+    user_id = request.user_id
+
+    # Latest run
+    runs = db.get_runs_paginated_filtered(limit=1, offset=0, user_id=user_id)
+    latest_run = format_run_for_api(runs[0]) if runs else None
+
+    # Next planned workout
+    today = date_type.today().isoformat()
+    upcoming = db.get_upcoming_planned_workouts(from_date=today, limit=1, user_id=user_id)
+    next_workout = None
+    if upcoming:
+        w = upcoming[0]
+        next_workout = {
+            "date": w["date"],
+            "name": w["title"],
+            "description": w.get("description") or "",
+        }
+
+    # Training summary
+    summary_data = build_training_summary(db, user_id=user_id)
+    ts = summary_data.get("training_summary", {})
+    current_rsb_raw = ts.get("current_rsb", {})
+    training_summary = {
+        "current_rsb": {
+            "rsb": current_rsb_raw.get("rsb"),
+            "ctl": current_rsb_raw.get("ctl"),
+            "atl": current_rsb_raw.get("atl"),
+            "interpretation": current_rsb_raw.get("interpretation", "unknown"),
+        },
+        "rsb_history": [
+            {
+                "date": h["date_label"],
+                "rsb": h.get("rsb"),
+                "ctl": h.get("ctl"),
+                "atl": h.get("atl"),
+            }
+            for h in ts.get("rsb_history", [])
+        ],
+    }
+
+    return jsonify({
+        "latest_run": latest_run,
+        "next_workout": next_workout,
+        "training_summary": training_summary,
     }), 200
