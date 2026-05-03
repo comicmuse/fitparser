@@ -35,7 +35,11 @@ def test_upload_form_hidden_by_default(logged_in_page):
 
 def test_upload_form_revealed_by_button(logged_in_page):
     page = logged_in_page
-    page.locator("button", has_text="Upload").first.click()
+    page.wait_for_load_state("networkidle")
+    page.locator("#hamburger-btn").click()
+    page.wait_for_timeout(300)
+    page.locator("#menu-upload-btn").click()
+    page.wait_for_timeout(200)
     upload_div = page.locator("#upload-form")
     assert upload_div.is_visible()
 

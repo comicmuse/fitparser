@@ -48,6 +48,7 @@
 
     /* ── Hamburger Menu ── */
     .hamburger-btn {
+      display: flex;
       background: none;
       border: none;
       cursor: pointer;
@@ -56,28 +57,31 @@
       line-height: 1;
       color: var(--fg);
       border-radius: 6px;
-      display: flex;
       align-items: center;
       justify-content: center;
       transition: background 0.15s;
     }
     .hamburger-btn:hover { background: var(--accent-light); color: var(--accent); }
     .hamburger-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    nav .nav-right { display: none; }
 
     .menu-overlay {
-      display: none;
+      visibility: hidden;
+      pointer-events: none;
       position: fixed;
       inset: 0;
       z-index: 200;
     }
-    .menu-overlay.open { display: block; }
+    .menu-overlay.open { visibility: visible; pointer-events: auto; }
 
     .menu-backdrop {
       position: absolute;
       inset: 0;
       background: rgba(0,0,0,0.35);
-      animation: fadeIn 0.2s ease;
+      opacity: 0;
+      transition: opacity 0.2s ease;
     }
+    .menu-overlay.open .menu-backdrop { opacity: 1; }
 
     .menu-panel {
       position: absolute;
@@ -86,13 +90,15 @@
       width: 260px;
       max-width: 90vw;
       height: 100%;
-      background: #fff;
+      background: var(--surface);
       box-shadow: -4px 0 24px rgba(0,0,0,0.13);
       display: flex;
       flex-direction: column;
-      animation: slideIn 0.22s ease;
+      transform: translateX(100%);
+      transition: transform 0.22s ease;
       overflow-y: auto;
     }
+    .menu-overlay.open .menu-panel { transform: translateX(0); }
 
     .menu-header {
       display: flex;
@@ -142,10 +148,7 @@
     }
     .menu-item:hover { background: var(--accent-light); color: var(--accent); text-decoration: none; }
     .menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-    .menu-item--primary {
-      color: var(--accent);
-      font-weight: 600;
-    }
+    .menu-item--primary { color: var(--accent); font-weight: 600; }
     .menu-item--muted { color: var(--fg-muted); }
     .menu-divider {
       height: 1px;
@@ -154,15 +157,6 @@
     }
     .menu-syncing-badge {
       margin: 0.25rem 1.25rem 0.5rem;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    @keyframes slideIn {
-      from { transform: translateX(100%); }
-      to   { transform: translateX(0); }
     }
 
     .btn {
@@ -560,20 +554,20 @@
           <div class="menu-syncing-badge"><span class="badge badge-yellow">Syncing...</span></div>
         {% endif %}
         {% if current_user_is_admin %}
-          <a href="{{ url_for('main.admin_users') }}" class="menu-item">&#128272; Admin</a>
+          <a href="{{ url_for('main.admin_users') }}" class="menu-item">Admin</a>
           <div class="menu-divider"></div>
         {% endif %}
-        <a href="{{ url_for('main.athlete_profile') }}" class="menu-item">&#128100; Athlete Profile</a>
-        <button type="button" class="menu-item" id="menu-upload-btn">&#8679; Upload FIT</button>
+        <a href="{{ url_for('main.athlete_profile') }}" class="menu-item">Athlete Profile</a>
+        <button type="button" class="menu-item" id="menu-upload-btn">Upload FIT</button>
         <div class="menu-divider"></div>
         <form action="/sync" method="post" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="menu-item menu-item--primary">&#8635; Sync Now</button>
+          <button type="submit" class="menu-item menu-item--primary">Sync Now</button>
         </form>
         <div class="menu-divider"></div>
         <form action="{{ url_for('main.logout') }}" method="post" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="menu-item menu-item--muted">&#x2715; Sign out</button>
+          <button type="submit" class="menu-item menu-item--muted">Sign out</button>
         </form>
       </div>
     </div>

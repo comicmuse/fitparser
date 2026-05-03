@@ -25,12 +25,19 @@ def test_admin_page_blocked_for_regular_user(regular_user_page, server_url):
 def test_admin_nav_link_visible_to_admin(logged_in_page, server_url):
     page = logged_in_page
     page.goto(f"{server_url}/")
+    page.wait_for_load_state("networkidle")
+    # Admin link is inside the hamburger menu — open it first
+    page.locator("#hamburger-btn").click()
+    page.wait_for_timeout(300)
     assert page.locator("a[href*='/admin/users']").is_visible()
 
 
 def test_admin_nav_link_hidden_from_regular_user(regular_user_page, server_url):
     page = regular_user_page
     page.goto(f"{server_url}/")
+    page.wait_for_load_state("networkidle")
+    page.locator("#hamburger-btn").click()
+    page.wait_for_timeout(300)
     assert not page.locator("a[href*='/admin/users']").is_visible()
 
 
