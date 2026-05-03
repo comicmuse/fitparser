@@ -339,6 +339,11 @@ def build_chat_context(
 
     parts.append("---")
     parts.append(f"Athlete: {new_message}")
+    parts.append(
+        "(Reply concisely and directly to the question above. Draw on the workout data "
+        "and conversation context to support your answer, but do not repeat or summarise "
+        "the original analysis.)"
+    )
 
     return system_msg, "\n".join(parts)
 
