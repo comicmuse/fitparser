@@ -833,26 +833,31 @@ class RunCoachDB:
         self, limit: int = 10, offset: int = 0, user_id: int | None = None
     ) -> list[dict]:
         """Get all runs with pagination, most recent first."""
-        with self._connect() as conn:
-            if user_id is not None:
-                rows = conn.execute(
-                    "SELECT * FROM runs WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
-                    (user_id, limit, offset),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM runs ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
-                    (limit, offset),
-                ).fetchall()
-        return [dict(r) for r in rows]
+        return self.get_runs_paginated_filtered(limit=limit, offset=offset, user_id=user_id)
 
     def count_runs(self, user_id: int | None = None) -> int:
-        with self._connect() as conn:
-            if user_id is not None:
-                return conn.execute(
-                    "SELECT COUNT(*) FROM runs WHERE user_id = ?", (user_id,)
-                ).fetchone()[0]
-            return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        return self.count_runs_filtered(user_id=user_id)
+
+    def _build_run_filter(
+        self,
+        user_id: int | None = None,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> tuple[str, list]:
+        """Build WHERE clause and params list for run filtering."""
+        conditions: list[str] = []
+        params: list = []
+        if user_id is not None:
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        if year is not None:
+            conditions.append("strftime('%Y', date) = ?")
+            params.append(str(year))
+        if month is not None:
+            conditions.append("strftime('%m', date) = ?")
+            params.append(f"{month:02d}")
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        return where, params
 
     def get_runs_paginated_filtered(
         self,
@@ -863,22 +868,8 @@ class RunCoachDB:
         month: int | None = None,
     ) -> list[dict]:
         """Get runs with optional year/month filter, most recent first."""
-        conditions = []
-        params: list = []
-
-        if user_id is not None:
-            conditions.append("user_id = ?")
-            params.append(user_id)
-        if year is not None:
-            conditions.append("strftime('%Y', date) = ?")
-            params.append(str(year))
-        if month is not None:
-            conditions.append("strftime('%m', date) = ?")
-            params.append(f"{month:02d}")
-
-        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        where, params = self._build_run_filter(user_id=user_id, year=year, month=month)
         params.extend([limit, offset])
-
         with self._connect() as conn:
             rows = conn.execute(
                 f"SELECT * FROM runs {where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
@@ -893,21 +884,7 @@ class RunCoachDB:
         month: int | None = None,
     ) -> int:
         """Count runs with optional year/month filter."""
-        conditions = []
-        params: list = []
-
-        if user_id is not None:
-            conditions.append("user_id = ?")
-            params.append(user_id)
-        if year is not None:
-            conditions.append("strftime('%Y', date) = ?")
-            params.append(str(year))
-        if month is not None:
-            conditions.append("strftime('%m', date) = ?")
-            params.append(f"{month:02d}")
-
-        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-
+        where, params = self._build_run_filter(user_id=user_id, year=year, month=month)
         with self._connect() as conn:
             return conn.execute(
                 f"SELECT COUNT(*) FROM runs {where}",

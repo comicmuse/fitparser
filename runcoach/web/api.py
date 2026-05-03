@@ -186,7 +186,7 @@ def list_runs():
     """
     List runs with pagination.
 
-    GET /api/v1/runs?page=1&per_page=20
+    GET /api/v1/runs?page=1&per_page=20&year=2026&month=4
     Headers: Authorization: Bearer <access_token>
     Response: {
         "runs": [...],
