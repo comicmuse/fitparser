@@ -608,7 +608,10 @@ def dashboard():
         }
 
     # Training summary
-    summary_data = build_training_summary(db, user_id=user_id)
+    try:
+        summary_data = build_training_summary(db, user_id=user_id)
+    except Exception as e:
+        return jsonify({"error": f"Failed to build training summary: {e}"}), 500
     ts = summary_data.get("training_summary", {})
     current_rsb_raw = ts.get("current_rsb", {})
     training_summary = {

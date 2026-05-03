@@ -562,3 +562,24 @@ class TestDashboard:
         ts = resp.get_json()["training_summary"]
         assert "current_rsb" in ts
         assert "rsb_history" in ts
+
+    def test_dashboard_next_workout_when_planned(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        # Insert a planned workout in the future
+        from datetime import date, timedelta
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        db.upsert_planned_workout(
+            date=future_date,
+            title="Easy Recovery Run",
+            description="45-60 min @ 220-240W",
+            user_id=user_id,
+        )
+
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        assert nw is not None
+        assert nw["date"] == future_date
+        assert nw["name"] == "Easy Recovery Run"
+        assert "description" in nw
