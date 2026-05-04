@@ -1257,6 +1257,11 @@ def route_suggestion():
     except (KeyError, ValueError):
         return jsonify({"error": "lat, lng, and distance_m are required numeric parameters"}), 400
 
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return jsonify({"error": "lat/lng out of range"}), 400
+    if distance_m <= 0:
+        return jsonify({"error": "distance_m must be positive"}), 400
+
     cfg: Config = current_app.config["config"]
     if not cfg.ors_api_key:
         return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503

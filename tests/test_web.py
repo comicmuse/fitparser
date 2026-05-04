@@ -1430,11 +1430,20 @@ class TestRouteSuggestion:
         resp = client.get("/api/route-suggestion?lat=notanumber&lng=-6.26&distance_m=10000")
         assert resp.status_code == 400
 
-    def test_ors_key_not_configured_returns_503(self, client):
+    def test_ors_key_not_configured_returns_503(self, client, app):
+        app.config["config"].ors_api_key = ""  # explicit, not assumed
         resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")
         assert resp.status_code == 503
         data = resp.get_json()
         assert "error" in data
+
+    def test_out_of_range_lat_returns_400(self, client):
+        resp = client.get("/api/route-suggestion?lat=999&lng=-6.26&distance_m=10000")
+        assert resp.status_code == 400
+
+    def test_negative_distance_returns_400(self, client):
+        resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=-1")
+        assert resp.status_code == 400
 
     def test_returns_routes_on_success(self, client, app):
         app.config["config"].ors_api_key = "test-key"
