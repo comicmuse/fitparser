@@ -606,6 +606,8 @@
 
 {% endif %}
 
+{% endif %}{# run - workout chart #}
+
 {% if prescribed %}
 <div class="card" style="border-left: 3px solid #d29922;">
   <h2 style="font-size: 1rem; color: #d29922;">Prescribed Workout</h2>
@@ -747,8 +749,9 @@
   {% endif %}
 
 </div>
-{% endif %}
+{% endif %}{# prescribed #}
 
+{% if run %}
 {% if commentary_html %}
 <div class="card">
   <div style="display: flex; justify-content: space-between; align-items: center;">
