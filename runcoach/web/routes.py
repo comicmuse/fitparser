@@ -342,6 +342,36 @@ def run_detail(run_id: int):
     )
 
 
+@bp.route("/date/<date_str>")
+@_login_required
+def date_detail(date_str: str):
+    db = _db()
+    user_id = _current_user_id()
+    # Redirect to actual run if one exists for this date
+    with db._connect() as conn:
+        row = conn.execute(
+            "SELECT id FROM runs WHERE date = ? AND user_id = ? ORDER BY id DESC LIMIT 1",
+            (date_str, user_id),
+        ).fetchone()
+    if row:
+        return redirect(url_for("main.run_detail", run_id=row["id"]))
+    prescribed = db.get_planned_workout_for_date(date_str, user_id=user_id)
+    if not prescribed:
+        flash("No workout found for that date")
+        return redirect(url_for("main.index"))
+    return render_template(
+        "run_detail.html",
+        run=None,
+        commentary_html="",
+        chat_history_html=[],
+        workout_data=None,
+        prescribed=prescribed,
+        stryd_athlete_id=db.get_stryd_athlete_id(user_id),
+        map_coords=None,
+        power_scale_max=300,
+    )
+
+
 @bp.route("/sync", methods=["POST"])
 @_login_required
 def sync():

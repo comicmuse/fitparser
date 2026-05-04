@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ run.workout_name or run.name }} - RunCoach{% endblock %}
+{% block title %}{% if run %}{{ run.workout_name or run.name }}{% else %}Planned Workout{% endif %} - RunCoach{% endblock %}
 {% block head %}
 {% if map_coords or (prescribed and prescribed|selectattr('distance_m')|list) %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
@@ -13,6 +13,7 @@
 </p>
 
 <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+{% if run %}
 <div class="card" style="flex:1; min-width:260px;">
   <h2>{{ run.workout_name or run.name }}</h2>
   <table style="width:100%; border:none; margin-top:0.25rem;">
@@ -103,7 +104,10 @@
 </div>
 {% endif %}
 </div>
+{% endif %}
+</div>
 
+{% if run %}
 {% if workout_data and workout_data.blocks %}
 {% set ns = namespace(total_dur=0) %}
 {% for key, block in workout_data.blocks.items() %}
@@ -892,5 +896,7 @@
 })();
 </script>
 {% endif %}
+
+{% endif %}{# run #}
 
 {% endblock %}

@@ -253,10 +253,10 @@ function toggleUploadForm() {
             {% set mins = total_min % 60 %}
             {% if hrs > 0 %}{% set tip = tip + nl + hrs|string + "h " + "%02d"|format(mins) %}{% else %}{% set tip = tip + nl + mins|string + " min" %}{% endif %}
           {% endif %}
-          <div class="cal-item cal-planned" title="{{ tip }}">
+          <a href="{{ url_for('main.date_detail', date_str=day.date) }}" class="cal-item cal-planned" title="{{ tip }}">
             <span class="cal-item-dot" style="background: var(--accent);"></span>
             <span class="cal-item-text">{{ pw.title }}</span>
-          </div>
+          </a>
           {% endif %}
           {% endfor %}
           {% if not day.actual and not day.planned %}
