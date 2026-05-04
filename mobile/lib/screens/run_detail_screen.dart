@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/run_detail_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/run.dart';
 import '../models/workout_block.dart';
 import '../widgets/hr_zones_bar.dart';
@@ -36,6 +37,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
   @override
   Widget build(BuildContext context) {
     final runAsync = ref.watch(runDetailProvider(widget.runId));
+    final profileAsync = ref.watch(athleteProfileProvider);
 
     return runAsync.when(
       loading: () =>
@@ -81,11 +83,14 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
               ),
             if (run.strydActivityId != null)
               TextButton(
-                onPressed: () => launchUrl(
-                  Uri.parse(
-                    'https://www.stryd.com/training/run/${run.strydActivityId}',
-                  ),
-                ),
+                onPressed: () {
+                  final strydAthleteId =
+                      profileAsync.valueOrNull?['stryd_athlete_id'] as String?;
+                  final url = strydAthleteId != null
+                      ? 'https://www.stryd.com/powercenter/athletes/$strydAthleteId/profile/entries/activities/${run.strydActivityId}'
+                      : 'https://www.stryd.com/activities/${run.strydActivityId}';
+                  launchUrl(Uri.parse(url));
+                },
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFF00A0DF),
                 ),

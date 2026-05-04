@@ -545,6 +545,7 @@ def get_athlete_profile():
         "display_name": user["display_name"] if user and user["display_name"] else "",
         "username": user["username"] if user else "",
         "strava_athlete_id": user.get("strava_athlete_id") if user else None,
+        "stryd_athlete_id": user.get("stryd_athlete_id") if user else None,
     }), 200
 
 

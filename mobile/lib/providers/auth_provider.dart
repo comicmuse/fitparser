@@ -74,3 +74,9 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthStatus>((ref) {
     ref.read(apiServiceProvider),
   );
 });
+
+final athleteProfileProvider = FutureProvider<Map<String, dynamic>>((
+  ref,
+) async {
+  return ref.watch(apiServiceProvider).getAthleteProfile();
+});
