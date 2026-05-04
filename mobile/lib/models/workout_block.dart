@@ -57,7 +57,11 @@ class WorkoutBlock {
       final inRange = (tp['pct_time_in_range'] as num?)?.toDouble();
       final above = (tp['pct_time_above'] as num?)?.toDouble();
       if (below != null && inRange != null && above != null) {
-        compliance = PowerCompliance(belowPct: below, inZonePct: inRange, abovePct: above);
+        compliance = PowerCompliance(
+          belowPct: below,
+          inZonePct: inRange,
+          abovePct: above,
+        );
       }
     }
 
@@ -85,7 +89,8 @@ class WorkoutBlock {
   }
 
   String get formattedPace {
-    if (durationMin == null || distanceKm == null || distanceKm! <= 0) return '—';
+    if (durationMin == null || distanceKm == null || distanceKm! <= 0)
+      return '—';
     final secPerKm = (durationMin! * 60) / distanceKm!;
     final m = secPerKm ~/ 60;
     final s = (secPerKm % 60).toInt();

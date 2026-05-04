@@ -44,15 +44,17 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
       await ref.read(apiServiceProvider).analyzeRun(widget.run.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Analysis started — this may take a minute')),
+        const SnackBar(
+          content: Text('Analysis started — this may take a minute'),
+        ),
       );
       // Invalidate the run detail so it refreshes when analysis completes
       ref.invalidate(runDetailProvider(widget.run.id));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to start analysis: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to start analysis: $e')));
     } finally {
       if (mounted) setState(() => _analyzing = false);
     }
@@ -79,20 +81,45 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
                 ),
               if (!isAnalyzed)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 48,
+                    horizontal: 16,
+                  ),
                   child: Column(
                     children: [
-                      const Icon(Icons.analytics_outlined, size: 48, color: Color(0xFFCCCCCC)),
+                      const Icon(
+                        Icons.analytics_outlined,
+                        size: 48,
+                        color: Color(0xFFCCCCCC),
+                      ),
                       const SizedBox(height: 16),
-                      const Text('No coaching analysis yet',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF666666))),
+                      const Text(
+                        'No coaching analysis yet',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666),
+                        ),
+                      ),
                       const SizedBox(height: 6),
-                      const Text('Get AI coaching feedback on this run',
-                          style: TextStyle(fontSize: 13, color: Color(0xFF888888))),
+                      const Text(
+                        'Get AI coaching feedback on this run',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF888888),
+                        ),
+                      ),
                       const SizedBox(height: 24),
                       FilledButton.icon(
                         icon: _analyzing
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                             : const Icon(Icons.auto_awesome, size: 18),
                         label: Text(_analyzing ? 'Analyzing…' : 'Analyze Now'),
                         onPressed: _analyzing ? null : _triggerAnalysis,
@@ -102,17 +129,31 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
                 ),
               if (chatState.isLoading)
                 const Center(child: CircularProgressIndicator()),
-              ...chatState.messages.map((msg) => msg.isUser
-                  ? _UserBubble(message: msg.message)
-                  : _AiBubble(message: msg.message)),
+              ...chatState.messages.map(
+                (msg) => msg.isUser
+                    ? _UserBubble(message: msg.message)
+                    : _AiBubble(message: msg.message),
+              ),
               if (chatState.isSending)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
-                  child: Row(children: [
-                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                    SizedBox(width: 8),
-                    Text('Thinking…', style: TextStyle(color: Color(0xFF888888), fontSize: 12)),
-                  ]),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Thinking…',
+                        style: TextStyle(
+                          color: Color(0xFF888888),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
             ],
           ),
@@ -146,7 +187,9 @@ class _AiCommentaryBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,22 +199,49 @@ class _AiCommentaryBubble extends StatelessWidget {
               const CircleAvatar(
                 radius: 14,
                 backgroundColor: Color(0xFF6750A4),
-                child: Text('AI', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                child: Text(
+                  'AI',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
-              const Text('RunCoach', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF6750A4))),
+              const Text(
+                'RunCoach',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6750A4),
+                ),
+              ),
               const Spacer(),
               if (timestamp != null)
-                Text(_formatTimestamp(timestamp!),
-                    style: const TextStyle(fontSize: 10, color: Color(0xFFAAAAAA))),
+                Text(
+                  _formatTimestamp(timestamp!),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFFAAAAAA),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 10),
           MarkdownBody(
             data: commentary,
             styleSheet: MarkdownStyleSheet(
-              p: const TextStyle(fontSize: 13, color: Color(0xFF222222), height: 1.5),
-              strong: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF111111)),
+              p: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF222222),
+                height: 1.5,
+              ),
+              strong: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: Color(0xFF111111),
+              ),
             ),
           ),
         ],
@@ -182,7 +252,20 @@ class _AiCommentaryBubble extends StatelessWidget {
   String _formatTimestamp(String iso) {
     try {
       final dt = DateTime.parse(iso).toLocal();
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${dt.day} ${months[dt.month - 1]}, ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return iso;
@@ -210,7 +293,14 @@ class _UserBubble extends StatelessWidget {
             bottomRight: Radius.circular(3),
           ),
         ),
-        child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4)),
+        child: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
       ),
     );
   }
@@ -235,9 +325,21 @@ class _AiBubble extends StatelessWidget {
             bottomLeft: Radius.circular(3),
             bottomRight: Radius.circular(14),
           ),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 4,
+            ),
+          ],
         ),
-        child: Text(message, style: const TextStyle(fontSize: 13, color: Color(0xFF222222), height: 1.4)),
+        child: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Color(0xFF222222),
+            height: 1.4,
+          ),
+        ),
       ),
     );
   }
@@ -261,8 +363,13 @@ class _ChatInput extends StatelessWidget {
               controller: controller,
               decoration: const InputDecoration(
                 hintText: 'Ask a follow-up question…',
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(24)),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 isDense: true,
               ),
               textInputAction: TextInputAction.send,

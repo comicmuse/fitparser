@@ -17,12 +17,11 @@ class ChatState {
     List<ChatMessage>? messages,
     bool? isLoading,
     bool? isSending,
-  }) =>
-      ChatState(
-        messages: messages ?? this.messages,
-        isLoading: isLoading ?? this.isLoading,
-        isSending: isSending ?? this.isSending,
-      );
+  }) => ChatState(
+    messages: messages ?? this.messages,
+    isLoading: isLoading ?? this.isLoading,
+    isSending: isSending ?? this.isSending,
+  );
 }
 
 class ChatNotifier extends StateNotifier<ChatState> {
@@ -70,7 +69,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 }
 
-final chatProvider =
-    StateNotifierProvider.autoDispose.family<ChatNotifier, ChatState, int>((ref, runId) {
-  return ChatNotifier(ref, runId);
-});
+final chatProvider = StateNotifierProvider.autoDispose
+    .family<ChatNotifier, ChatState, int>((ref, runId) {
+      return ChatNotifier(ref, runId);
+    });

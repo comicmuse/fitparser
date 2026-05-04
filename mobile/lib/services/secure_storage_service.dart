@@ -6,7 +6,10 @@ class SecureStorageService {
   static const _refreshKey = 'refresh_token';
   static const _serverUrlKey = 'server_url';
 
-  Future<void> saveTokens({required String access, required String refresh}) async {
+  Future<void> saveTokens({
+    required String access,
+    required String refresh,
+  }) async {
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
   }
@@ -19,6 +22,7 @@ class SecureStorageService {
     await _storage.delete(key: _refreshKey);
   }
 
-  Future<void> saveServerUrl(String url) => _storage.write(key: _serverUrlKey, value: url);
+  Future<void> saveServerUrl(String url) =>
+      _storage.write(key: _serverUrlKey, value: url);
   Future<String?> getServerUrl() => _storage.read(key: _serverUrlKey);
 }

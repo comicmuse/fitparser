@@ -17,7 +17,8 @@ class RouteMapWidget extends StatelessWidget {
         shift += 5;
       } while (b >= 0x20);
       lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-      shift = 0; result = 0;
+      shift = 0;
+      result = 0;
       do {
         b = encoded.codeUnitAt(index++) - 63;
         result |= (b & 0x1F) << shift;
@@ -45,7 +46,9 @@ class RouteMapWidget extends StatelessWidget {
               coordinates: points,
               padding: const EdgeInsets.all(16),
             ),
-            interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.none,
+            ),
           ),
           children: [
             TileLayer(
@@ -54,13 +57,33 @@ class RouteMapWidget extends StatelessWidget {
             ),
             PolylineLayer(
               polylines: [
-                Polyline(points: points, color: const Color(0xFF6750A4), strokeWidth: 3),
+                Polyline(
+                  points: points,
+                  color: const Color(0xFF6750A4),
+                  strokeWidth: 3,
+                ),
               ],
             ),
-            MarkerLayer(markers: [
-              Marker(point: points.first, child: const Icon(Icons.circle, color: Color(0xFF4ADE80), size: 12)),
-              Marker(point: points.last, child: const Icon(Icons.circle, color: Color(0xFFEF4444), size: 12)),
-            ]),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: points.first,
+                  child: const Icon(
+                    Icons.circle,
+                    color: Color(0xFF4ADE80),
+                    size: 12,
+                  ),
+                ),
+                Marker(
+                  point: points.last,
+                  child: const Icon(
+                    Icons.circle,
+                    color: Color(0xFFEF4444),
+                    size: 12,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

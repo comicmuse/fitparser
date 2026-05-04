@@ -38,7 +38,8 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
     final runAsync = ref.watch(runDetailProvider(widget.runId));
 
     return runAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (run) => Scaffold(
         appBar: AppBar(
@@ -47,25 +48,51 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(run.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-              Text(_formatDate(run.date), style: const TextStyle(fontSize: 11, color: Color(0xFF888888))),
+              Text(
+                run.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                _formatDate(run.date),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+              ),
             ],
           ),
           actions: [
             if (run.stravaActivityId != null)
               TextButton(
-                onPressed: () => launchUrl(Uri.parse('https://www.strava.com/activities/${run.stravaActivityId}')),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFFFC4C02)),
-                child: const Text('STRAVA', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                onPressed: () => launchUrl(
+                  Uri.parse(
+                    'https://www.strava.com/activities/${run.stravaActivityId}',
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFFC4C02),
+                ),
+                child: const Text(
+                  'STRAVA',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
               ),
             if (run.strydActivityId != null)
               TextButton(
-                onPressed: () => launchUrl(Uri.parse('https://www.stryd.com/training/run/${run.strydActivityId}')),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFF00A0DF)),
-                child: const Text('STRYD', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                onPressed: () => launchUrl(
+                  Uri.parse(
+                    'https://www.stryd.com/training/run/${run.strydActivityId}',
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF00A0DF),
+                ),
+                child: const Text(
+                  'STRYD',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
               ),
           ],
           bottom: TabBar(
@@ -73,7 +100,11 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
             labelColor: const Color(0xFF6750A4),
             unselectedLabelColor: const Color(0xFF888888),
             indicatorColor: const Color(0xFF6750A4),
-            tabs: const [Tab(text: 'Overview'), Tab(text: 'Blocks'), Tab(text: 'Coaching')],
+            tabs: const [
+              Tab(text: 'Overview'),
+              Tab(text: 'Blocks'),
+              Tab(text: 'Coaching'),
+            ],
           ),
         ),
         body: TabBarView(
@@ -91,8 +122,21 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
   String _formatDate(String isoDate) {
     try {
       final dt = DateTime.parse(isoDate);
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return '${days[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
       return isoDate;
@@ -132,33 +176,147 @@ class _OverviewTab extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         // Primary metrics grid
-        _MetricSection(label: 'ACTIVITY', metrics: [
-          _MetricTile(icon: Icons.straighten, label: 'Distance', value: run.distanceKm != null ? '${run.distanceKm!.toStringAsFixed(2)} km' : '—', color: const Color(0xFF6750A4)),
-          _MetricTile(icon: Icons.timer_outlined, label: 'Duration', value: run.durationFormatted, color: const Color(0xFF6750A4)),
-          _MetricTile(icon: Icons.speed_outlined, label: 'Pace', value: pace, color: const Color(0xFF6750A4)),
-          _MetricTile(icon: Icons.favorite_outline, label: 'Avg HR', value: run.avgHr != null ? '${run.avgHr} bpm' : '—', color: const Color(0xFFEF4444)),
-        ]),
-        if (run.avgPowerW != null || yaml?['max_hr'] != null || yaml?['elev_gain_m'] != null || yaml?['calories_kcal'] != null)
-          _MetricSection(label: 'PERFORMANCE', metrics: [
-            if (run.avgPowerW != null) _MetricTile(icon: Icons.bolt_outlined, label: 'Avg Power', value: '${run.avgPowerW}W', color: const Color(0xFFF97316)),
-            if (yaml?['max_hr'] != null) _MetricTile(icon: Icons.favorite, label: 'Max HR', value: '${(yaml!['max_hr'] as num).toInt()} bpm', color: const Color(0xFFEF4444)),
-            if (yaml?['elev_gain_m'] != null) _MetricTile(icon: Icons.trending_up, label: 'Elev Gain', value: '${(yaml!['elev_gain_m'] as num).toInt()}m', color: const Color(0xFF2E7D32)),
-            if (yaml?['calories_kcal'] != null) _MetricTile(icon: Icons.local_fire_department_outlined, label: 'Calories', value: '${(yaml!['calories_kcal'] as num).toInt()} kcal', color: const Color(0xFFF59E0B)),
-          ]),
-        if (yaml?['aerobic_te'] != null || yaml?['vo2_max'] != null || run.strydRss != null || yaml?['recovery_time_readable'] != null)
-          _MetricSection(label: 'TRAINING LOAD', metrics: [
-            if (yaml?['aerobic_te'] != null) _MetricTile(icon: Icons.air, label: 'Aerobic TE', value: (yaml!['aerobic_te'] as num).toStringAsFixed(1), color: const Color(0xFF0891B2)),
-            if (yaml?['vo2_max'] != null) _MetricTile(icon: Icons.science_outlined, label: 'VO₂max', value: (yaml!['vo2_max'] as num).toStringAsFixed(1), color: const Color(0xFF0891B2)),
-            if (run.strydRss != null) _MetricTile(icon: Icons.bar_chart, label: 'RSS', value: run.strydRss!.toStringAsFixed(1), color: const Color(0xFF6750A4)),
-            if (yaml?['recovery_time_readable'] != null) _MetricTile(icon: Icons.bedtime_outlined, label: 'Recovery', value: yaml!['recovery_time_readable'] as String, color: const Color(0xFF7C3AED)),
-          ]),
+        _MetricSection(
+          label: 'ACTIVITY',
+          metrics: [
+            _MetricTile(
+              icon: Icons.straighten,
+              label: 'Distance',
+              value: run.distanceKm != null
+                  ? '${run.distanceKm!.toStringAsFixed(2)} km'
+                  : '—',
+              color: const Color(0xFF6750A4),
+            ),
+            _MetricTile(
+              icon: Icons.timer_outlined,
+              label: 'Duration',
+              value: run.durationFormatted,
+              color: const Color(0xFF6750A4),
+            ),
+            _MetricTile(
+              icon: Icons.speed_outlined,
+              label: 'Pace',
+              value: pace,
+              color: const Color(0xFF6750A4),
+            ),
+            _MetricTile(
+              icon: Icons.favorite_outline,
+              label: 'Avg HR',
+              value: run.avgHr != null ? '${run.avgHr} bpm' : '—',
+              color: const Color(0xFFEF4444),
+            ),
+          ],
+        ),
+        if (run.avgPowerW != null ||
+            yaml?['max_hr'] != null ||
+            yaml?['elev_gain_m'] != null ||
+            yaml?['calories_kcal'] != null)
+          _MetricSection(
+            label: 'PERFORMANCE',
+            metrics: [
+              if (run.avgPowerW != null)
+                _MetricTile(
+                  icon: Icons.bolt_outlined,
+                  label: 'Avg Power',
+                  value: '${run.avgPowerW}W',
+                  color: const Color(0xFFF97316),
+                ),
+              if (yaml?['max_hr'] != null)
+                _MetricTile(
+                  icon: Icons.favorite,
+                  label: 'Max HR',
+                  value: '${(yaml!['max_hr'] as num).toInt()} bpm',
+                  color: const Color(0xFFEF4444),
+                ),
+              if (yaml?['elev_gain_m'] != null)
+                _MetricTile(
+                  icon: Icons.trending_up,
+                  label: 'Elev Gain',
+                  value: '${(yaml!['elev_gain_m'] as num).toInt()}m',
+                  color: const Color(0xFF2E7D32),
+                ),
+              if (yaml?['calories_kcal'] != null)
+                _MetricTile(
+                  icon: Icons.local_fire_department_outlined,
+                  label: 'Calories',
+                  value: '${(yaml!['calories_kcal'] as num).toInt()} kcal',
+                  color: const Color(0xFFF59E0B),
+                ),
+            ],
+          ),
+        if (yaml?['aerobic_te'] != null ||
+            yaml?['vo2_max'] != null ||
+            run.strydRss != null ||
+            yaml?['recovery_time_readable'] != null)
+          _MetricSection(
+            label: 'TRAINING LOAD',
+            metrics: [
+              if (yaml?['aerobic_te'] != null)
+                _MetricTile(
+                  icon: Icons.air,
+                  label: 'Aerobic TE',
+                  value: (yaml!['aerobic_te'] as num).toStringAsFixed(1),
+                  color: const Color(0xFF0891B2),
+                ),
+              if (yaml?['vo2_max'] != null)
+                _MetricTile(
+                  icon: Icons.science_outlined,
+                  label: 'VO₂max',
+                  value: (yaml!['vo2_max'] as num).toStringAsFixed(1),
+                  color: const Color(0xFF0891B2),
+                ),
+              if (run.strydRss != null)
+                _MetricTile(
+                  icon: Icons.bar_chart,
+                  label: 'RSS',
+                  value: run.strydRss!.toStringAsFixed(1),
+                  color: const Color(0xFF6750A4),
+                ),
+              if (yaml?['recovery_time_readable'] != null)
+                _MetricTile(
+                  icon: Icons.bedtime_outlined,
+                  label: 'Recovery',
+                  value: yaml!['recovery_time_readable'] as String,
+                  color: const Color(0xFF7C3AED),
+                ),
+            ],
+          ),
         if (dyn != null)
-          _MetricSection(label: 'RUNNING DYNAMICS', metrics: [
-            if (dyn['cadence_med'] != null) _MetricTile(icon: Icons.directions_run, label: 'Cadence', value: '${(dyn['cadence_med'] as num).toInt()} spm', color: const Color(0xFF059669)),
-            if (dyn['gct_med'] != null) _MetricTile(icon: Icons.compress, label: 'GCT', value: '${(dyn['gct_med'] as num).toInt()} ms', color: const Color(0xFF059669)),
-            if (dyn['vert_osc_med'] != null) _MetricTile(icon: Icons.swap_vert, label: 'Vert Osc', value: '${(dyn['vert_osc_med'] as num).toStringAsFixed(1)} cm', color: const Color(0xFF059669)),
-            if (dyn['step_length_med'] != null) _MetricTile(icon: Icons.straighten, label: 'Stride', value: '${((dyn['step_length_med'] as num) * 100).toInt()} cm', color: const Color(0xFF059669)),
-          ]),
+          _MetricSection(
+            label: 'RUNNING DYNAMICS',
+            metrics: [
+              if (dyn['cadence_med'] != null)
+                _MetricTile(
+                  icon: Icons.directions_run,
+                  label: 'Cadence',
+                  value: '${(dyn['cadence_med'] as num).toInt()} spm',
+                  color: const Color(0xFF059669),
+                ),
+              if (dyn['gct_med'] != null)
+                _MetricTile(
+                  icon: Icons.compress,
+                  label: 'GCT',
+                  value: '${(dyn['gct_med'] as num).toInt()} ms',
+                  color: const Color(0xFF059669),
+                ),
+              if (dyn['vert_osc_med'] != null)
+                _MetricTile(
+                  icon: Icons.swap_vert,
+                  label: 'Vert Osc',
+                  value:
+                      '${(dyn['vert_osc_med'] as num).toStringAsFixed(1)} cm',
+                  color: const Color(0xFF059669),
+                ),
+              if (dyn['step_length_med'] != null)
+                _MetricTile(
+                  icon: Icons.straighten,
+                  label: 'Stride',
+                  value:
+                      '${((dyn['step_length_med'] as num) * 100).toInt()} cm',
+                  color: const Color(0xFF059669),
+                ),
+            ],
+          ),
         if (hrZones != null) HrZonesBar(hrZones: hrZones),
         if (run.stravaMapPolyline != null)
           RouteMapWidget(encodedPolyline: run.stravaMapPolyline!),
@@ -177,8 +335,18 @@ class _OverviewTab extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-      child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -189,7 +357,12 @@ class _MetricTile extends StatelessWidget {
   final String value;
   final Color color;
 
-  const _MetricTile({required this.icon, required this.label, required this.value, required this.color});
+  const _MetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -204,9 +377,19 @@ class _MetricTile extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF888888))),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF888888)),
+          ),
         ],
       ),
     );
@@ -227,7 +410,15 @@ class _MetricSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF888888), letterSpacing: 1, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Color(0xFF888888),
+              letterSpacing: 1,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           GridView.count(
             crossAxisCount: 2,
@@ -243,7 +434,6 @@ class _MetricSection extends StatelessWidget {
     );
   }
 }
-
 
 class _StrydWorkoutCard extends StatelessWidget {
   final Map<String, dynamic> prescribed;
@@ -262,15 +452,26 @@ class _StrydWorkoutCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('STRYD PRESCRIBED WORKOUT',
-                style: TextStyle(fontSize: 10, color: Color(0xFF0077A8), letterSpacing: 1, fontWeight: FontWeight.w600)),
+            const Text(
+              'STRYD PRESCRIBED WORKOUT',
+              style: TextStyle(
+                fontSize: 10,
+                color: Color(0xFF0077A8),
+                letterSpacing: 1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(prescribed['title'] as String? ?? '',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            Text(
+              prescribed['title'] as String? ?? '',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
             if ((prescribed['description'] as String?)?.isNotEmpty == true) ...[
               const SizedBox(height: 4),
-              Text(prescribed['description'] as String,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF555555))),
+              Text(
+                prescribed['description'] as String,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF555555)),
+              ),
             ],
           ],
         ),
@@ -287,13 +488,21 @@ class _BlocksTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final yaml = run.yamlData;
     if (yaml == null) {
-      return const Center(child: Text('No block data available',
-          style: TextStyle(color: Color(0xFF888888))));
+      return const Center(
+        child: Text(
+          'No block data available',
+          style: TextStyle(color: Color(0xFF888888)),
+        ),
+      );
     }
     final blocksRaw = yaml['blocks'];
     if (blocksRaw == null) {
-      return const Center(child: Text('No block data available',
-          style: TextStyle(color: Color(0xFF888888))));
+      return const Center(
+        child: Text(
+          'No block data available',
+          style: TextStyle(color: Color(0xFF888888)),
+        ),
+      );
     }
 
     late final List<WorkoutBlock> blocks;
@@ -302,13 +511,19 @@ class _BlocksTab extends StatelessWidget {
           .map((e) => WorkoutBlock.fromJson('', e as Map<String, dynamic>))
           .toList();
     } else if (blocksRaw is Map) {
-      blocks = (blocksRaw as Map<String, dynamic>)
-          .entries
-          .map((e) => WorkoutBlock.fromJson(e.key, e.value as Map<String, dynamic>))
+      blocks = (blocksRaw as Map<String, dynamic>).entries
+          .map(
+            (e) =>
+                WorkoutBlock.fromJson(e.key, e.value as Map<String, dynamic>),
+          )
           .toList();
     } else {
-      return const Center(child: Text('No block data available',
-          style: TextStyle(color: Color(0xFF888888))));
+      return const Center(
+        child: Text(
+          'No block data available',
+          style: TextStyle(color: Color(0xFF888888)),
+        ),
+      );
     }
 
     blocks.sort((a, b) {

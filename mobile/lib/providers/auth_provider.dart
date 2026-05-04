@@ -2,9 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/secure_storage_service.dart';
 
-final secureStorageProvider = Provider<SecureStorageService>((ref) => SecureStorageService());
+final secureStorageProvider = Provider<SecureStorageService>(
+  (ref) => SecureStorageService(),
+);
 
-const _defaultServerUrl = String.fromEnvironment('BASE_URL', defaultValue: 'http://10.0.2.2:5001/api/v1');
+const _defaultServerUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://10.0.2.2:5001/api/v1',
+);
 
 class ServerUrlNotifier extends AsyncNotifier<String> {
   @override
@@ -20,7 +25,9 @@ class ServerUrlNotifier extends AsyncNotifier<String> {
   }
 }
 
-final serverUrlProvider = AsyncNotifierProvider<ServerUrlNotifier, String>(ServerUrlNotifier.new);
+final serverUrlProvider = AsyncNotifierProvider<ServerUrlNotifier, String>(
+  ServerUrlNotifier.new,
+);
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   final urlAsync = ref.watch(serverUrlProvider);
@@ -40,7 +47,9 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
 
   Future<void> _checkAuth() async {
     final token = await _storage.getAccessToken();
-    state = token != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
+    state = token != null
+        ? AuthStatus.authenticated
+        : AuthStatus.unauthenticated;
   }
 
   Future<void> login(String username, String password) async {
@@ -60,5 +69,8 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthStatus>((ref) {
-  return AuthNotifier(ref.read(secureStorageProvider), ref.read(apiServiceProvider));
+  return AuthNotifier(
+    ref.read(secureStorageProvider),
+    ref.read(apiServiceProvider),
+  );
 });

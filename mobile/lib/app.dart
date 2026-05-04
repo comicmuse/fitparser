@@ -36,15 +36,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
       final authStatus = notifier.authStatus;
-      if (authStatus == AuthStatus.unauthenticated && !isLoginRoute) return '/login';
-      if (authStatus == AuthStatus.authenticated && isLoginRoute) return '/home';
+      if (authStatus == AuthStatus.unauthenticated && !isLoginRoute)
+        return '/login';
+      if (authStatus == AuthStatus.authenticated && isLoginRoute)
+        return '/home';
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (_, __) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       ShellRoute(
         navigatorKey: _shellNavKey,
         builder: (context, state, child) => ScaffoldWithNavBar(child: child),
@@ -75,10 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(
-            path: '/profile',
-            builder: (_, __) => const ProfileScreen(),
-          ),
+          GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
         ],
       ),
     ],
@@ -106,15 +102,30 @@ class ScaffoldWithNavBar extends ConsumerWidget {
         selectedIndex: index,
         onDestinationSelected: (i) {
           switch (i) {
-            case 0: context.go('/home');
-            case 1: context.go('/activities');
-            case 2: context.go('/profile');
+            case 0:
+              context.go('/home');
+            case 1:
+              context.go('/activities');
+            case 2:
+              context.go('/profile');
           }
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.list_outlined), selectedIcon: Icon(Icons.list), label: 'Activities'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.list_outlined),
+            selectedIcon: Icon(Icons.list),
+            label: 'Activities',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
         ],
       ),
     );
@@ -133,10 +144,7 @@ class RunCoachApp extends ConsumerWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6750A4),
           brightness: Brightness.light,
-        ).copyWith(
-          surface: Colors.white,
-          onSurface: const Color(0xFF1A1A1A),
-        ),
+        ).copyWith(surface: Colors.white, onSurface: const Color(0xFF1A1A1A)),
         scaffoldBackgroundColor: const Color(0xFFF5F5F5),
         cardTheme: const CardThemeData(
           color: Colors.white,

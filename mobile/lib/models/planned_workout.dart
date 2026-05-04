@@ -10,8 +10,8 @@ class PlannedWorkout {
   });
 
   factory PlannedWorkout.fromJson(Map<String, dynamic> json) => PlannedWorkout(
-        date: json['date'] as String,
-        name: json['name'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-      );
+    date: json['date'] as String,
+    name: json['name'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+  );
 }

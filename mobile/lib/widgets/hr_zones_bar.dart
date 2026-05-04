@@ -15,11 +15,21 @@ class HrZonesBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final zones = [
-      (hrZones['Z1_pct'] as num?)?.toDouble() ?? (hrZones['z1'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['Z2_pct'] as num?)?.toDouble() ?? (hrZones['z2'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['Z3_pct'] as num?)?.toDouble() ?? (hrZones['z3'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['Z4_pct'] as num?)?.toDouble() ?? (hrZones['z4'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['Z5_pct'] as num?)?.toDouble() ?? (hrZones['z5'] as num?)?.toDouble() ?? 0.0,
+      (hrZones['Z1_pct'] as num?)?.toDouble() ??
+          (hrZones['z1'] as num?)?.toDouble() ??
+          0.0,
+      (hrZones['Z2_pct'] as num?)?.toDouble() ??
+          (hrZones['z2'] as num?)?.toDouble() ??
+          0.0,
+      (hrZones['Z3_pct'] as num?)?.toDouble() ??
+          (hrZones['z3'] as num?)?.toDouble() ??
+          0.0,
+      (hrZones['Z4_pct'] as num?)?.toDouble() ??
+          (hrZones['z4'] as num?)?.toDouble() ??
+          0.0,
+      (hrZones['Z5_pct'] as num?)?.toDouble() ??
+          (hrZones['z5'] as num?)?.toDouble() ??
+          0.0,
     ];
     final total = zones.fold(0.0, (a, b) => a + b);
     if (total == 0) return const SizedBox.shrink();
@@ -31,7 +41,15 @@ class HrZonesBar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('HR ZONES', style: TextStyle(fontSize: 10, color: Color(0xFF888888), letterSpacing: 1, fontWeight: FontWeight.w600)),
+            const Text(
+              'HR ZONES',
+              style: TextStyle(
+                fontSize: 10,
+                color: Color(0xFF888888),
+                letterSpacing: 1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(5),
@@ -47,13 +65,22 @@ class HrZonesBar extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Row(
-              children: zones.asMap().entries.map((e) => Expanded(
-                child: Text(
-                  'Z${e.key + 1}\n${e.value.toStringAsFixed(0)}%',
-                  style: const TextStyle(fontSize: 9, color: Color(0xFF888888)),
-                  textAlign: TextAlign.center,
-                ),
-              )).toList(),
+              children: zones
+                  .asMap()
+                  .entries
+                  .map(
+                    (e) => Expanded(
+                      child: Text(
+                        'Z${e.key + 1}\n${e.value.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Color(0xFF888888),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),

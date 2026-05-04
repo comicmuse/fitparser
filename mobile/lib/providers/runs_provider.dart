@@ -39,14 +39,13 @@ class RunsState {
     int? totalPages,
     bool? isLoading,
     String? error,
-  }) =>
-      RunsState(
-        runs: runs ?? this.runs,
-        currentPage: currentPage ?? this.currentPage,
-        totalPages: totalPages ?? this.totalPages,
-        isLoading: isLoading ?? this.isLoading,
-        error: error,
-      );
+  }) => RunsState(
+    runs: runs ?? this.runs,
+    currentPage: currentPage ?? this.currentPage,
+    totalPages: totalPages ?? this.totalPages,
+    isLoading: isLoading ?? this.isLoading,
+    error: error,
+  );
 }
 
 class RunsNotifier extends StateNotifier<RunsState> {
@@ -87,9 +86,13 @@ class RunsNotifier extends StateNotifier<RunsState> {
   }
 }
 
-final runsFilterProvider = StateProvider<RunsFilter>((ref) => const RunsFilter());
+final runsFilterProvider = StateProvider<RunsFilter>(
+  (ref) => const RunsFilter(),
+);
 
-final runsProvider = StateNotifierProvider.autoDispose<RunsNotifier, RunsState>((ref) {
-  final filter = ref.watch(runsFilterProvider);
-  return RunsNotifier(ref, filter);
-});
+final runsProvider = StateNotifierProvider.autoDispose<RunsNotifier, RunsState>(
+  (ref) {
+    final filter = ref.watch(runsFilterProvider);
+    return RunsNotifier(ref, filter);
+  },
+);

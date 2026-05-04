@@ -18,8 +18,14 @@ class HomeScreen extends ConsumerWidget {
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('RunCoach', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
-            Text('Your AI running coach', style: TextStyle(fontSize: 12, color: Color(0xFF888888))),
+            Text(
+              'RunCoach',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+            ),
+            Text(
+              'Your AI running coach',
+              style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
+            ),
           ],
         ),
         backgroundColor: Colors.white,
@@ -39,7 +45,8 @@ class HomeScreen extends ConsumerWidget {
                 RunSummaryCard(
                   run: dashboard.latestRun!,
                   label: 'Latest Run',
-                  onTap: () => context.push('/home/run/${dashboard.latestRun!.id}'),
+                  onTap: () =>
+                      context.push('/home/run/${dashboard.latestRun!.id}'),
                 ),
               ],
               if (dashboard.nextWorkout != null) ...[

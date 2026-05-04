@@ -10,10 +10,10 @@ class ChatMessage {
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        role: json['role'] as String,
-        message: json['message'] as String? ?? '',
-        createdAt: json['created_at'] as String?,
-      );
+    role: json['role'] as String,
+    message: json['message'] as String? ?? '',
+    createdAt: json['created_at'] as String?,
+  );
 
   bool get isUser => role == 'user';
 }

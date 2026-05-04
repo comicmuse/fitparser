@@ -5,27 +5,33 @@ import '../models/chat_message.dart';
 import 'secure_storage_service.dart';
 
 class ApiService {
-  static const String defaultBaseUrl = String.fromEnvironment('BASE_URL', defaultValue: 'http://10.0.2.2:5001/api/v1');
+  static const String defaultBaseUrl = String.fromEnvironment(
+    'BASE_URL',
+    defaultValue: 'http://10.0.2.2:5001/api/v1',
+  );
 
   final String _baseUrl;
   late final Dio _dio;
   final SecureStorageService _storage;
 
-  ApiService(this._storage, {String? baseUrl}) : _baseUrl = baseUrl ?? defaultBaseUrl {
-    _dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 30),
-    ));
+  ApiService(this._storage, {String? baseUrl})
+    : _baseUrl = baseUrl ?? defaultBaseUrl {
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: _baseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
     _dio.interceptors.add(_AuthInterceptor(_storage, _dio, _baseUrl));
   }
 
   // Auth
   Future<Map<String, String>> login(String username, String password) async {
-    final resp = await _dio.post('/auth/login', data: {
-      'username': username,
-      'password': password,
-    });
+    final resp = await _dio.post(
+      '/auth/login',
+      data: {'username': username, 'password': password},
+    );
     return {
       'access_token': resp.data['access_token'] as String,
       'refresh_token': resp.data['refresh_token'] as String,
@@ -60,7 +66,9 @@ class ApiService {
     final resp = await _dio.get('/runs', queryParameters: params);
     final data = resp.data as Map<String, dynamic>;
     return {
-      'runs': (data['runs'] as List).map((e) => Run.fromJson(e as Map<String, dynamic>)).toList(),
+      'runs': (data['runs'] as List)
+          .map((e) => Run.fromJson(e as Map<String, dynamic>))
+          .toList(),
       'pagination': data['pagination'],
     };
   }
@@ -74,12 +82,20 @@ class ApiService {
   Future<List<ChatMessage>> getChatHistory(int runId) async {
     final resp = await _dio.get('/runs/$runId/chat');
     final history = resp.data['history'] as List<dynamic>;
-    return history.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
+    return history
+        .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<ChatMessage> sendChatMessage(int runId, String message) async {
-    final resp = await _dio.post('/runs/$runId/chat', data: {'message': message});
-    return ChatMessage(role: 'assistant', message: resp.data['message'] as String);
+    final resp = await _dio.post(
+      '/runs/$runId/chat',
+      data: {'message': message},
+    );
+    return ChatMessage(
+      role: 'assistant',
+      message: resp.data['message'] as String,
+    );
   }
 
   // Sync
@@ -107,7 +123,10 @@ class _AuthInterceptor extends Interceptor {
   _AuthInterceptor(this._storage, this._dio, this._baseUrl);
 
   @override
-  Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
     final token = await _storage.getAccessToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
@@ -116,17 +135,23 @@ class _AuthInterceptor extends Interceptor {
   }
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     if (err.response?.statusCode == 401) {
       final refreshToken = await _storage.getRefreshToken();
       if (refreshToken != null) {
         try {
           final refreshDio = Dio(BaseOptions(baseUrl: _baseUrl));
-          final resp = await refreshDio.post('/auth/refresh',
-              options: Options(headers: {'Authorization': 'Bearer $refreshToken'}));
+          final resp = await refreshDio.post(
+            '/auth/refresh',
+            options: Options(
+              headers: {'Authorization': 'Bearer $refreshToken'},
+            ),
+          );
           final newAccess = resp.data['access_token'] as String;
-          await _storage.saveTokens(
-              access: newAccess, refresh: refreshToken);
+          await _storage.saveTokens(access: newAccess, refresh: refreshToken);
           err.requestOptions.headers['Authorization'] = 'Bearer $newAccess';
           final retryResp = await _dio.fetch(err.requestOptions);
           handler.resolve(retryResp);

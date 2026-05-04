@@ -6,23 +6,28 @@ import '../providers/auth_provider.dart';
 import '../models/run.dart';
 import '../widgets/year_month_chips.dart';
 
-final _yearMonthSummaryProvider = FutureProvider.autoDispose<List<Map<String, int>>>((ref) async {
-  final api = ref.read(apiServiceProvider);
-  final result = await api.getRuns(perPage: 100);
-  final runs = result['runs'] as List<Run>;
-  final map = <String, Map<String, int>>{};
-  for (final r in runs) {
-    try {
-      final dt = DateTime.parse(r.date);
-      final key = '${dt.year}-${dt.month}';
-      map[key] = {'year': dt.year, 'month': dt.month, 'count': (map[key]?['count'] ?? 0) + 1};
-    } catch (_) {}
-  }
-  return map.values.toList()..sort((a, b) {
-    final yCmp = b['year']!.compareTo(a['year']!);
-    return yCmp != 0 ? yCmp : b['month']!.compareTo(a['month']!);
-  });
-});
+final _yearMonthSummaryProvider =
+    FutureProvider.autoDispose<List<Map<String, int>>>((ref) async {
+      final api = ref.read(apiServiceProvider);
+      final result = await api.getRuns(perPage: 100);
+      final runs = result['runs'] as List<Run>;
+      final map = <String, Map<String, int>>{};
+      for (final r in runs) {
+        try {
+          final dt = DateTime.parse(r.date);
+          final key = '${dt.year}-${dt.month}';
+          map[key] = {
+            'year': dt.year,
+            'month': dt.month,
+            'count': (map[key]?['count'] ?? 0) + 1,
+          };
+        } catch (_) {}
+      }
+      return map.values.toList()..sort((a, b) {
+        final yCmp = b['year']!.compareTo(a['year']!);
+        return yCmp != 0 ? yCmp : b['month']!.compareTo(a['month']!);
+      });
+    });
 
 class ActivitiesScreen extends ConsumerWidget {
   const ActivitiesScreen({super.key});
@@ -35,7 +40,10 @@ class ActivitiesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Activities', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Activities',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         actions: [
@@ -45,9 +53,9 @@ class ActivitiesScreen extends ConsumerWidget {
             onPressed: () async {
               await ref.read(apiServiceProvider).triggerSync();
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sync started')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Sync started')));
               }
             },
           ),
@@ -64,13 +72,19 @@ class ActivitiesScreen extends ConsumerWidget {
               selectedYear: filter.year,
               selectedMonth: filter.month,
               onChanged: (year, month) {
-                ref.read(runsFilterProvider.notifier).state = RunsFilter(year: year, month: month);
+                ref.read(runsFilterProvider.notifier).state = RunsFilter(
+                  year: year,
+                  month: month,
+                );
               },
             ),
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: _RunList(runsState: runsState, onLoadMore: () => ref.read(runsProvider.notifier).loadMore()),
+            child: _RunList(
+              runsState: runsState,
+              onLoadMore: () => ref.read(runsProvider.notifier).loadMore(),
+            ),
           ),
         ],
       ),
@@ -97,7 +111,20 @@ class _RunList extends StatelessWidget {
     for (final run in runsState.runs) {
       try {
         final dt = DateTime.parse(run.date);
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
         final key = '${months[dt.month - 1]} ${dt.year}';
         grouped.putIfAbsent(key, () => []).add(run);
       } catch (_) {
@@ -108,22 +135,33 @@ class _RunList extends StatelessWidget {
     final sections = grouped.entries.toList();
 
     return ListView.builder(
-      itemCount: sections.fold(0, (sum, e) => sum + e.value.length + 1) + (runsState.hasMore ? 1 : 0),
+      itemCount:
+          sections.fold(0, (sum, e) => sum + e.value.length + 1) +
+          (runsState.hasMore ? 1 : 0),
       itemBuilder: (context, idx) {
         int cursor = 0;
         for (final section in sections) {
           if (idx == cursor) {
             return Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(section.key,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                      color: Color(0xFF888888), letterSpacing: 0.5)),
+              child: Text(
+                section.key,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF888888),
+                  letterSpacing: 0.5,
+                ),
+              ),
             );
           }
           cursor++;
           for (final run in section.value) {
             if (idx == cursor) {
-              return _RunRow(run: run, onTap: () => context.push('/activities/run/${run.id}'));
+              return _RunRow(
+                run: run,
+                onTap: () => context.push('/activities/run/${run.id}'),
+              );
             }
             cursor++;
           }
@@ -162,23 +200,35 @@ class _RunRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(run.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      run.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       '${run.distanceKm?.toStringAsFixed(1) ?? '—'} km · ${run.durationFormatted}'
                       '${run.avgPowerW != null ? ' · ${run.avgPowerW}W' : ''}'
                       '${run.avgHr != null ? ' · HR ${run.avgHr}' : ''}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF888888),
+                      ),
                     ),
                   ],
                 ),
               ),
               _stageBadge(run.stage),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, size: 16, color: Color(0xFF888888)),
+              const Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: Color(0xFF888888),
+              ),
             ],
           ),
         ),
@@ -200,7 +250,14 @@ class _RunRow extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

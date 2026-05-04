@@ -1,21 +1,39 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/models/training_summary.dart';
+import '../../lib/models/training_summary.dart';
 
 void main() {
   group('TrainingSummary.fromJson', () {
     Map<String, dynamic> summaryJson() => {
-          'current_rsb': {
-            'rsb': 5.2,
-            'ctl': 45.1,
-            'atl': 39.9,
-            'interpretation': 'Fresh',
-          },
-          'rsb_history': <Map<String, dynamic>>[
-            {'date': '2026-04-17', 'date_label': '17 Apr', 'rsb': 3.1, 'ctl': 44.0, 'atl': 40.9},
-            {'date': '2026-04-18', 'date_label': '18 Apr', 'rsb': 4.2, 'ctl': 44.5, 'atl': 40.3},
-            {'date': '2026-04-19', 'date_label': '19 Apr', 'rsb': 5.2, 'ctl': 45.1, 'atl': 39.9},
-          ],
-        };
+      'current_rsb': {
+        'rsb': 5.2,
+        'ctl': 45.1,
+        'atl': 39.9,
+        'interpretation': 'Fresh',
+      },
+      'rsb_history': <Map<String, dynamic>>[
+        {
+          'date': '2026-04-17',
+          'date_label': '17 Apr',
+          'rsb': 3.1,
+          'ctl': 44.0,
+          'atl': 40.9,
+        },
+        {
+          'date': '2026-04-18',
+          'date_label': '18 Apr',
+          'rsb': 4.2,
+          'ctl': 44.5,
+          'atl': 40.3,
+        },
+        {
+          'date': '2026-04-19',
+          'date_label': '19 Apr',
+          'rsb': 5.2,
+          'ctl': 45.1,
+          'atl': 39.9,
+        },
+      ],
+    };
 
     test('parses current RSB values', () {
       final summary = TrainingSummary.fromJson(summaryJson());
@@ -49,7 +67,12 @@ void main() {
 
     test('handles null current RSB fields', () {
       final json = summaryJson();
-      json['current_rsb'] = {'rsb': null, 'ctl': null, 'atl': null, 'interpretation': 'Unknown'};
+      json['current_rsb'] = {
+        'rsb': null,
+        'ctl': null,
+        'atl': null,
+        'interpretation': 'Unknown',
+      };
       final summary = TrainingSummary.fromJson(json);
       expect(summary.currentRsb.rsb, isNull);
     });

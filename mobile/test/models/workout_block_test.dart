@@ -1,24 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/models/workout_block.dart';
+import '../../lib/models/workout_block.dart';
 
 void main() {
   group('WorkoutBlock.fromJson', () {
     Map<String, dynamic> workJson() => {
-          'type': 'work',
-          'start_utc': '2026-04-19T12:30:00+00:00',
-          'end_utc': '2026-04-19T13:10:00+00:00',
-          'duration_min': 40.0,
-          'distance_km': 6.66,
-          'avg_hr': 155.0,
-          'avg_power': 190.0,
-          'target_power': {
-            'min_w': 188.0,
-            'max_w': 203.0,
-            'pct_time_below': 10.3,
-            'pct_time_in_range': 79.1,
-            'pct_time_above': 10.6,
-          },
-        };
+      'type': 'work',
+      'start_utc': '2026-04-19T12:30:00+00:00',
+      'end_utc': '2026-04-19T13:10:00+00:00',
+      'duration_min': 40.0,
+      'distance_km': 6.66,
+      'avg_hr': 155.0,
+      'avg_power': 190.0,
+      'target_power': {
+        'min_w': 188.0,
+        'max_w': 203.0,
+        'pct_time_below': 10.3,
+        'pct_time_in_range': 79.1,
+        'pct_time_above': 10.6,
+      },
+    };
 
     test('parses type and blockType', () {
       final block = WorkoutBlock.fromJson('work_1', workJson());

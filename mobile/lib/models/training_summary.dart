@@ -7,11 +7,11 @@ class RsbPoint {
   const RsbPoint({required this.date, this.rsb, this.ctl, this.atl});
 
   factory RsbPoint.fromJson(Map<String, dynamic> json) => RsbPoint(
-        date: json['date'] as String,
-        rsb: (json['rsb'] as num?)?.toDouble(),
-        ctl: (json['ctl'] as num?)?.toDouble(),
-        atl: (json['atl'] as num?)?.toDouble(),
-      );
+    date: json['date'] as String,
+    rsb: (json['rsb'] as num?)?.toDouble(),
+    ctl: (json['ctl'] as num?)?.toDouble(),
+    atl: (json['atl'] as num?)?.toDouble(),
+  );
 }
 
 class CurrentRsb {
@@ -20,14 +20,19 @@ class CurrentRsb {
   final double? atl;
   final String interpretation;
 
-  const CurrentRsb({this.rsb, this.ctl, this.atl, required this.interpretation});
+  const CurrentRsb({
+    this.rsb,
+    this.ctl,
+    this.atl,
+    required this.interpretation,
+  });
 
   factory CurrentRsb.fromJson(Map<String, dynamic> json) => CurrentRsb(
-        rsb: (json['rsb'] as num?)?.toDouble(),
-        ctl: (json['ctl'] as num?)?.toDouble(),
-        atl: (json['atl'] as num?)?.toDouble(),
-        interpretation: json['interpretation'] as String? ?? 'unknown',
-      );
+    rsb: (json['rsb'] as num?)?.toDouble(),
+    ctl: (json['ctl'] as num?)?.toDouble(),
+    atl: (json['atl'] as num?)?.toDouble(),
+    interpretation: json['interpretation'] as String? ?? 'unknown',
+  );
 }
 
 class TrainingSummary {
@@ -36,8 +41,11 @@ class TrainingSummary {
 
   const TrainingSummary({required this.currentRsb, required this.rsbHistory});
 
-  factory TrainingSummary.fromJson(Map<String, dynamic> json) => TrainingSummary(
-        currentRsb: CurrentRsb.fromJson(json['current_rsb'] as Map<String, dynamic>),
+  factory TrainingSummary.fromJson(Map<String, dynamic> json) =>
+      TrainingSummary(
+        currentRsb: CurrentRsb.fromJson(
+          json['current_rsb'] as Map<String, dynamic>,
+        ),
         rsbHistory: (json['rsb_history'] as List<dynamic>)
             .map((e) => RsbPoint.fromJson(e as Map<String, dynamic>))
             .toList(),

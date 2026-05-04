@@ -30,11 +30,22 @@ class BlockCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(_typeLabel,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                        color: _borderColor, letterSpacing: 0.5)),
-                Text(block.formattedDuration,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
+                Text(
+                  _typeLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _borderColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  block.formattedDuration,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF888888),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -44,8 +55,12 @@ class BlockCard extends StatelessWidget {
               children: [
                 if (block.avgPowerW != null)
                   _metric('${block.avgPowerW!.toStringAsFixed(0)}W', 'power'),
-                if (block.targetPowerLow != null && block.targetPowerHigh != null)
-                  _metric('${block.targetPowerLow!.toInt()}–${block.targetPowerHigh!.toInt()}W', 'target'),
+                if (block.targetPowerLow != null &&
+                    block.targetPowerHigh != null)
+                  _metric(
+                    '${block.targetPowerLow!.toInt()}–${block.targetPowerHigh!.toInt()}W',
+                    'target',
+                  ),
                 if (block.avgHr != null)
                   _metric('${block.avgHr!.toStringAsFixed(0)}', 'HR'),
                 _metric(block.formattedPace, 'pace'),
@@ -60,16 +75,31 @@ class BlockCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      flex: (block.powerCompliance!.belowPct * 10).toInt().clamp(0, 1000),
-                      child: Container(height: 5, color: const Color(0xFF60A5FA)),
+                      flex: (block.powerCompliance!.belowPct * 10)
+                          .toInt()
+                          .clamp(0, 1000),
+                      child: Container(
+                        height: 5,
+                        color: const Color(0xFF60A5FA),
+                      ),
                     ),
                     Expanded(
-                      flex: (block.powerCompliance!.inZonePct * 10).toInt().clamp(0, 1000),
-                      child: Container(height: 5, color: const Color(0xFF4ADE80)),
+                      flex: (block.powerCompliance!.inZonePct * 10)
+                          .toInt()
+                          .clamp(0, 1000),
+                      child: Container(
+                        height: 5,
+                        color: const Color(0xFF4ADE80),
+                      ),
                     ),
                     Expanded(
-                      flex: (block.powerCompliance!.abovePct * 10).toInt().clamp(0, 1000),
-                      child: Container(height: 5, color: const Color(0xFFF97316)),
+                      flex: (block.powerCompliance!.abovePct * 10)
+                          .toInt()
+                          .clamp(0, 1000),
+                      child: Container(
+                        height: 5,
+                        color: const Color(0xFFF97316),
+                      ),
                     ),
                   ],
                 ),
@@ -91,8 +121,14 @@ class BlockCard extends StatelessWidget {
   Widget _metric(String value, String label) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-      Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF888888))),
+      Text(
+        value,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 9, color: Color(0xFF888888)),
+      ),
     ],
   );
 }

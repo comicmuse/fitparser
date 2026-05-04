@@ -16,7 +16,8 @@ class YearMonthChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final years = available.map((e) => e['year']!).toSet().toList()..sort((a, b) => b.compareTo(a));
+    final years = available.map((e) => e['year']!).toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -25,14 +26,18 @@ class YearMonthChips extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            children: years.map((year) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text('$year'),
-                selected: selectedYear == year,
-                onSelected: (_) => onChanged(year, null),
-              ),
-            )).toList(),
+            children: years
+                .map(
+                  (year) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text('$year'),
+                      selected: selectedYear == year,
+                      onSelected: (_) => onChanged(year, null),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ),
         if (selectedYear != null) ...[
@@ -41,14 +46,21 @@ class YearMonthChips extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
-              children: _monthsForYear(selectedYear!).map((month) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: FilterChip(
-                  label: Text(_monthName(month)),
-                  selected: selectedMonth == month,
-                  onSelected: (_) => onChanged(selectedYear, selectedMonth == month ? null : month),
-                ),
-              )).toList(),
+              children: _monthsForYear(selectedYear!)
+                  .map(
+                    (month) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(_monthName(month)),
+                        selected: selectedMonth == month,
+                        onSelected: (_) => onChanged(
+                          selectedYear,
+                          selectedMonth == month ? null : month,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
         ],
@@ -65,7 +77,21 @@ class YearMonthChips extends StatelessWidget {
   }
 
   String _monthName(int month) {
-    const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const names = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return names[month];
   }
 }

@@ -8,8 +8,21 @@ class NextWorkoutCard extends StatelessWidget {
   String _formatDate(String isoDate) {
     try {
       final dt = DateTime.parse(isoDate);
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return '${days[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]}';
     } catch (_) {
       return isoDate;
@@ -23,19 +36,34 @@ class NextWorkoutCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: const Border(left: BorderSide(color: Color(0xFFF59E0B), width: 3)),
+          border: const Border(
+            left: BorderSide(color: Color(0xFFF59E0B), width: 3),
+          ),
         ),
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('NEXT · ${_formatDate(workout.date)}'.toUpperCase(),
-                style: const TextStyle(fontSize: 10, color: Color(0xFF888888), letterSpacing: 1, fontWeight: FontWeight.w600)),
+            Text(
+              'NEXT · ${_formatDate(workout.date)}'.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF888888),
+                letterSpacing: 1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(workout.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(
+              workout.name,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
             if (workout.description.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(workout.description, style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+              Text(
+                workout.description,
+                style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+              ),
             ],
           ],
         ),

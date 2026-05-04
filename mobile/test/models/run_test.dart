@@ -1,27 +1,27 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/models/run.dart';
+import '../../lib/models/run.dart';
 
 void main() {
   group('Run.fromJson', () {
     Map<String, dynamic> baseJson() => {
-          'id': 42,
-          'name': 'Morning Run',
-          'date': '2026-04-19',
-          'distance_km': 13.47,
-          'duration_s': 4800,
-          'duration_formatted': '1:20:00',
-          'avg_power_w': 180,
-          'avg_hr': 148,
-          'stryd_rss': 69.4,
-          'stage': 'analyzed',
-          'commentary': 'Good effort.',
-          'analyzed_at': '2026-04-19T14:00:00Z',
-          'strava_activity_id': 'abc123',
-          'stryd_activity_id': 9876543210.0, // API returns float
-          'strava_map_polyline': null,
-          'yaml_data': null,
-          'planned_workout': null,
-        };
+      'id': 42,
+      'name': 'Morning Run',
+      'date': '2026-04-19',
+      'distance_km': 13.47,
+      'duration_s': 4800,
+      'duration_formatted': '1:20:00',
+      'avg_power_w': 180,
+      'avg_hr': 148,
+      'stryd_rss': 69.4,
+      'stage': 'analyzed',
+      'commentary': 'Good effort.',
+      'analyzed_at': '2026-04-19T14:00:00Z',
+      'strava_activity_id': 'abc123',
+      'stryd_activity_id': 9876543210.0, // API returns float
+      'strava_map_polyline': null,
+      'yaml_data': null,
+      'planned_workout': null,
+    };
 
     test('parses all basic fields', () {
       final run = Run.fromJson(baseJson());

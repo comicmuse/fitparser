@@ -31,19 +31,41 @@ class RsbCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('TRAINING STATUS',
-                style: TextStyle(fontSize: 10, color: Color(0xFF888888), letterSpacing: 1, fontWeight: FontWeight.w600)),
+            const Text(
+              'TRAINING STATUS',
+              style: TextStyle(
+                fontSize: 10,
+                color: Color(0xFF888888),
+                letterSpacing: 1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
-                  rsb.rsb != null ? (rsb.rsb! >= 0 ? '+${rsb.rsb!.toStringAsFixed(1)}' : rsb.rsb!.toStringAsFixed(1)) : '—',
-                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: _rsbColor),
+                  rsb.rsb != null
+                      ? (rsb.rsb! >= 0
+                            ? '+${rsb.rsb!.toStringAsFixed(1)}'
+                            : rsb.rsb!.toStringAsFixed(1))
+                      : '—',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: _rsbColor,
+                  ),
                 ),
                 const SizedBox(width: 8),
-                Text(_rsbLabel, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _rsbColor)),
+                Text(
+                  _rsbLabel,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _rsbColor,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -53,7 +75,11 @@ class RsbCard extends StatelessWidget {
                 const SizedBox(width: 16),
                 _statChip('ATL', rsb.atl?.toStringAsFixed(1) ?? '—'),
                 const SizedBox(width: 16),
-                _statChip('RSB', rsb.rsb != null ? rsb.rsb!.toStringAsFixed(1) : '—', color: _rsbColor),
+                _statChip(
+                  'RSB',
+                  rsb.rsb != null ? rsb.rsb!.toStringAsFixed(1) : '—',
+                  color: _rsbColor,
+                ),
               ],
             ),
             if (history.isNotEmpty) ...[
@@ -68,7 +94,9 @@ class RsbCard extends StatelessWidget {
                     lineTouchData: const LineTouchData(enabled: false),
                     lineBarsData: [
                       LineChartBarData(
-                        spots: history.asMap().entries
+                        spots: history
+                            .asMap()
+                            .entries
                             .where((e) => e.value.rsb != null)
                             .map((e) => FlSpot(e.key.toDouble(), e.value.rsb!))
                             .toList(),
@@ -82,7 +110,9 @@ class RsbCard extends StatelessWidget {
                         ),
                       ),
                       LineChartBarData(
-                        spots: history.asMap().entries
+                        spots: history
+                            .asMap()
+                            .entries
                             .where((e) => e.value.ctl != null)
                             .map((e) => FlSpot(e.key.toDouble(), e.value.ctl!))
                             .toList(),
@@ -106,8 +136,18 @@ class RsbCard extends StatelessWidget {
   Widget _statChip(String label, String value, {Color? color}) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF888888))),
-      Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? const Color(0xFF1A1A1A))),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Color(0xFF888888)),
+      ),
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color ?? const Color(0xFF1A1A1A),
+        ),
+      ),
     ],
   );
 }
