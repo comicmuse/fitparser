@@ -107,6 +107,15 @@ class TestAppCreation:
         """Test that max upload size is configured."""
         assert app.config["MAX_CONTENT_LENGTH"] == 50 * 1024 * 1024  # 50 MB
 
+    def test_ors_api_key_defaults_empty(self, tmp_path):
+        config = Config(data_dir=tmp_path / "data")
+        assert config.ors_api_key == ""
+
+    def test_ors_api_key_from_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("ORS_API_KEY", "test-ors-key")
+        config = Config.from_env()
+        assert config.ors_api_key == "test-ors-key"
+
 
 class TestRoutes:
     """Tests for Flask routes."""
