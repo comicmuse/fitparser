@@ -15,7 +15,7 @@ The system has three main stages:
 
 ### Local Setup
 
-**IMPORTANT:** This project uses a `.venv` virtual environment. **NEVER** install packages or run commands using the global Python installation. Always activate the virtual environment first.
+This project uses a `.venv` virtual environment. It should have been activated before you started. You can check the venv environment variables before you do anything and let the user know if they're not present. **NEVER** install packages or run commands using the global Python installation.
 
 ```bash
 # Create virtual environment and install
@@ -27,8 +27,6 @@ pip install -e .
 cp .env.example .env
 # Edit .env with Stryd credentials, OpenAI API key, etc.
 ```
-
-**All commands below assume you have activated the virtual environment with `source .venv/bin/activate`**
 
 ### Running the Application
 ```bash
@@ -63,6 +61,16 @@ docker compose up -d --build
 ```bash
 sudo usermod -aG docker $USER
 # Then log out and back in for the change to take effect
+```
+
+### Production Deployment
+
+Production runs via Docker on this machine at `/srv/runcoach`. CI builds and pushes the image to `ghcr.io/comicmuse/fitparser:latest` on every push to `main`. To deploy:
+
+```bash
+cd /srv/runcoach
+docker compose pull
+docker compose up -d
 ```
 
 ### Testing Individual Components
@@ -264,7 +272,6 @@ Uses Web Push (VAPID) for analysis completion alerts:
 
 ## Development Notes
 
-- **Virtual Environment:** This project uses `.venv` - always activate with `source .venv/bin/activate` before running any commands
 - Python 3.11+ required
 - Flask serves both HTML UI and JSON API endpoints
 - PWA manifest + service worker in `runcoach/web/static/`
