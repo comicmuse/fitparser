@@ -23,6 +23,7 @@ from flask import (
 )
 import markdown as md
 import nh3
+import requests
 
 from runcoach.analyzer import analyze_and_write, build_chat_context, _dispatch_llm
 from runcoach.auth import hash_password, verify_password
@@ -1244,3 +1245,63 @@ def strava_webhook():
 # servers (no session/cookie), not from HTML forms.
 csrf.exempt(strava_webhook_verify)
 csrf.exempt(strava_webhook)
+
+
+@bp.route("/api/route-suggestion")
+@_login_required
+def route_suggestion():
+    try:
+        lat = float(request.args["lat"])
+        lng = float(request.args["lng"])
+        distance_m = int(request.args["distance_m"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "lat, lng, and distance_m are required numeric parameters"}), 400
+
+    cfg: Config = current_app.config["config"]
+    if not cfg.ors_api_key:
+        return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
+
+    payload = {
+        "coordinates": [[lng, lat]],
+        "options": {
+            "round_trip": {
+                "length": distance_m,
+                "points": 3,
+            }
+        },
+        "profile_params": {
+            "weightings": {
+                "green": 1,
+                "quiet": 1,
+            }
+        },
+    }
+
+    try:
+        resp = requests.post(
+            "https://api.openrouteservice.org/v2/directions/foot-running/geojson",
+            json=payload,
+            headers={
+                "Authorization": cfg.ors_api_key,
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+    except requests.exceptions.RequestException as exc:
+        log.warning("ORS request failed: %s", exc)
+        return jsonify({"error": "Route service unavailable"}), 502
+
+    if resp.status_code != 200:
+        log.warning("ORS returned %s: %s", resp.status_code, resp.text)
+        return jsonify({"error": "Route service error"}), 502
+
+    features = resp.json().get("features", [])
+    routes = []
+    for feature in features:
+        # ORS returns [lng, lat]; Leaflet expects [lat, lng]
+        raw_coords = feature["geometry"]["coordinates"]
+        coords = [[pt[1], pt[0]] for pt in raw_coords]
+        distance = int(feature["properties"]["summary"]["distance"])
+        routes.append({"coords": coords, "distance_m": distance})
+
+    return jsonify({"routes": routes})

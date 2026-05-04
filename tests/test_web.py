@@ -1398,3 +1398,65 @@ class TestWorkoutChart:
         assert "wc-fill--none" not in html
 
         assert "easy" in html
+
+
+class TestRouteSuggestion:
+    """Tests for GET /api/route-suggestion endpoint."""
+
+    ORS_SUCCESS = {
+        "features": [
+            {
+                "geometry": {"coordinates": [[-6.26, 53.35], [-6.27, 53.36], [-6.26, 53.35]]},
+                "properties": {"summary": {"distance": 10200}},
+            },
+            {
+                "geometry": {"coordinates": [[-6.26, 53.35], [-6.25, 53.36], [-6.26, 53.35]]},
+                "properties": {"summary": {"distance": 9800}},
+            },
+            {
+                "geometry": {"coordinates": [[-6.26, 53.35], [-6.28, 53.37], [-6.26, 53.35]]},
+                "properties": {"summary": {"distance": 10500}},
+            },
+        ]
+    }
+
+    def test_missing_params_returns_400(self, client):
+        resp = client.get("/api/route-suggestion")
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "error" in data
+
+    def test_invalid_lat_returns_400(self, client):
+        resp = client.get("/api/route-suggestion?lat=notanumber&lng=-6.26&distance_m=10000")
+        assert resp.status_code == 400
+
+    def test_ors_key_not_configured_returns_503(self, client):
+        resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")
+        assert resp.status_code == 503
+        data = resp.get_json()
+        assert "error" in data
+
+    def test_returns_routes_on_success(self, client, app):
+        app.config["config"].ors_api_key = "test-key"
+        with patch("runcoach.web.routes.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = self.ORS_SUCCESS
+            resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "routes" in data
+        assert len(data["routes"]) == 3
+        assert "coords" in data["routes"][0]
+        assert "distance_m" in data["routes"][0]
+        # coords are [lat, lng] pairs (note ORS returns [lng, lat] — verify swap)
+        assert data["routes"][0]["coords"][0] == [53.35, -6.26]
+
+    def test_ors_error_returns_502(self, client, app):
+        app.config["config"].ors_api_key = "test-key"
+        with patch("runcoach.web.routes.requests.post") as mock_post:
+            mock_post.return_value.status_code = 429
+            mock_post.return_value.text = "Rate limit exceeded"
+            resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")
+        assert resp.status_code == 502
+        data = resp.get_json()
+        assert "error" in data
