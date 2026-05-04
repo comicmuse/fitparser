@@ -250,7 +250,21 @@ def get_run(run_id: int):
     if not run:
         return jsonify({"error": "Run not found"}), 404
 
-    return jsonify(format_run_for_api(run, include_yaml=True)), 200
+    result = format_run_for_api(run, include_yaml=True)
+
+    # Attach the planned workout for this run's date if one exists
+    if run.get("date"):
+        planned_list = db.get_planned_workout_for_date(run["date"])
+        if planned_list:
+            p = planned_list[0]
+            result["planned_workout"] = {
+                "title": p.get("title"),
+                "description": p.get("description"),
+                "duration_min": round(p["duration_s"] / 60, 1) if p.get("duration_s") else None,
+                "distance_km": round(p["distance_m"] / 1000, 2) if p.get("distance_m") else None,
+            }
+
+    return jsonify(result), 200
 
 
 @api_bp.route("/runs/<int:run_id>/chat", methods=["GET"])

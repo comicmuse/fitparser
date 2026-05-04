@@ -34,12 +34,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     state = state.copyWith(isLoading: true);
     try {
       final api = _ref.read(apiServiceProvider);
       final history = await api.getChatHistory(_runId);
+      if (!mounted) return;
       state = state.copyWith(messages: history, isLoading: false);
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(isLoading: false);
     }
   }
@@ -47,6 +50,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> send(String message) async {
     if (message.trim().isEmpty || state.isSending) return;
     final userMsg = ChatMessage(role: 'user', message: message);
+    if (!mounted) return;
     state = state.copyWith(
       messages: [...state.messages, userMsg],
       isSending: true,
@@ -54,11 +58,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       final api = _ref.read(apiServiceProvider);
       final response = await api.sendChatMessage(_runId, message);
+      if (!mounted) return;
       state = state.copyWith(
         messages: [...state.messages, response],
         isSending: false,
       );
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(isSending: false);
     }
   }

@@ -4,6 +4,7 @@ class SecureStorageService {
   static const _storage = FlutterSecureStorage();
   static const _accessKey = 'access_token';
   static const _refreshKey = 'refresh_token';
+  static const _serverUrlKey = 'server_url';
 
   Future<void> saveTokens({required String access, required String refresh}) async {
     await _storage.write(key: _accessKey, value: access);
@@ -17,4 +18,7 @@ class SecureStorageService {
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
   }
+
+  Future<void> saveServerUrl(String url) => _storage.write(key: _serverUrlKey, value: url);
+  Future<String?> getServerUrl() => _storage.read(key: _serverUrlKey);
 }

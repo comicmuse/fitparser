@@ -17,6 +17,7 @@ class Run {
   final int? strydActivityId;
   final String? stravaMapPolyline;
   final Map<String, dynamic>? yamlData;
+  final Map<String, dynamic>? plannedWorkout;
 
   const Run({
     required this.id,
@@ -35,6 +36,7 @@ class Run {
     this.strydActivityId,
     this.stravaMapPolyline,
     this.yamlData,
+    this.plannedWorkout,
   });
 
   factory Run.fromJson(Map<String, dynamic> json) {
@@ -44,22 +46,23 @@ class Run {
       orElse: () => RunStage.unknown,
     );
     return Run(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       name: json['name'] as String? ?? '',
       date: json['date'] as String? ?? '',
       distanceKm: (json['distance_km'] as num?)?.toDouble(),
-      durationS: json['duration_s'] as int?,
+      durationS: (json['duration_s'] as num?)?.toInt(),
       durationFormatted: json['duration_formatted'] as String? ?? '—',
-      avgPowerW: json['avg_power_w'] as int?,
-      avgHr: json['avg_hr'] as int?,
+      avgPowerW: (json['avg_power_w'] as num?)?.toInt(),
+      avgHr: (json['avg_hr'] as num?)?.toInt(),
       strydRss: (json['stryd_rss'] as num?)?.toDouble(),
       stage: stage,
       commentary: json['commentary'] as String?,
       analyzedAt: json['analyzed_at'] as String?,
       stravaActivityId: json['strava_activity_id'] as String?,
-      strydActivityId: json['stryd_activity_id'] as int?,
+      strydActivityId: (json['stryd_activity_id'] as num?)?.toInt(),
       stravaMapPolyline: json['strava_map_polyline'] as String?,
       yamlData: json['yaml_data'] as Map<String, dynamic>?,
+      plannedWorkout: json['planned_workout'] as Map<String, dynamic>?,
     );
   }
 }

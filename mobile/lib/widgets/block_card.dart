@@ -7,7 +7,7 @@ class BlockCard extends StatelessWidget {
 
   Color get _borderColor => switch (block.blockType) {
     BlockType.warmup || BlockType.cooldown => const Color(0xFF2563EB),
-    BlockType.work => const Color(0xFFF97316),
+    BlockType.work || BlockType.active => const Color(0xFFF97316),
     BlockType.rest => const Color(0xFF9CA3AF),
     _ => const Color(0xFFCCCCCC),
   };
@@ -38,15 +38,19 @@ class BlockCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Row(
+            Wrap(
+              spacing: 16,
+              runSpacing: 4,
               children: [
                 if (block.avgPowerW != null)
-                  _metric('${block.avgPowerW}W', 'power'),
+                  _metric('${block.avgPowerW!.toStringAsFixed(0)}W', 'power'),
                 if (block.targetPowerLow != null && block.targetPowerHigh != null)
                   _metric('${block.targetPowerLow!.toInt()}–${block.targetPowerHigh!.toInt()}W', 'target'),
                 if (block.avgHr != null)
-                  _metric('${block.avgHr}', 'HR'),
+                  _metric('${block.avgHr!.toStringAsFixed(0)}', 'HR'),
                 _metric(block.formattedPace, 'pace'),
+                if (block.distanceKm != null)
+                  _metric('${block.distanceKm!.toStringAsFixed(2)} km', 'dist'),
               ],
             ),
             if (block.powerCompliance != null) ...[
@@ -56,15 +60,15 @@ class BlockCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      flex: (block.powerCompliance!.belowPct * 10).toInt(),
+                      flex: (block.powerCompliance!.belowPct * 10).toInt().clamp(0, 1000),
                       child: Container(height: 5, color: const Color(0xFF60A5FA)),
                     ),
                     Expanded(
-                      flex: (block.powerCompliance!.inZonePct * 10).toInt(),
+                      flex: (block.powerCompliance!.inZonePct * 10).toInt().clamp(0, 1000),
                       child: Container(height: 5, color: const Color(0xFF4ADE80)),
                     ),
                     Expanded(
-                      flex: (block.powerCompliance!.abovePct * 10).toInt(),
+                      flex: (block.powerCompliance!.abovePct * 10).toInt().clamp(0, 1000),
                       child: Container(height: 5, color: const Color(0xFFF97316)),
                     ),
                   ],
@@ -84,14 +88,11 @@ class BlockCard extends StatelessWidget {
     );
   }
 
-  Widget _metric(String value, String label) => Padding(
-    padding: const EdgeInsets.only(right: 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-        Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF888888))),
-      ],
-    ),
+  Widget _metric(String value, String label) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF888888))),
+    ],
   );
 }

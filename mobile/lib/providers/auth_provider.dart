@@ -4,8 +4,28 @@ import '../services/secure_storage_service.dart';
 
 final secureStorageProvider = Provider<SecureStorageService>((ref) => SecureStorageService());
 
+const _defaultServerUrl = String.fromEnvironment('BASE_URL', defaultValue: 'http://10.0.2.2:5001/api/v1');
+
+class ServerUrlNotifier extends AsyncNotifier<String> {
+  @override
+  Future<String> build() async {
+    final storage = ref.read(secureStorageProvider);
+    return await storage.getServerUrl() ?? _defaultServerUrl;
+  }
+
+  Future<void> setUrl(String url) async {
+    final trimmed = url.trimRight().replaceAll(RegExp(r'/$'), '');
+    await ref.read(secureStorageProvider).saveServerUrl(trimmed);
+    state = AsyncData(trimmed);
+  }
+}
+
+final serverUrlProvider = AsyncNotifierProvider<ServerUrlNotifier, String>(ServerUrlNotifier.new);
+
 final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService(ref.read(secureStorageProvider));
+  final urlAsync = ref.watch(serverUrlProvider);
+  final url = urlAsync.valueOrNull ?? _defaultServerUrl;
+  return ApiService(ref.read(secureStorageProvider), baseUrl: url);
 });
 
 enum AuthStatus { unknown, authenticated, unauthenticated }

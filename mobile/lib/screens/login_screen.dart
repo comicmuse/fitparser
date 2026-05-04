@@ -12,17 +12,32 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  late final TextEditingController _serverController;
   bool _loading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _serverController = TextEditingController();
+    ref.read(serverUrlProvider.future).then((url) {
+      if (mounted) _serverController.text = url;
+    });
+  }
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _serverController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final serverUrl = _serverController.text.trim();
+    if (serverUrl.isNotEmpty) {
+      await ref.read(serverUrlProvider.notifier).setUrl(serverUrl);
+    }
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).login(
@@ -55,6 +70,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   style: TextStyle(fontSize: 14, color: Color(0xFF888888)),
                   textAlign: TextAlign.center),
               const SizedBox(height: 40),
+              TextField(
+                controller: _serverController,
+                decoration: const InputDecoration(
+                  labelText: 'Server URL',
+                  hintText: 'http://192.168.1.x:5001/api/v1',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: Icon(Icons.dns_outlined),
+                ),
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.next,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _usernameController,
                 decoration: const InputDecoration(

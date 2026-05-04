@@ -11,13 +11,31 @@ import 'screens/run_detail_screen.dart';
 final _rootNavKey = GlobalKey<NavigatorState>();
 final _shellNavKey = GlobalKey<NavigatorState>();
 
+class _RouterNotifier extends ChangeNotifier {
+  AuthStatus _authStatus = AuthStatus.unknown;
+  AuthStatus get authStatus => _authStatus;
+  void update(AuthStatus status) {
+    _authStatus = status;
+    notifyListeners();
+  }
+}
+
+final _routerNotifierProvider = Provider<_RouterNotifier>((ref) {
+  final notifier = _RouterNotifier();
+  ref.listen<AuthStatus>(authProvider, (_, next) => notifier.update(next));
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authStatus = ref.watch(authProvider);
+  final notifier = ref.watch(_routerNotifierProvider);
 
   return GoRouter(
     navigatorKey: _rootNavKey,
+    refreshListenable: notifier,
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
+      final authStatus = notifier.authStatus;
       if (authStatus == AuthStatus.unauthenticated && !isLoginRoute) return '/login';
       if (authStatus == AuthStatus.authenticated && isLoginRoute) return '/home';
       return null;

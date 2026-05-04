@@ -129,7 +129,8 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            // Notifications placeholder
+            // Server configuration
+            _ServerUrlCard(),
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
@@ -149,6 +150,95 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 }
+
+class _ServerUrlCard extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_ServerUrlCard> createState() => _ServerUrlCardState();
+}
+
+class _ServerUrlCardState extends ConsumerState<_ServerUrlCard> {
+  late final TextEditingController _controller;
+  bool _editing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+    ref.read(serverUrlProvider.future).then((url) {
+      if (mounted) _controller.text = url;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final urlAsync = ref.watch(serverUrlProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('SERVER', style: TextStyle(fontSize: 10, color: Color(0xFF888888), letterSpacing: 1, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            if (_editing)
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration: const InputDecoration(
+                        labelText: 'Server URL',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () async {
+                      await ref.read(serverUrlProvider.notifier).setUrl(_controller.text.trim());
+                      if (mounted) setState(() => _editing = false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Server URL saved. Restart app to reconnect.')),
+                        );
+                      }
+                    },
+                    child: const Text('Save'),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      urlAsync.valueOrNull ?? '…',
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF444444), fontFamily: 'monospace'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    onPressed: () => setState(() => _editing = true),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class _ServiceButton extends StatelessWidget {
   final String label;

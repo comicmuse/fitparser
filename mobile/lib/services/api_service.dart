@@ -5,18 +5,19 @@ import '../models/chat_message.dart';
 import 'secure_storage_service.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api/v1';
+  static const String defaultBaseUrl = String.fromEnvironment('BASE_URL', defaultValue: 'http://10.0.2.2:5001/api/v1');
 
+  final String _baseUrl;
   late final Dio _dio;
   final SecureStorageService _storage;
 
-  ApiService(this._storage) {
+  ApiService(this._storage, {String? baseUrl}) : _baseUrl = baseUrl ?? defaultBaseUrl {
     _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
+      baseUrl: _baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
     ));
-    _dio.interceptors.add(_AuthInterceptor(_storage, _dio));
+    _dio.interceptors.add(_AuthInterceptor(_storage, _dio, _baseUrl));
   }
 
   // Auth
@@ -86,6 +87,11 @@ class ApiService {
     await _dio.post('/sync');
   }
 
+  // Analyze a specific run
+  Future<void> analyzeRun(int runId) async {
+    await _dio.post('/runs/$runId/analyze');
+  }
+
   // Athlete profile
   Future<Map<String, dynamic>> getAthleteProfile() async {
     final resp = await _dio.get('/athlete/profile');
@@ -96,8 +102,9 @@ class ApiService {
 class _AuthInterceptor extends Interceptor {
   final SecureStorageService _storage;
   final Dio _dio;
+  final String _baseUrl;
 
-  _AuthInterceptor(this._storage, this._dio);
+  _AuthInterceptor(this._storage, this._dio, this._baseUrl);
 
   @override
   Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -114,7 +121,7 @@ class _AuthInterceptor extends Interceptor {
       final refreshToken = await _storage.getRefreshToken();
       if (refreshToken != null) {
         try {
-          final refreshDio = Dio(BaseOptions(baseUrl: ApiService.baseUrl));
+          final refreshDio = Dio(BaseOptions(baseUrl: _baseUrl));
           final resp = await refreshDio.post('/auth/refresh',
               options: Options(headers: {'Authorization': 'Bearer $refreshToken'}));
           final newAccess = resp.data['access_token'] as String;

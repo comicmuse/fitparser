@@ -107,60 +107,65 @@ class _OverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final yaml = run.yamlData;
+    final dyn = yaml?['running_dynamics_summary'] as Map<String, dynamic>?;
+    final hrZones = yaml?['session_hr_zones'] as Map<String, dynamic>?;
+    final planned = run.plannedWorkout;
+
+    String pace = '—';
+    final distKm = (yaml?['distance_km'] as num?)?.toDouble() ?? run.distanceKm;
+    final durMin = (yaml?['duration_min'] as num?)?.toDouble();
+    if (distKm != null && distKm > 0 && durMin != null) {
+      final secPerKm = (durMin * 60) / distKm;
+      final m = secPerKm ~/ 60;
+      final s = (secPerKm % 60).toInt();
+      pace = '$m:${s.toString().padLeft(2, '0')}/km';
+    }
 
     return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
       children: [
         const SizedBox(height: 8),
-        Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-            child: Row(
-              children: [
-                _metric(run.distanceKm?.toStringAsFixed(1) ?? '—', 'km'),
-                _metric(run.durationFormatted, 'time'),
-                if (run.avgPowerW != null) _metric('${run.avgPowerW}W', 'power'),
-                if (run.avgHr != null) _metric('${run.avgHr}', 'HR'),
-              ],
-            ),
-          ),
-        ),
+        // Stage badge
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              if (run.strydRss != null)
-                _badge('RSS ${run.strydRss!.toStringAsFixed(1)}', const Color(0xFF6750A4)),
-              const SizedBox(width: 8),
-              _stageBadge(run.stage),
-            ],
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          child: _stageBadge(run.stage),
         ),
-        if (yaml != null && yaml['hr_zone_distribution'] != null)
-          HrZonesBar(hrZones: yaml['hr_zone_distribution'] as Map<String, dynamic>),
-        if (yaml != null && yaml['prescribed_workout'] != null)
-          _StrydWorkoutCard(prescribed: yaml['prescribed_workout'] as Map<String, dynamic>),
+        const SizedBox(height: 4),
+        // Primary metrics grid
+        _MetricSection(label: 'ACTIVITY', metrics: [
+          _MetricTile(icon: Icons.straighten, label: 'Distance', value: run.distanceKm != null ? '${run.distanceKm!.toStringAsFixed(2)} km' : '—', color: const Color(0xFF6750A4)),
+          _MetricTile(icon: Icons.timer_outlined, label: 'Duration', value: run.durationFormatted, color: const Color(0xFF6750A4)),
+          _MetricTile(icon: Icons.speed_outlined, label: 'Pace', value: pace, color: const Color(0xFF6750A4)),
+          _MetricTile(icon: Icons.favorite_outline, label: 'Avg HR', value: run.avgHr != null ? '${run.avgHr} bpm' : '—', color: const Color(0xFFEF4444)),
+        ]),
+        if (run.avgPowerW != null || yaml?['max_hr'] != null || yaml?['elev_gain_m'] != null || yaml?['calories_kcal'] != null)
+          _MetricSection(label: 'PERFORMANCE', metrics: [
+            if (run.avgPowerW != null) _MetricTile(icon: Icons.bolt_outlined, label: 'Avg Power', value: '${run.avgPowerW}W', color: const Color(0xFFF97316)),
+            if (yaml?['max_hr'] != null) _MetricTile(icon: Icons.favorite, label: 'Max HR', value: '${(yaml!['max_hr'] as num).toInt()} bpm', color: const Color(0xFFEF4444)),
+            if (yaml?['elev_gain_m'] != null) _MetricTile(icon: Icons.trending_up, label: 'Elev Gain', value: '${(yaml!['elev_gain_m'] as num).toInt()}m', color: const Color(0xFF2E7D32)),
+            if (yaml?['calories_kcal'] != null) _MetricTile(icon: Icons.local_fire_department_outlined, label: 'Calories', value: '${(yaml!['calories_kcal'] as num).toInt()} kcal', color: const Color(0xFFF59E0B)),
+          ]),
+        if (yaml?['aerobic_te'] != null || yaml?['vo2_max'] != null || run.strydRss != null || yaml?['recovery_time_readable'] != null)
+          _MetricSection(label: 'TRAINING LOAD', metrics: [
+            if (yaml?['aerobic_te'] != null) _MetricTile(icon: Icons.air, label: 'Aerobic TE', value: (yaml!['aerobic_te'] as num).toStringAsFixed(1), color: const Color(0xFF0891B2)),
+            if (yaml?['vo2_max'] != null) _MetricTile(icon: Icons.science_outlined, label: 'VO₂max', value: (yaml!['vo2_max'] as num).toStringAsFixed(1), color: const Color(0xFF0891B2)),
+            if (run.strydRss != null) _MetricTile(icon: Icons.bar_chart, label: 'RSS', value: run.strydRss!.toStringAsFixed(1), color: const Color(0xFF6750A4)),
+            if (yaml?['recovery_time_readable'] != null) _MetricTile(icon: Icons.bedtime_outlined, label: 'Recovery', value: yaml!['recovery_time_readable'] as String, color: const Color(0xFF7C3AED)),
+          ]),
+        if (dyn != null)
+          _MetricSection(label: 'RUNNING DYNAMICS', metrics: [
+            if (dyn['cadence_med'] != null) _MetricTile(icon: Icons.directions_run, label: 'Cadence', value: '${(dyn['cadence_med'] as num).toInt()} spm', color: const Color(0xFF059669)),
+            if (dyn['gct_med'] != null) _MetricTile(icon: Icons.compress, label: 'GCT', value: '${(dyn['gct_med'] as num).toInt()} ms', color: const Color(0xFF059669)),
+            if (dyn['vert_osc_med'] != null) _MetricTile(icon: Icons.swap_vert, label: 'Vert Osc', value: '${(dyn['vert_osc_med'] as num).toStringAsFixed(1)} cm', color: const Color(0xFF059669)),
+            if (dyn['step_length_med'] != null) _MetricTile(icon: Icons.straighten, label: 'Stride', value: '${((dyn['step_length_med'] as num) * 100).toInt()} cm', color: const Color(0xFF059669)),
+          ]),
+        if (hrZones != null) HrZonesBar(hrZones: hrZones),
         if (run.stravaMapPolyline != null)
           RouteMapWidget(encodedPolyline: run.stravaMapPolyline!),
-        const SizedBox(height: 16),
+        if (planned != null) _StrydWorkoutCard(prescribed: planned),
       ],
     );
   }
-
-  Widget _metric(String value, String label) => Expanded(
-    child: Column(
-      children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF888888))),
-      ],
-    ),
-  );
-
-  Widget _badge(String text, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-    child: Text(text, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-  );
 
   Widget _stageBadge(RunStage stage) {
     final (label, color) = switch (stage) {
@@ -170,9 +175,75 @@ class _OverviewTab extends StatelessWidget {
       RunStage.error => ('error', const Color(0xFFEF4444)),
       _ => ('—', const Color(0xFF888888)),
     };
-    return _badge(label, color);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    );
   }
 }
+
+class _MetricTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MetricTile({required this.icon, required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF888888))),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricSection extends StatelessWidget {
+  final String label;
+  final List<_MetricTile> metrics;
+
+  const _MetricSection({required this.label, required this.metrics});
+
+  @override
+  Widget build(BuildContext context) {
+    if (metrics.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF888888), letterSpacing: 1, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 2.2,
+            children: metrics,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _StrydWorkoutCard extends StatelessWidget {
   final Map<String, dynamic> prescribed;
@@ -215,14 +286,37 @@ class _BlocksTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final yaml = run.yamlData;
-    if (yaml == null || yaml['blocks'] == null) {
+    if (yaml == null) {
+      return const Center(child: Text('No block data available',
+          style: TextStyle(color: Color(0xFF888888))));
+    }
+    final blocksRaw = yaml['blocks'];
+    if (blocksRaw == null) {
       return const Center(child: Text('No block data available',
           style: TextStyle(color: Color(0xFF888888))));
     }
 
-    final blocks = (yaml['blocks'] as List<dynamic>)
-        .map((e) => WorkoutBlock.fromJson(e as Map<String, dynamic>))
-        .toList();
+    late final List<WorkoutBlock> blocks;
+    if (blocksRaw is List) {
+      blocks = blocksRaw
+          .map((e) => WorkoutBlock.fromJson('', e as Map<String, dynamic>))
+          .toList();
+    } else if (blocksRaw is Map) {
+      blocks = (blocksRaw as Map<String, dynamic>)
+          .entries
+          .map((e) => WorkoutBlock.fromJson(e.key, e.value as Map<String, dynamic>))
+          .toList();
+    } else {
+      return const Center(child: Text('No block data available',
+          style: TextStyle(color: Color(0xFF888888))));
+    }
+
+    blocks.sort((a, b) {
+      if (a.startUtc == null && b.startUtc == null) return 0;
+      if (a.startUtc == null) return 1;
+      if (b.startUtc == null) return -1;
+      return a.startUtc!.compareTo(b.startUtc!);
+    });
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 8, bottom: 24),

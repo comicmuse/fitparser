@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../providers/chat_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/run_detail_provider.dart';
 import '../models/run.dart';
 
 class CoachingChatWidget extends ConsumerStatefulWidget {
@@ -15,6 +17,7 @@ class CoachingChatWidget extends ConsumerStatefulWidget {
 class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  bool _analyzing = false;
 
   @override
   void dispose() {
@@ -35,9 +38,30 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
     });
   }
 
+  Future<void> _triggerAnalysis() async {
+    setState(() => _analyzing = true);
+    try {
+      await ref.read(apiServiceProvider).analyzeRun(widget.run.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Analysis started — this may take a minute')),
+      );
+      // Invalidate the run detail so it refreshes when analysis completes
+      ref.invalidate(runDetailProvider(widget.run.id));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start analysis: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _analyzing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.run.id));
+    final isAnalyzed = widget.run.stage == RunStage.analyzed;
 
     ref.listen(chatProvider(widget.run.id), (_, __) => _scrollToBottom());
 
@@ -48,16 +72,33 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
             controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
-              if (widget.run.stage == RunStage.analyzed && widget.run.commentary != null)
+              if (isAnalyzed && widget.run.commentary != null)
                 _AiCommentaryBubble(
                   commentary: widget.run.commentary!,
                   timestamp: widget.run.analyzedAt,
                 ),
-              if (widget.run.stage != RunStage.analyzed)
-                const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(child: Text('Analysis not yet available',
-                      style: TextStyle(color: Color(0xFF888888)))),
+              if (!isAnalyzed)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.analytics_outlined, size: 48, color: Color(0xFFCCCCCC)),
+                      const SizedBox(height: 16),
+                      const Text('No coaching analysis yet',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF666666))),
+                      const SizedBox(height: 6),
+                      const Text('Get AI coaching feedback on this run',
+                          style: TextStyle(fontSize: 13, color: Color(0xFF888888))),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        icon: _analyzing
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.auto_awesome, size: 18),
+                        label: Text(_analyzing ? 'Analyzing…' : 'Analyze Now'),
+                        onPressed: _analyzing ? null : _triggerAnalysis,
+                      ),
+                    ],
+                  ),
                 ),
               if (chatState.isLoading)
                 const Center(child: CircularProgressIndicator()),
@@ -76,7 +117,7 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
             ],
           ),
         ),
-        if (widget.run.stage == RunStage.analyzed)
+        if (isAnalyzed)
           _ChatInput(
             controller: _controller,
             onSend: () {

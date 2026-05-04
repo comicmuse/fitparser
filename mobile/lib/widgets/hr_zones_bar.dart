@@ -15,11 +15,11 @@ class HrZonesBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final zones = [
-      (hrZones['z1'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['z2'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['z3'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['z4'] as num?)?.toDouble() ?? 0.0,
-      (hrZones['z5'] as num?)?.toDouble() ?? 0.0,
+      (hrZones['Z1_pct'] as num?)?.toDouble() ?? (hrZones['z1'] as num?)?.toDouble() ?? 0.0,
+      (hrZones['Z2_pct'] as num?)?.toDouble() ?? (hrZones['z2'] as num?)?.toDouble() ?? 0.0,
+      (hrZones['Z3_pct'] as num?)?.toDouble() ?? (hrZones['z3'] as num?)?.toDouble() ?? 0.0,
+      (hrZones['Z4_pct'] as num?)?.toDouble() ?? (hrZones['z4'] as num?)?.toDouble() ?? 0.0,
+      (hrZones['Z5_pct'] as num?)?.toDouble() ?? (hrZones['z5'] as num?)?.toDouble() ?? 0.0,
     ];
     final total = zones.fold(0.0, (a, b) => a + b);
     if (total == 0) return const SizedBox.shrink();
