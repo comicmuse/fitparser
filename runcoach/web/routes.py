@@ -1314,11 +1314,12 @@ def route_suggestion():
 
     try:
         resp = requests.post(
-            "https://api.openrouteservice.org/v2/directions/foot-running/geojson",
+            "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+            params={"api_key": cfg.ors_api_key},
             json=payload,
             headers={
-                "Authorization": cfg.ors_api_key,
                 "Content-Type": "application/json",
+                "Accept": "application/json, application/geo+json",
             },
             timeout=10,
         )
