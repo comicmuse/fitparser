@@ -88,7 +88,21 @@ class RsbCard extends StatelessWidget {
                 height: 40,
                 child: LineChart(
                   LineChartData(
-                    gridData: const FlGridData(show: false),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) {
+                        if (value == 0) {
+                          return const FlLine(
+                            color: Color(0xFFAAAAAA),
+                            strokeWidth: 1,
+                            dashArray: null,
+                          );
+                        }
+                        return const FlLine(strokeWidth: 0);
+                      },
+                      checkToShowHorizontalLine: (value) => value == 0,
+                    ),
                     titlesData: const FlTitlesData(show: false),
                     borderData: FlBorderData(show: false),
                     lineTouchData: const LineTouchData(enabled: false),
