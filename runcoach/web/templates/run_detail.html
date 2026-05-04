@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ run.workout_name or run.name }} - RunCoach{% endblock %}
 {% block head %}
-{% if map_coords %}
+{% if map_coords or (prescribed and prescribed|selectattr('distance_m')|list) %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 {% endif %}
@@ -630,6 +630,110 @@
     {% endif %}
   </div>
   {% endfor %}
+
+  {% set first_pw_distance = prescribed | selectattr('distance_m') | list | first %}
+  {% if first_pw_distance and first_pw_distance.distance_m %}
+  <div style="border-top: 1px solid var(--border, #333); margin-top: 0.75rem; padding-top: 0.75rem;">
+    <div style="font-size: 0.8rem; font-weight: 600; color: #d29922; margin-bottom: 0.5rem;">Suggested Route</div>
+    <div id="route-btn-area">
+      <button
+        onclick="suggestRoute({{ first_pw_distance.distance_m | int }})"
+        style="background: #d29922; color: #1a1a1a; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; font-size: 0.82rem; font-weight: 600; cursor: pointer;"
+      >📍 Suggest a Route</button>
+    </div>
+    <div id="route-status" style="display:none; font-size: 0.82rem; color: var(--fg-muted, #888); margin-top: 0.5rem;"></div>
+    <div id="route-map-area" style="display:none; margin-top: 0.75rem;">
+      <div id="route-map" style="height: 240px; width: 100%; border-radius: 4px;"></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem;">
+        <button onclick="cycleRoute(-1)" style="background: none; border: 1px solid var(--border, #555); color: var(--fg, #e0e0e0); padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">← Prev</button>
+        <span id="route-counter" style="font-size: 0.75rem; color: var(--fg-muted, #888);"></span>
+        <button onclick="cycleRoute(1)" style="background: none; border: 1px solid var(--border, #555); color: var(--fg, #e0e0e0); padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    var _routes = [];
+    var _currentIdx = 0;
+    var _map = null;
+    var _polyline = null;
+
+    window.suggestRoute = function(distanceM) {
+      var statusEl = document.getElementById('route-status');
+      var btnArea = document.getElementById('route-btn-area');
+
+      btnArea.style.display = 'none';
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'Getting your location…';
+
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'Geolocation is not supported by your browser.';
+        btnArea.style.display = 'block';
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          statusEl.textContent = 'Generating routes…';
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          fetch('/api/route-suggestion?lat=' + lat + '&lng=' + lng + '&distance_m=' + distanceM)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.error) {
+                statusEl.textContent = 'Could not generate route: ' + data.error;
+                btnArea.style.display = 'block';
+                return;
+              }
+              _routes = data.routes;
+              _currentIdx = 0;
+              statusEl.style.display = 'none';
+              document.getElementById('route-map-area').style.display = 'block';
+              _initMap(lat, lng);
+              _drawRoute(0);
+            })
+            .catch(function() {
+              statusEl.textContent = 'Route service unavailable. Please try again.';
+              btnArea.style.display = 'block';
+            });
+        },
+        function() {
+          statusEl.textContent = 'Location access needed to suggest a route.';
+          btnArea.style.display = 'block';
+        }
+      );
+    };
+
+    function _initMap(lat, lng) {
+      if (_map) return;
+      _map = L.map('route-map', { zoomControl: true, scrollWheelZoom: false });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        maxZoom: 19,
+      }).addTo(_map);
+      setTimeout(function() { _map.invalidateSize(); }, 200);
+    }
+
+    function _drawRoute(idx) {
+      var route = _routes[idx];
+      if (_polyline) { _map.removeLayer(_polyline); }
+      _polyline = L.polyline(route.coords, { color: '#d29922', weight: 3, opacity: 0.9 }).addTo(_map);
+      _map.fitBounds(_polyline.getBounds(), { padding: [16, 16] });
+      var km = (route.distance_m / 1000).toFixed(1);
+      document.getElementById('route-counter').textContent =
+        'Route ' + (idx + 1) + ' of ' + _routes.length + ' · ' + km + ' km';
+    }
+
+    window.cycleRoute = function(dir) {
+      if (!_routes.length) return;
+      _currentIdx = (_currentIdx + dir + _routes.length) % _routes.length;
+      _drawRoute(_currentIdx);
+    };
+  })();
+  </script>
+  {% endif %}
+
 </div>
 {% endif %}
 
