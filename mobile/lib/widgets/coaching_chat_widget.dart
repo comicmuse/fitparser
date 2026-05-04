@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -18,9 +20,11 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _analyzing = false;
+  Timer? _pollTimer;
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -42,28 +46,43 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
     setState(() => _analyzing = true);
     try {
       await ref.read(apiServiceProvider).analyzeRun(widget.run.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Analysis started — this may take a minute'),
-        ),
-      );
-      // Invalidate the run detail so it refreshes when analysis completes
-      ref.invalidate(runDetailProvider(widget.run.id));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to start analysis: $e')));
-    } finally {
-      if (mounted) setState(() => _analyzing = false);
+      setState(() => _analyzing = false);
+      return;
     }
+    // Poll every 3 seconds until the run stage flips to analyzed
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) {
+        _pollTimer?.cancel();
+        return;
+      }
+      ref.invalidate(runDetailProvider(widget.run.id));
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (mounted) setState(() => _analyzing = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.run.id));
-    final isAnalyzed = widget.run.stage == RunStage.analyzed;
+
+    // Watch the live run so we detect when analysis completes
+    final runAsync = ref.watch(runDetailProvider(widget.run.id));
+    final liveRun = runAsync.valueOrNull ?? widget.run;
+    final isAnalyzed = liveRun.stage == RunStage.analyzed;
+
+    // Stop polling once analysis is complete
+    if (_analyzing && isAnalyzed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _stopPolling());
+    }
 
     ref.listen(chatProvider(widget.run.id), (_, __) => _scrollToBottom());
 
@@ -74,10 +93,10 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
             controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
-              if (isAnalyzed && widget.run.commentary != null)
+              if (isAnalyzed && liveRun.commentary != null)
                 _AiCommentaryBubble(
-                  commentary: widget.run.commentary!,
-                  timestamp: widget.run.analyzedAt,
+                  commentary: liveRun.commentary!,
+                  timestamp: liveRun.analyzedAt,
                 ),
               if (!isAnalyzed)
                 Padding(
@@ -87,43 +106,43 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
                   ),
                   child: Column(
                     children: [
-                      const Icon(
-                        Icons.analytics_outlined,
-                        size: 48,
-                        color: Color(0xFFCCCCCC),
-                      ),
+                      if (_analyzing)
+                        const CircularProgressIndicator()
+                      else
+                        const Icon(
+                          Icons.analytics_outlined,
+                          size: 48,
+                          color: Color(0xFFCCCCCC),
+                        ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'No coaching analysis yet',
-                        style: TextStyle(
+                      Text(
+                        _analyzing
+                            ? 'Analysing your run…'
+                            : 'No coaching analysis yet',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF666666),
                         ),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        'Get AI coaching feedback on this run',
-                        style: TextStyle(
+                      Text(
+                        _analyzing
+                            ? 'This usually takes about a minute'
+                            : 'Get AI coaching feedback on this run',
+                        style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF888888),
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      FilledButton.icon(
-                        icon: _analyzing
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.auto_awesome, size: 18),
-                        label: Text(_analyzing ? 'Analyzing…' : 'Analyze Now'),
-                        onPressed: _analyzing ? null : _triggerAnalysis,
-                      ),
+                      if (!_analyzing) ...[
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          icon: const Icon(Icons.auto_awesome, size: 18),
+                          label: const Text('Analyze Now'),
+                          onPressed: _triggerAnalysis,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -164,7 +183,7 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
             onSend: () {
               final text = _controller.text.trim();
               if (text.isEmpty) return;
-              ref.read(chatProvider(widget.run.id).notifier).send(text);
+              ref.read(chatProvider(liveRun.id).notifier).send(text);
               _controller.clear();
             },
           ),
