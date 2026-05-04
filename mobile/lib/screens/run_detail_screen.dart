@@ -45,8 +45,24 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
       error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (run) => Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          iconTheme: const IconThemeData(color: Colors.white),
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.38, 0.68, 1.0],
+                colors: [
+                  Color(0xFF1c1917),
+                  Color(0xFF7c2d00),
+                  Color(0xFFea580c),
+                  Color(0xFFfed7aa),
+                ],
+              ),
+            ),
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -55,13 +71,14 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
+                  color: Colors.white,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
                 _formatDate(run.date),
-                style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+                style: const TextStyle(fontSize: 11, color: Color(0xFFFFD9B0)),
               ),
             ],
           ),
@@ -73,9 +90,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
                     'https://www.strava.com/activities/${run.stravaActivityId}',
                   ),
                 ),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFFC4C02),
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
                 child: const Text(
                   'STRAVA',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
@@ -91,9 +106,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
                       : 'https://www.stryd.com/activities/${run.strydActivityId}';
                   launchUrl(Uri.parse(url));
                 },
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF00A0DF),
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
                 child: const Text(
                   'STRYD',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
@@ -102,9 +115,9 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
           ],
           bottom: TabBar(
             controller: _tabs,
-            labelColor: const Color(0xFF6750A4),
-            unselectedLabelColor: const Color(0xFF888888),
-            indicatorColor: const Color(0xFF6750A4),
+            labelColor: Colors.white,
+            unselectedLabelColor: const Color(0xFFFFD9B0),
+            indicatorColor: Colors.white,
             tabs: const [
               Tab(text: 'Overview'),
               Tab(text: 'Blocks'),

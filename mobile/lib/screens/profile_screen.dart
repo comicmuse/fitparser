@@ -21,10 +21,26 @@ class ProfileScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Profile',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.38, 0.68, 1.0],
+              colors: [
+                Color(0xFF1c1917),
+                Color(0xFF7c2d00),
+                Color(0xFFea580c),
+                Color(0xFFfed7aa),
+              ],
+            ),
+          ),
+        ),
       ),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

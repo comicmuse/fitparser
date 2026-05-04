@@ -20,16 +20,36 @@ class HomeScreen extends ConsumerWidget {
           children: [
             Text(
               'RunCoach',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+                color: Colors.white,
+              ),
             ),
             Text(
               'Your AI running coach',
-              style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
+              style: TextStyle(fontSize: 12, color: Color(0xFFFFD9B0)),
             ),
           ],
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.38, 0.68, 1.0],
+              colors: [
+                Color(0xFF1c1917),
+                Color(0xFF7c2d00),
+                Color(0xFFea580c),
+                Color(0xFFfed7aa),
+              ],
+            ),
+          ),
+        ),
       ),
       body: dashAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
