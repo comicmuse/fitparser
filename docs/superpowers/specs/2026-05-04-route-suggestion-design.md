@@ -16,6 +16,7 @@ A "Suggested Route" section inside the existing **Prescribed Workout** card on t
 
 - Endpoint: `POST https://api.openrouteservice.org/v2/directions/foot-running/geojson`
 - Round-trip params: `options.round_trip.length` (metres), `options.round_trip.points` (3 = 3 variants)
+- Pedestrian preference: `profile_params.weightings.green = 1` (prefers parks/green areas/pedestrian paths) and `profile_params.weightings.quiet = 1` (prefers quieter ways over busy roads). Both are supported on `foot-*` profiles and together steer routes away from motorways/main roads toward footpaths and trails.
 - API key stored in `.env` as `ORS_API_KEY`, never exposed to the client.
 
 ## Architecture
