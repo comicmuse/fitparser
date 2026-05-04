@@ -673,6 +673,12 @@
       statusEl.style.display = 'block';
       statusEl.textContent = 'Getting your location…';
 
+      if (!window.isSecureContext) {
+        statusEl.textContent = 'Geolocation requires a secure connection. Access the app via localhost or enable HTTPS.';
+        btnArea.style.display = 'block';
+        return;
+      }
+
       if (!navigator.geolocation) {
         statusEl.textContent = 'Geolocation is not supported by your browser.';
         btnArea.style.display = 'block';
