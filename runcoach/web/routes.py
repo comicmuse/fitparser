@@ -1302,13 +1302,13 @@ def route_suggestion():
             "round_trip": {
                 "length": distance_m,
                 "points": 3,
-            }
-        },
-        "profile_params": {
-            "weightings": {
-                "green": 1,
-                "quiet": 1,
-            }
+            },
+            "profile_params": {
+                "weightings": {
+                    "green": 1,
+                    "quiet": 1,
+                }
+            },
         },
     }
 
