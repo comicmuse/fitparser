@@ -583,3 +583,53 @@ class TestDashboard:
         assert nw["date"] == future_date
         assert nw["name"] == "Easy Recovery Run"
         assert "description" in nw
+
+
+class TestRouteSuggestion:
+    def test_requires_auth(self, client):
+        resp = client.post(
+            "/api/v1/route-suggestion",
+            json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+        )
+        assert resp.status_code == 401
+
+    def test_missing_ors_key_returns_503(self, client, auth_headers):
+        resp = client.post(
+            "/api/v1/route-suggestion",
+            json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+            headers=auth_headers,
+        )
+        # Config has no ORS key in test fixture
+        assert resp.status_code == 503
+
+    def test_returns_routes_with_mocked_ors(self, client, auth_headers, app, monkeypatch):
+        from runcoach.config import Config
+        app.config["config"] = Config(
+            openai_api_key="test-key",
+            openai_model="gpt-4o",
+            data_dir=app.config["config"].data_dir,
+            timezone="Europe/London",
+            secret_key="test-secret-key",
+            ors_api_key="fake-ors-key",
+        )
+        fake_response = {
+            "features": [{
+                "geometry": {"coordinates": [[-0.1, 51.5], [-0.11, 51.51]]},
+                "properties": {"summary": {"distance": 5012}},
+            }]
+        }
+        import unittest.mock as mock
+        with mock.patch("runcoach.web.ors.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = fake_response
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "routes" in data
+        assert len(data["routes"]) >= 1
+        assert "coords" in data["routes"][0]
+        assert "distance_m" in data["routes"][0]

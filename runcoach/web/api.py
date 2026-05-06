@@ -652,3 +652,31 @@ def dashboard():
         "next_workout": next_workout,
         "training_summary": training_summary,
     }), 200
+
+
+@api_bp.route("/route-suggestion", methods=["POST"])
+@require_auth
+def api_route_suggestion():
+    body = request.get_json(silent=True) or {}
+    try:
+        lat = float(body["lat"])
+        lng = float(body["lng"])
+        distance_m = int(body["distance_m"])
+    except (KeyError, ValueError, TypeError):
+        return jsonify({"error": "lat, lng, and distance_m are required numeric fields"}), 400
+
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return jsonify({"error": "lat/lng out of range"}), 400
+    if distance_m <= 0:
+        return jsonify({"error": "distance_m must be positive"}), 400
+
+    cfg: Config = current_app.config["config"]
+    if not cfg.ors_api_key:
+        return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
+
+    from runcoach.web.ors import fetch_routes
+    routes = fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
+    if not routes:
+        return jsonify({"error": "Route service unavailable"}), 502
+
+    return jsonify({"routes": routes})

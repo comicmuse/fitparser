@@ -1447,7 +1447,7 @@ class TestRouteSuggestion:
 
     def test_returns_routes_on_success(self, client, app):
         app.config["config"].ors_api_key = "test-key"
-        with patch("runcoach.web.routes.requests.post") as mock_post:
+        with patch("runcoach.web.ors.requests.post") as mock_post:
             mock_post.return_value.status_code = 200
             mock_post.return_value.json.return_value = self.ORS_SUCCESS
             resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")
@@ -1462,7 +1462,7 @@ class TestRouteSuggestion:
 
     def test_ors_error_returns_502(self, client, app):
         app.config["config"].ors_api_key = "test-key"
-        with patch("runcoach.web.routes.requests.post") as mock_post:
+        with patch("runcoach.web.ors.requests.post") as mock_post:
             mock_post.return_value.status_code = 429
             mock_post.return_value.text = "Rate limit exceeded"
             resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")

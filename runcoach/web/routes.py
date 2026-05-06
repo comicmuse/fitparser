@@ -4,7 +4,6 @@ import logging
 import math as _math
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import re
 import unicodedata
@@ -24,7 +23,7 @@ from flask import (
 )
 import markdown as md
 import nh3
-import requests
+from runcoach.web.ors import fetch_routes as _ors_fetch_routes
 
 from runcoach.analyzer import analyze_and_write, build_chat_context, _dispatch_llm
 from runcoach.auth import hash_password, verify_password
@@ -1297,58 +1296,7 @@ def route_suggestion():
     if not cfg.ors_api_key:
         return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
 
-    def _fetch_route(seed: int) -> dict | None:
-        payload = {
-            "coordinates": [[lng, lat]],
-            "options": {
-                "round_trip": {
-                    "length": distance_m,
-                    "points": 3,
-                    "seed": seed,
-                },
-                "profile_params": {
-                    "weightings": {
-                        "green": 1,
-                        "quiet": 1,
-                    }
-                },
-            },
-        }
-        try:
-            r = requests.post(
-                "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
-                params={"api_key": cfg.ors_api_key},
-                json=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json, application/geo+json",
-                },
-                timeout=10,
-            )
-        except requests.exceptions.RequestException as exc:
-            log.warning("ORS request (seed=%d) failed: %s", seed, exc)
-            return None
-        if r.status_code != 200:
-            log.warning("ORS (seed=%d) returned %s: %s", seed, r.status_code, r.text)
-            return None
-        features = r.json().get("features", [])
-        if not features:
-            return None
-        feature = features[0]
-        raw_coords = feature["geometry"]["coordinates"]
-        # ORS returns [lng, lat]; Leaflet expects [lat, lng]
-        coords = [[pt[1], pt[0]] for pt in raw_coords]
-        distance = int(feature["properties"]["summary"]["distance"])
-        return {"coords": coords, "distance_m": distance}
-
-    routes = []
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = {pool.submit(_fetch_route, seed): seed for seed in range(3)}
-        for future in as_completed(futures):
-            result = future.result()
-            if result is not None:
-                routes.append(result)
-
+    routes = _ors_fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
     if not routes:
         return jsonify({"error": "Route service unavailable"}), 502
 
