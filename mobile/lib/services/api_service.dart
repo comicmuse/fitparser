@@ -7,7 +7,7 @@ import 'secure_storage_service.dart';
 class ApiService {
   static const String defaultBaseUrl = String.fromEnvironment(
     'BASE_URL',
-    defaultValue: 'http://10.0.2.2:5001/api/v1',
+    defaultValue: 'https://runcoach.linehan.me.uk/api/v1',
   );
 
   final String _baseUrl;

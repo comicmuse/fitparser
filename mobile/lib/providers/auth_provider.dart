@@ -8,7 +8,7 @@ final secureStorageProvider = Provider<SecureStorageService>(
 
 const _defaultServerUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'http://10.0.2.2:5001/api/v1',
+  defaultValue: 'https://runcoach.linehan.me.uk/api/v1',
 );
 
 class ServerUrlNotifier extends AsyncNotifier<String> {
