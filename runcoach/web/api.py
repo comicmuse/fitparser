@@ -611,6 +611,39 @@ def _parse_zones(raw: str | None) -> list | None:
         return None
 
 
+def _parse_structure(raw_json_str: str | None) -> list | None:
+    """Extract planned workout structure blocks from raw_json."""
+    if not raw_json_str:
+        return None
+    try:
+        data = json.loads(raw_json_str)
+        blocks = data.get("workout", {}).get("blocks")
+        if not blocks:
+            return None
+        result = []
+        for block in blocks:
+            repeat = block.get("repeat", 1)
+            segments = []
+            for seg in block.get("segments", []):
+                dt = seg.get("duration_time", {})
+                duration_s = (
+                    dt.get("hour", 0) * 3600
+                    + dt.get("minute", 0) * 60
+                    + dt.get("second", 0)
+                )
+                ip = seg.get("intensity_percent", {})
+                segments.append({
+                    "intensity_class": seg.get("intensity_class", "work"),
+                    "duration_s": duration_s,
+                    "power_min_pct": ip.get("min"),
+                    "power_max_pct": ip.get("max"),
+                })
+            result.append({"repeat": repeat, "segments": segments})
+        return result
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 @api_bp.route("/dashboard", methods=["GET"])
 @require_auth
 def dashboard():
@@ -635,6 +668,7 @@ def dashboard():
             "distance_m": w.get("distance_m"),
             "duration_s": w.get("duration_s"),
             "intensity_zones": _parse_zones(w.get("intensity_zones")),
+            "structure": _parse_structure(w.get("raw_json")),
         }
 
     # Training summary

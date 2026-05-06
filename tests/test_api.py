@@ -625,6 +625,45 @@ class TestDashboard:
         assert nw["distance_m"] is None
         assert nw["duration_s"] is None
 
+    def test_dashboard_next_workout_structure_parsed(self, client, auth_headers, app):
+        import json as json_mod
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        future_date = (date.today() + timedelta(days=3)).isoformat()
+        raw_json = json_mod.dumps({
+            "workout": {
+                "blocks": [{
+                    "repeat": 3,
+                    "segments": [{
+                        "intensity_class": "work",
+                        "duration_time": {"hour": 0, "minute": 5, "second": 0},
+                        "intensity_percent": {"value": 110, "min": 100, "max": 120},
+                    }],
+                }]
+            }
+        })
+        db.upsert_planned_workout(
+            date=future_date,
+            title="Intervals",
+            description="Hard",
+            user_id=user_id,
+            raw_json=raw_json,
+        )
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        structure = nw["structure"]
+        assert structure is not None
+        assert len(structure) == 1
+        block = structure[0]
+        assert block["repeat"] == 3
+        seg = block["segments"][0]
+        assert seg["intensity_class"] == "work"
+        assert seg["duration_s"] == 300
+        assert seg["power_min_pct"] == 100
+        assert seg["power_max_pct"] == 120
+
 
 class TestRouteSuggestion:
     def test_requires_auth(self, client):

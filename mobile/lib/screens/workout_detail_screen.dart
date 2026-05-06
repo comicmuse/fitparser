@@ -30,12 +30,12 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _tabs.addListener(_onTabChanged);
   }
 
   void _onTabChanged() {
-    if (_tabs.index == 1 && !_tabs.indexIsChanging && !_routeTabVisited) {
+    if (_tabs.index == 2 && !_tabs.indexIsChanging && !_routeTabVisited) {
       setState(() => _routeTabVisited = true);
       _fetchRoutes();
     }
@@ -185,6 +185,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
           indicatorColor: Colors.white,
           tabs: const [
             Tab(text: 'Overview'),
+            Tab(text: 'Structure'),
             Tab(text: 'Route'),
           ],
         ),
@@ -193,6 +194,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
         controller: _tabs,
         children: [
           _OverviewTab(workout: widget.workout),
+          _StructureTab(workout: widget.workout),
           _RouteTab(
             routes: _routes,
             loading: _loadingRoutes,
@@ -229,6 +231,113 @@ class _OverviewTab extends StatelessWidget {
         const SizedBox(height: 8),
         PowerZoneBar(zones: workout.intensityZones),
       ],
+    );
+  }
+}
+
+class _StructureTab extends StatelessWidget {
+  final PlannedWorkout workout;
+  const _StructureTab({required this.workout});
+
+  Color _blockColor(String intensityClass) => switch (intensityClass) {
+    'work' || 'active' => const Color(0xFFF97316),
+    'rest' => const Color(0xFF9CA3AF),
+    'warmup' || 'cooldown' => const Color(0xFF2563EB),
+    _ => const Color(0xFFCCCCCC),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final structure = workout.structure;
+    if (structure == null || structure.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text(
+            'No structure data available for this workout',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF888888)),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      itemCount: structure.length,
+      itemBuilder: (context, i) {
+        final block = structure[i];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (block.repeat > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 16, 2),
+                child: Text(
+                  '× ${block.repeat}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF888888),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ...block.segments.map((seg) {
+              final color = _blockColor(seg.intensityClass);
+              final hasPower =
+                  seg.powerMinPct != null && seg.powerMaxPct != null;
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border(left: BorderSide(color: color, width: 3)),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            seg.intensityClass.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: color,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          if (hasPower) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${seg.powerMinPct}–${seg.powerMaxPct}% CP',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text(
+                        seg.formattedDuration,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF888888),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 }
