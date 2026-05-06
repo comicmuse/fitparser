@@ -602,6 +602,15 @@ def update_athlete_profile():
     }), 200
 
 
+def _parse_zones(raw: str | None) -> list | None:
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
 @api_bp.route("/dashboard", methods=["GET"])
 @require_auth
 def dashboard():
@@ -618,7 +627,6 @@ def dashboard():
     next_workout = None
     if upcoming:
         w = upcoming[0]
-        raw_zones = w.get("intensity_zones")
         next_workout = {
             "id": w["id"],
             "date": w["date"],
@@ -626,7 +634,7 @@ def dashboard():
             "description": w.get("description") or "",
             "distance_m": w.get("distance_m"),
             "duration_s": w.get("duration_s"),
-            "intensity_zones": json.loads(raw_zones) if raw_zones else None,
+            "intensity_zones": _parse_zones(w.get("intensity_zones")),
         }
 
     # Training summary
