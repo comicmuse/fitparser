@@ -75,13 +75,6 @@ docker compose up -d
 
 ### Testing Individual Components
 ```bash
-# Test Stryd authentication and sync (from strydcmd-src)
-cd strydcmd-src
-source .venv/bin/activate
-stryd -g 7  # Get activities from last 7 days
-stryd -g 30 -f  # Download FIT files for last 30 days
-strydsync 30  # Sync to SQLite database
-
 # Parse a single FIT file to YAML
 runcoach-cli parse --file path/to/file.fit
 
@@ -202,11 +195,12 @@ Sends training context + workout YAML to OpenAI with:
 
 Returns markdown commentary stored in DB and written to `.md` file.
 
-### Stryd Integration (`strydcmd-src/`)
-Bundled subproject with its own package:
-- `stryd_api.py`: Stryd API client for authentication and activity retrieval
-- `database.py`: Separate SQLite database for detailed Stryd data (87 fields, time-series)
-- `strydsync` command: batch sync with progress tracking
+### Stryd Integration (`runcoach/stryd_api.py`)
+Inlined API client for authentication and activity retrieval:
+- `authenticate()`: email/password login, stores session token and user ID
+- `get_activities()`: fetch recent activities from the calendar endpoint
+- `get_planned_workouts()`: fetch training plan workouts from `api.stryd.com` (returns full block structure including power targets)
+- `download_fit_file()`: download FIT file for a specific activity
 
 ### Strava Integration (`runcoach/strava.py`)
 Optional integration for route maps and webhook-triggered sync:

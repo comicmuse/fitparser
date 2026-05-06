@@ -133,4 +133,4 @@ runcoach/
 
 ## Acknowledgements
 
-- **[strydcmd](strydcmd-src/)** — bundled command-line tool for connecting to the Stryd API and retrieving training data. Used internally for activity sync.
+- **[Stryd API](https://www.stryd.com)** — activity sync and training plan calendar, via `runcoach/stryd_api.py`
