@@ -7,6 +7,8 @@ import 'screens/home_screen.dart';
 import 'screens/activities_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/run_detail_screen.dart';
+import 'screens/workout_detail_screen.dart';
+import 'models/planned_workout.dart';
 
 final _rootNavKey = GlobalKey<NavigatorState>();
 final _shellNavKey = GlobalKey<NavigatorState>();
@@ -44,6 +46,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/workout-detail',
+        parentNavigatorKey: _rootNavKey,
+        builder: (context, state) => WorkoutDetailScreen(
+          workout: state.extra as PlannedWorkout,
+        ),
+      ),
       ShellRoute(
         navigatorKey: _shellNavKey,
         builder: (context, state, child) => ScaffoldWithNavBar(child: child),
