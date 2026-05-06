@@ -35,7 +35,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
   }
 
   void _onTabChanged() {
-    if (_tabs.index == 1 && !_routeTabVisited) {
+    if (_tabs.index == 1 && !_tabs.indexIsChanging && !_routeTabVisited) {
       setState(() => _routeTabVisited = true);
       _fetchRoutes();
     }
