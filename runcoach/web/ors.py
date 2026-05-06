@@ -22,7 +22,7 @@ def fetch_routes(lat: float, lng: float, distance_m: int, ors_api_key: str) -> l
                     "points": 3,
                     "seed": seed,
                 },
-                "avoid_features": ["fords"],
+                "avoid_features": ["fords", "ferries"],
                 "profile_params": {"weightings": {"green": 1, "quiet": 1}},
             },
         }
