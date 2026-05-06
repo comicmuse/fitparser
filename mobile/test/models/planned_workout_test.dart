@@ -41,9 +41,9 @@ void main() {
       expect(w.description, 'Keep it easy');
     });
 
-    test('intensityZones elements are int', () {
+    test('intensityZones parses correct values', () {
       final w = PlannedWorkout.fromJson(baseJson());
-      expect(w.intensityZones!.every((e) => e is int), isTrue);
+      expect(w.intensityZones, equals([2340, 0, 0, 60, 0]));
     });
   });
 }
