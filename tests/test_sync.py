@@ -60,7 +60,7 @@ class TestSyncPlannedWorkoutsCleanup:
         mock_api = MagicMock()
         mock_api.authenticate.return_value = None
         mock_api.get_planned_workouts.return_value = workouts
-        return patch("strydcmd.stryd_api.StrydAPI", return_value=mock_api)
+        return patch("runcoach.stryd_api.StrydAPI", return_value=mock_api)
 
     # ------------------------------------------------------------------
     # Core stale-cleanup tests
@@ -242,7 +242,7 @@ def _patch_stryd(activities: list[dict], fit_content: bytes = b"FITDATA"):
     mock_api.authenticate.return_value = None
     mock_api.get_activities.return_value = activities
     mock_api.download_fit_file.side_effect = _fake_download
-    return patch("strydcmd.stryd_api.StrydAPI", return_value=mock_api)
+    return patch("runcoach.stryd_api.StrydAPI", return_value=mock_api)
 
 
 class TestSyncNewActivitiesUsesPlannedName:

@@ -32,7 +32,7 @@ def sync_new_activities(
     Returns a list of dicts for newly synced activities.
     """
     # Import here to avoid hard dependency at module level
-    from strydcmd.stryd_api import StrydAPI
+    from runcoach.stryd_api import StrydAPI
 
     log_id = db.start_sync_log(user_id=user_id)
     new_runs = []
@@ -156,7 +156,7 @@ def sync_planned_workouts(
     """
     from datetime import timedelta
 
-    from strydcmd.stryd_api import StrydAPI
+    from runcoach.stryd_api import StrydAPI
 
     stryd = StrydAPI(stryd_email, stryd_password)
     stryd.authenticate()
