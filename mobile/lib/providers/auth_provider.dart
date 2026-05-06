@@ -52,6 +52,8 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
         : AuthStatus.unauthenticated;
   }
 
+  void revalidate() => _checkAuth();
+
   Future<void> login(String username, String password) async {
     final tokens = await _api.login(username, password);
     await _storage.saveTokens(
@@ -69,10 +71,10 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthStatus>((ref) {
-  return AuthNotifier(
-    ref.read(secureStorageProvider),
-    ref.read(apiServiceProvider),
-  );
+  final api = ref.read(apiServiceProvider);
+  final notifier = AuthNotifier(ref.read(secureStorageProvider), api);
+  api.onAuthFailed = notifier.revalidate;
+  return notifier;
 });
 
 final athleteProfileProvider = FutureProvider<Map<String, dynamic>>((

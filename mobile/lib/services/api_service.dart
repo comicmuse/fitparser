@@ -14,16 +14,32 @@ class ApiService {
   late final Dio _dio;
   final SecureStorageService _storage;
 
-  ApiService(this._storage, {String? baseUrl})
-    : _baseUrl = baseUrl ?? defaultBaseUrl {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: _baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
-      ),
-    );
-    _dio.interceptors.add(_AuthInterceptor(_storage, _dio, _baseUrl));
+  /// Called when token refresh fails and credentials are cleared.
+  /// Wire this up to trigger re-authentication in the auth layer.
+  void Function()? onAuthFailed;
+
+  // testDio and testRefreshDioFactory are for unit tests only.
+  ApiService(
+    this._storage, {
+    String? baseUrl,
+    Dio? testDio,
+    Dio Function(String baseUrl)? testRefreshDioFactory,
+  }) : _baseUrl = baseUrl ?? defaultBaseUrl {
+    _dio = testDio ??
+        Dio(
+          BaseOptions(
+            baseUrl: _baseUrl,
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 30),
+          ),
+        );
+    _dio.interceptors.add(_AuthInterceptor(
+      _storage,
+      _dio,
+      _baseUrl,
+      () => onAuthFailed?.call(),
+      refreshDioFactory: testRefreshDioFactory,
+    ));
   }
 
   // Auth
@@ -119,8 +135,16 @@ class _AuthInterceptor extends Interceptor {
   final SecureStorageService _storage;
   final Dio _dio;
   final String _baseUrl;
+  final void Function() _onAuthFailed;
+  final Dio Function(String baseUrl)? _refreshDioFactory;
 
-  _AuthInterceptor(this._storage, this._dio, this._baseUrl);
+  _AuthInterceptor(
+    this._storage,
+    this._dio,
+    this._baseUrl,
+    this._onAuthFailed, {
+    Dio Function(String baseUrl)? refreshDioFactory,
+  }) : _refreshDioFactory = refreshDioFactory;
 
   @override
   Future<void> onRequest(
@@ -143,12 +167,11 @@ class _AuthInterceptor extends Interceptor {
       final refreshToken = await _storage.getRefreshToken();
       if (refreshToken != null) {
         try {
-          final refreshDio = Dio(BaseOptions(baseUrl: _baseUrl));
+          final refreshDio = _refreshDioFactory?.call(_baseUrl) ??
+              Dio(BaseOptions(baseUrl: _baseUrl));
           final resp = await refreshDio.post(
             '/auth/refresh',
-            options: Options(
-              headers: {'Authorization': 'Bearer $refreshToken'},
-            ),
+            data: {'refresh_token': refreshToken},
           );
           final newAccess = resp.data['access_token'] as String;
           await _storage.saveTokens(access: newAccess, refresh: refreshToken);
@@ -158,6 +181,7 @@ class _AuthInterceptor extends Interceptor {
           return;
         } catch (_) {
           await _storage.clearTokens();
+          _onAuthFailed();
         }
       }
     }
