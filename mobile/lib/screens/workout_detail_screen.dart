@@ -424,7 +424,7 @@ class _RouteTab extends StatelessWidget {
                 padding: const EdgeInsets.all(32),
               ),
               interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.none,
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
             ),
             children: [
