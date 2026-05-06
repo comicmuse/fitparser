@@ -584,6 +584,47 @@ class TestDashboard:
         assert nw["name"] == "Easy Recovery Run"
         assert "description" in nw
 
+    def test_dashboard_next_workout_includes_new_fields(self, client, auth_headers, app):
+        import json as json_mod
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        db.upsert_planned_workout(
+            date=future_date,
+            title="Interval Session",
+            description="Hard effort",
+            duration_s=2400.0,
+            distance_m=6292.8,
+            intensity_zones=json_mod.dumps([2340, 0, 0, 60, 0]),
+            user_id=user_id,
+        )
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        assert nw["id"] is not None
+        assert nw["distance_m"] == pytest.approx(6292.8)
+        assert nw["duration_s"] == pytest.approx(2400.0)
+        assert nw["intensity_zones"] == [2340, 0, 0, 60, 0]
+
+    def test_dashboard_next_workout_intensity_zones_null_when_unset(self, client, auth_headers, app):
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        future_date = (date.today() + timedelta(days=2)).isoformat()
+        db.upsert_planned_workout(
+            date=future_date,
+            title="Easy Run",
+            description="Keep it easy",
+            user_id=user_id,
+        )
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        assert nw["intensity_zones"] is None
+        assert nw["distance_m"] is None
+        assert nw["duration_s"] is None
+
 
 class TestRouteSuggestion:
     def test_requires_auth(self, client):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import yaml
@@ -617,10 +618,15 @@ def dashboard():
     next_workout = None
     if upcoming:
         w = upcoming[0]
+        raw_zones = w.get("intensity_zones")
         next_workout = {
+            "id": w["id"],
             "date": w["date"],
             "name": w["title"],
             "description": w.get("description") or "",
+            "distance_m": w.get("distance_m"),
+            "duration_s": w.get("duration_s"),
+            "intensity_zones": json.loads(raw_zones) if raw_zones else None,
         }
 
     # Training summary
