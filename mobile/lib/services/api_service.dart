@@ -129,6 +129,19 @@ class ApiService {
     final resp = await _dio.get('/athlete/profile');
     return resp.data as Map<String, dynamic>;
   }
+
+  Future<List<Map<String, dynamic>>> postRouteSuggestion({
+    required double lat,
+    required double lng,
+    required int distanceM,
+  }) async {
+    final resp = await _dio.post(
+      '/route-suggestion',
+      data: {'lat': lat, 'lng': lng, 'distance_m': distanceM},
+    );
+    final routes = resp.data['routes'] as List<dynamic>;
+    return routes.map((e) => e as Map<String, dynamic>).toList();
+  }
 }
 
 class _AuthInterceptor extends Interceptor {
