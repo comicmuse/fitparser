@@ -21,6 +21,7 @@ from runcoach.db import RunCoachDB
 from runcoach.config import Config
 from runcoach.analyzer import _dispatch_llm, build_chat_context
 from runcoach.context import build_training_summary
+from runcoach.web.ors import fetch_routes
 
 
 log = logging.getLogger(__name__)
@@ -674,7 +675,6 @@ def api_route_suggestion():
     if not cfg.ors_api_key:
         return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
 
-    from runcoach.web.ors import fetch_routes
     routes = fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
     if not routes:
         return jsonify({"error": "Route service unavailable"}), 502
