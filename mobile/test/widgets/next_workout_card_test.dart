@@ -1,9 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import '../../lib/models/planned_workout.dart';
 import '../../lib/widgets/next_workout_card.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+
+Widget _wrapWithRouter(Widget card, {void Function(Object?)? onNavigate}) {
+  final router = GoRouter(
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, __) => Scaffold(body: card),
+        routes: [
+          GoRoute(
+            path: 'workout-detail',
+            builder: (context, state) {
+              onNavigate?.call(state.extra);
+              return const Scaffold(body: Text('detail'));
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+  return MaterialApp.router(routerConfig: router);
+}
 
 PlannedWorkout _workout({String description = ''}) => PlannedWorkout(
   date: '2026-05-09',
@@ -42,6 +64,18 @@ void main() {
       await tester.pumpWidget(_wrap(NextWorkoutCard(workout: _workout())));
       // No description text should appear
       expect(find.byType(Text), findsNWidgets(2)); // label + name only
+    });
+
+    testWidgets('tapping navigates to /workout-detail with workout as extra', (tester) async {
+      final workout = _workout(description: 'Some description.');
+      Object? capturedExtra;
+      await tester.pumpWidget(_wrapWithRouter(
+        NextWorkoutCard(workout: workout),
+        onNavigate: (extra) => capturedExtra = extra,
+      ));
+      await tester.tap(find.byType(GestureDetector));
+      await tester.pumpAndSettle();
+      expect(identical(capturedExtra, workout), isTrue);
     });
   });
 }
