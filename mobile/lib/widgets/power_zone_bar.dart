@@ -44,12 +44,16 @@ class PowerZoneBar extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(5),
               child: Row(
-                children: zones!.asMap().entries
+                children: zones!
+                    .asMap()
+                    .entries
                     .where((e) => e.value > 0)
-                    .map((e) => Expanded(
-                          flex: e.value,
-                          child: Container(height: 12, color: _colors[e.key]),
-                        ))
+                    .map(
+                      (e) => Expanded(
+                        flex: e.value,
+                        child: Container(height: 12, color: _colors[e.key]),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -57,16 +61,20 @@ class PowerZoneBar extends StatelessWidget {
             Wrap(
               spacing: 12,
               runSpacing: 4,
-              children: zones!.asMap().entries
+              children: zones!
+                  .asMap()
+                  .entries
                   .where((e) => e.value > 0)
-                  .map((e) => Text(
-                        'Z${e.key + 1} ${_fmt(e.value)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _colors[e.key],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ))
+                  .map(
+                    (e) => Text(
+                      'Z${e.key + 1} ${_fmt(e.value)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _colors[e.key],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ],

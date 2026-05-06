@@ -26,8 +26,8 @@ class PlannedWorkout {
     durationS: (json['duration_s'] as num?)?.toDouble(),
     intensityZones: json['intensity_zones'] != null
         ? (json['intensity_zones'] as List<dynamic>)
-            .map((e) => (e as num).toInt())
-            .toList()
+              .map((e) => (e as num).toInt())
+              .toList()
         : null,
   );
 }

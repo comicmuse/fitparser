@@ -18,7 +18,9 @@ void main() {
       expect(find.text('POWER ZONES'), findsNothing);
     });
 
-    testWidgets('renders header when at least one zone is non-zero', (tester) async {
+    testWidgets('renders header when at least one zone is non-zero', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(const PowerZoneBar(zones: [2340, 0, 0, 60, 0])),
       );

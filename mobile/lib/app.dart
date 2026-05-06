@@ -49,9 +49,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/workout-detail',
         parentNavigatorKey: _rootNavKey,
-        builder: (context, state) => WorkoutDetailScreen(
-          workout: state.extra as PlannedWorkout,
-        ),
+        builder: (context, state) =>
+            WorkoutDetailScreen(workout: state.extra as PlannedWorkout),
       ),
       ShellRoute(
         navigatorKey: _shellNavKey,

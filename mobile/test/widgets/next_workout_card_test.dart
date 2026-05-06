@@ -46,15 +46,15 @@ void main() {
     });
 
     testWidgets('truncates description to first paragraph', (tester) async {
-      final w = _workout(
-        description: 'First paragraph.\n\nSecond paragraph.',
-      );
+      final w = _workout(description: 'First paragraph.\n\nSecond paragraph.');
       await tester.pumpWidget(_wrap(NextWorkoutCard(workout: w)));
       expect(find.text('First paragraph.'), findsOneWidget);
       expect(find.text('Second paragraph.'), findsNothing);
     });
 
-    testWidgets('shows full description when no double newline', (tester) async {
+    testWidgets('shows full description when no double newline', (
+      tester,
+    ) async {
       final w = _workout(description: 'Single paragraph text here.');
       await tester.pumpWidget(_wrap(NextWorkoutCard(workout: w)));
       expect(find.text('Single paragraph text here.'), findsOneWidget);
@@ -66,13 +66,17 @@ void main() {
       expect(find.byType(Text), findsNWidgets(2)); // label + name only
     });
 
-    testWidgets('tapping navigates to /workout-detail with workout as extra', (tester) async {
+    testWidgets('tapping navigates to /workout-detail with workout as extra', (
+      tester,
+    ) async {
       final workout = _workout(description: 'Some description.');
       Object? capturedExtra;
-      await tester.pumpWidget(_wrapWithRouter(
-        NextWorkoutCard(workout: workout),
-        onNavigate: (extra) => capturedExtra = extra,
-      ));
+      await tester.pumpWidget(
+        _wrapWithRouter(
+          NextWorkoutCard(workout: workout),
+          onNavigate: (extra) => capturedExtra = extra,
+        ),
+      );
       await tester.tap(find.byType(GestureDetector));
       await tester.pumpAndSettle();
       expect(identical(capturedExtra, workout), isTrue);

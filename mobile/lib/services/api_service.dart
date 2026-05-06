@@ -25,7 +25,8 @@ class ApiService {
     Dio? testDio,
     Dio Function(String baseUrl)? testRefreshDioFactory,
   }) : _baseUrl = baseUrl ?? defaultBaseUrl {
-    _dio = testDio ??
+    _dio =
+        testDio ??
         Dio(
           BaseOptions(
             baseUrl: _baseUrl,
@@ -33,13 +34,15 @@ class ApiService {
             receiveTimeout: const Duration(seconds: 30),
           ),
         );
-    _dio.interceptors.add(_AuthInterceptor(
-      _storage,
-      _dio,
-      _baseUrl,
-      () => onAuthFailed?.call(),
-      refreshDioFactory: testRefreshDioFactory,
-    ));
+    _dio.interceptors.add(
+      _AuthInterceptor(
+        _storage,
+        _dio,
+        _baseUrl,
+        () => onAuthFailed?.call(),
+        refreshDioFactory: testRefreshDioFactory,
+      ),
+    );
   }
 
   // Auth
@@ -180,7 +183,8 @@ class _AuthInterceptor extends Interceptor {
       final refreshToken = await _storage.getRefreshToken();
       if (refreshToken != null) {
         try {
-          final refreshDio = _refreshDioFactory?.call(_baseUrl) ??
+          final refreshDio =
+              _refreshDioFactory?.call(_baseUrl) ??
               Dio(BaseOptions(baseUrl: _baseUrl));
           final resp = await refreshDio.post(
             '/auth/refresh',

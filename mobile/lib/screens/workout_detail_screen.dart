@@ -105,8 +105,18 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
     try {
       final dt = DateTime.parse(isoDate);
       const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return '${days[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]}';
@@ -140,11 +150,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               stops: [0.0, 0.5, 1.0],
-              colors: [
-                Color(0xFF1c1917),
-                Color(0xFF9a3412),
-                Color(0xFFea580c),
-              ],
+              colors: [Color(0xFF1c1917), Color(0xFF9a3412), Color(0xFFea580c)],
             ),
           ),
         ),
@@ -177,7 +183,10 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
           labelColor: Colors.white,
           unselectedLabelColor: const Color(0xFFFFD9B0),
           indicatorColor: Colors.white,
-          tabs: const [Tab(text: 'Overview'), Tab(text: 'Route')],
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Route'),
+          ],
         ),
       ),
       body: TabBarView(
@@ -189,8 +198,9 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
             loading: _loadingRoutes,
             error: _routeError,
             routeIndex: _routeIndex,
-            onPrev:
-                _routeIndex > 0 ? () => setState(() => _routeIndex--) : null,
+            onPrev: _routeIndex > 0
+                ? () => setState(() => _routeIndex--)
+                : null,
             onNext: _routes != null && _routeIndex < _routes!.length - 1
                 ? () => setState(() => _routeIndex++)
                 : null,
@@ -310,8 +320,7 @@ class _RouteTab extends StatelessWidget {
             ),
             children: [
               TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.runcoach.app',
               ),
               PolylineLayer(
@@ -351,10 +360,7 @@ class _RouteTab extends StatelessWidget {
               ),
               Text(
                 'Route ${routeIndex + 1} of ${routes!.length}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF888888),
-                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
               ),
               TextButton.icon(
                 onPressed: onNext,
