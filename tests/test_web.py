@@ -1454,7 +1454,7 @@ class TestRouteSuggestion:
         assert resp.status_code == 200
         data = resp.get_json()
         assert "routes" in data
-        assert len(data["routes"]) == 3
+        assert len(data["routes"]) == 5
         assert "coords" in data["routes"][0]
         assert "distance_m" in data["routes"][0]
         # coords are [lat, lng] pairs (note ORS returns [lng, lat] — verify swap)
