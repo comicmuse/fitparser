@@ -138,185 +138,24 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
-            # Migration: add is_manual_upload column if it doesn't exist
-            cursor = conn.execute("PRAGMA table_info(runs)")
-            columns = {row[1]: row for row in cursor.fetchall()}
-            if "is_manual_upload" not in columns:
-                conn.execute(
-                    "ALTER TABLE runs ADD COLUMN is_manual_upload INTEGER NOT NULL DEFAULT 0"
-                )
-            # Migration: add stryd_rss column if it doesn't exist
-            if "stryd_rss" not in columns:
-                conn.execute(
-                    "ALTER TABLE runs ADD COLUMN stryd_rss REAL"
-                )
-            # Migration: add garmin_connect_id and strava_activity_id columns
-            if "garmin_connect_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE runs ADD COLUMN garmin_connect_id TEXT"
-                )
-            if "strava_activity_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE runs ADD COLUMN strava_activity_id TEXT"
-                )
-            if "strava_map_polyline" not in columns:
-                conn.execute(
-                    "ALTER TABLE runs ADD COLUMN strava_map_polyline TEXT"
-                )
-
-            # Migration: allow NULL stryd_activity_id for manual uploads
-            # Check if stryd_activity_id has NOT NULL constraint (column index 3 is notnull flag)
-            if "stryd_activity_id" in columns and columns["stryd_activity_id"][3] == 1:
-                # Need to recreate the table to remove NOT NULL constraint
-                log.info("Migrating runs table to allow NULL stryd_activity_id")
-                conn.executescript("""
-                    PRAGMA foreign_keys=OFF;
-
-                    CREATE TABLE IF NOT EXISTS runs_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        stryd_activity_id INTEGER UNIQUE,
-                        name TEXT,
-                        date TEXT NOT NULL,
-                        distance_m REAL,
-                        moving_time_s INTEGER,
-                        fit_path TEXT,
-                        yaml_path TEXT,
-                        md_path TEXT,
-                        stage TEXT NOT NULL DEFAULT 'synced',
-                        error_message TEXT,
-                        avg_power_w REAL,
-                        avg_hr INTEGER,
-                        workout_name TEXT,
-                        commentary TEXT,
-                        analyzed_at TEXT,
-                        model_used TEXT,
-                        prompt_tokens INTEGER,
-                        completion_tokens INTEGER,
-                        synced_at TEXT NOT NULL,
-                        parsed_at TEXT,
-                        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-                        is_manual_upload INTEGER NOT NULL DEFAULT 0,
-                        stryd_rss REAL
-                    );
-
-                    INSERT INTO runs_new SELECT
-                        id, stryd_activity_id, name, date, distance_m, moving_time_s,
-                        fit_path, yaml_path, md_path, stage, error_message,
-                        avg_power_w, avg_hr, workout_name, commentary, analyzed_at,
-                        model_used, prompt_tokens, completion_tokens, synced_at,
-                        parsed_at, created_at, updated_at,
-                        COALESCE(is_manual_upload, 0),
-                        NULL
-                    FROM runs;
-
-                    DROP TABLE runs;
-                    ALTER TABLE runs_new RENAME TO runs;
-
-                    CREATE INDEX IF NOT EXISTS idx_runs_date ON runs(date);
-                    CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
-
-                    PRAGMA foreign_keys=ON;
-                """)
-
-            # Migration: add athlete_profile, stryd_athlete_id, and Strava columns to users
-            cursor = conn.execute("PRAGMA table_info(users)")
-            user_columns = {row[1] for row in cursor.fetchall()}
-            if "stryd_athlete_id" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN stryd_athlete_id TEXT")
-            for col, col_type in [
-                ("strava_access_token", "TEXT"),
-                ("strava_refresh_token", "TEXT"),
-                ("strava_token_expires_at", "INTEGER"),
-                ("strava_athlete_id", "TEXT"),
-                ("strava_webhook_subscription_id", "INTEGER"),
-            ]:
-                if col not in user_columns:
-                    conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-            if "display_name" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
-            if "race_date" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN race_date TEXT")
-            if "race_distance" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN race_distance TEXT")
-            if "athlete_profile" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN athlete_profile TEXT")
-                # Seed from coach_profile.txt if the default user exists and profile is null
-                seed_path = Path(__file__).resolve().parent.parent / "coach_profile.txt"
-                if seed_path.exists():
-                    try:
-                        seed_text = seed_path.read_text(encoding="utf-8").strip()
-                        conn.execute(
-                            """UPDATE users SET athlete_profile = ?
-                               WHERE athlete_profile IS NULL AND id = (SELECT MIN(id) FROM users)""",
-                            (seed_text,),
-                        )
-                        log.info("Seeded athlete_profile from coach_profile.txt")
-                    except Exception:
-                        log.exception("Failed to seed athlete_profile from coach_profile.txt")
-
-            # Migration: add Stryd credentials to users
-            cursor = conn.execute("PRAGMA table_info(users)")
-            user_columns = {row[1] for row in cursor.fetchall()}
-            if "stryd_email" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN stryd_email TEXT")
-            if "stryd_password" not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN stryd_password TEXT")
-
-            # Migration: add is_active and is_admin to users
-            cursor = conn.execute("PRAGMA table_info(users)")
-            user_columns = {row[1] for row in cursor.fetchall()}
-            if "is_active" not in user_columns:
-                conn.execute(
-                    "ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
-                )
-            if "is_admin" not in user_columns:
-                conn.execute(
-                    "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
-                )
-            # Always ensure at least one admin exists (idempotent, handles existing DBs)
+            # Always ensure the first-ever user is an admin (idempotent).
             conn.execute(
                 """UPDATE users SET is_admin = 1
                    WHERE id = (SELECT MIN(id) FROM users)
                    AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)"""
             )
-
-            # Migration: add user_id to runs
-            cursor = conn.execute("PRAGMA table_info(runs)")
-            run_cols = {row[1] for row in cursor.fetchall()}
-            if "user_id" not in run_cols:
-                conn.execute(
-                    "ALTER TABLE runs ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
-                )
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs(user_id)"
-                )
-
-            # Migration: add user_id to planned_workouts and fix unique index
-            cursor = conn.execute("PRAGMA table_info(planned_workouts)")
-            pw_cols = {row[1] for row in cursor.fetchall()}
-            if "user_id" not in pw_cols:
-                conn.execute(
-                    "ALTER TABLE planned_workouts ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
-                )
-                # Replace old (date, title) unique index with (date, title, user_id)
-                conn.execute("DROP INDEX IF EXISTS idx_planned_date_title")
-                conn.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_planned_date_title"
-                    " ON planned_workouts(date, title, user_id)"
-                )
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_planned_workouts_user_id"
-                    " ON planned_workouts(user_id)"
-                )
-
-            # Migration: add user_id to sync_log
-            cursor = conn.execute("PRAGMA table_info(sync_log)")
-            sl_cols = {row[1] for row in cursor.fetchall()}
-            if "user_id" not in sl_cols:
-                conn.execute(
-                    "ALTER TABLE sync_log ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
-                )
+            # Seed athlete_profile from coach_profile.txt on first startup if blank.
+            seed_path = Path(__file__).resolve().parent.parent / "coach_profile.txt"
+            if seed_path.exists():
+                try:
+                    seed_text = seed_path.read_text(encoding="utf-8").strip()
+                    conn.execute(
+                        """UPDATE users SET athlete_profile = ?
+                           WHERE athlete_profile IS NULL AND id = (SELECT MIN(id) FROM users)""",
+                        (seed_text,),
+                    )
+                except Exception:
+                    log.exception("Failed to seed athlete_profile from coach_profile.txt")
 
     # ------ runs ------
 
