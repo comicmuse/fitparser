@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 def fetch_routes(lat: float, lng: float, distance_m: int, ors_api_key: str) -> list[dict]:
-    """Fetch 3 round-trip route variations from ORS in parallel. Returns empty list on total failure."""
+    """Fetch 5 round-trip route variations from ORS in parallel. Returns empty list on total failure."""
 
     def _fetch_one(seed: int) -> dict | None:
         payload = {
@@ -53,8 +53,8 @@ def fetch_routes(lat: float, lng: float, distance_m: int, ors_api_key: str) -> l
         return {"coords": coords, "distance_m": distance}
 
     routes: list[dict] = []
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = {pool.submit(_fetch_one, seed): seed for seed in range(3)}
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {pool.submit(_fetch_one, seed): seed for seed in range(5)}
         for future in as_completed(futures):
             result = future.result()
             if result is not None:
