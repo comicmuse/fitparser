@@ -34,7 +34,11 @@ CREATE TABLE IF NOT EXISTS runs (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     is_manual_upload INTEGER NOT NULL DEFAULT 0,
-    stryd_rss REAL
+    stryd_rss REAL,
+    garmin_connect_id TEXT,
+    strava_activity_id TEXT,
+    strava_map_polyline TEXT,
+    user_id INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (
@@ -44,11 +48,13 @@ CREATE TABLE IF NOT EXISTS sync_log (
     status TEXT NOT NULL,
     activities_found INTEGER,
     activities_new INTEGER,
-    error_message TEXT
+    error_message TEXT,
+    user_id INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_runs_date ON runs(date);
 CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
+CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs(user_id);
 
 CREATE TABLE IF NOT EXISTS planned_workouts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,12 +69,14 @@ CREATE TABLE IF NOT EXISTS planned_workouts (
     activity_id TEXT,
     raw_json TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    user_id INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_planned_date_title
-    ON planned_workouts(date, title);
+    ON planned_workouts(date, title, user_id);
 CREATE INDEX IF NOT EXISTS idx_planned_date ON planned_workouts(date);
+CREATE INDEX IF NOT EXISTS idx_planned_workouts_user_id ON planned_workouts(user_id);
 
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +84,20 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_login TEXT,
-    athlete_profile TEXT
+    athlete_profile TEXT,
+    stryd_athlete_id TEXT,
+    strava_access_token TEXT,
+    strava_refresh_token TEXT,
+    strava_token_expires_at INTEGER,
+    strava_athlete_id TEXT,
+    strava_webhook_subscription_id INTEGER,
+    display_name TEXT,
+    race_date TEXT,
+    race_distance TEXT,
+    stryd_email TEXT,
+    stryd_password TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    is_admin INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS run_chat (
