@@ -707,3 +707,117 @@ class TestRaceGoal:
         goal = temp_db.get_race_goal(user_id)
         assert goal["race_date"] == "2026-06-07"
         assert goal["race_distance"] == "Half Marathon"
+
+
+class TestDatabaseStartup:
+    """Tests for _init_schema correctness — fresh DB and re-init of existing DB."""
+
+    EXPECTED_RUNS_COLUMNS = {
+        "id", "stryd_activity_id", "name", "date", "distance_m", "moving_time_s",
+        "fit_path", "yaml_path", "md_path", "stage", "error_message", "avg_power_w",
+        "avg_hr", "workout_name", "commentary", "analyzed_at", "model_used",
+        "prompt_tokens", "completion_tokens", "synced_at", "parsed_at",
+        "created_at", "updated_at", "is_manual_upload", "stryd_rss",
+        "garmin_connect_id", "strava_activity_id", "strava_map_polyline", "user_id",
+    }
+
+    EXPECTED_USERS_COLUMNS = {
+        "id", "username", "password_hash", "created_at", "last_login",
+        "athlete_profile", "stryd_athlete_id", "strava_access_token",
+        "strava_refresh_token", "strava_token_expires_at", "strava_athlete_id",
+        "strava_webhook_subscription_id", "display_name", "race_date",
+        "race_distance", "stryd_email", "stryd_password", "is_active", "is_admin",
+    }
+
+    EXPECTED_PLANNED_WORKOUTS_COLUMNS = {
+        "id", "date", "title", "description", "workout_type", "duration_s",
+        "distance_m", "stress", "intensity_zones", "activity_id", "raw_json",
+        "created_at", "updated_at", "user_id",
+    }
+
+    EXPECTED_SYNC_LOG_COLUMNS = {
+        "id", "started_at", "finished_at", "status", "activities_found",
+        "activities_new", "error_message", "user_id",
+    }
+
+    def _get_columns(self, db: RunCoachDB, table: str) -> set[str]:
+        with db._connect() as conn:
+            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return {row[1] for row in rows}
+
+    def test_fresh_db_runs_columns(self, tmp_path):
+        """Fresh DB has all expected columns on the runs table."""
+        db = RunCoachDB(tmp_path / "test.db")
+        assert self.EXPECTED_RUNS_COLUMNS == self._get_columns(db, "runs")
+
+    def test_fresh_db_users_columns(self, tmp_path):
+        """Fresh DB has all expected columns on the users table."""
+        db = RunCoachDB(tmp_path / "test.db")
+        assert self.EXPECTED_USERS_COLUMNS == self._get_columns(db, "users")
+
+    def test_fresh_db_planned_workouts_columns(self, tmp_path):
+        """Fresh DB has all expected columns on the planned_workouts table."""
+        db = RunCoachDB(tmp_path / "test.db")
+        assert self.EXPECTED_PLANNED_WORKOUTS_COLUMNS == self._get_columns(db, "planned_workouts")
+
+    def test_fresh_db_sync_log_columns(self, tmp_path):
+        """Fresh DB has all expected columns on the sync_log table."""
+        db = RunCoachDB(tmp_path / "test.db")
+        assert self.EXPECTED_SYNC_LOG_COLUMNS == self._get_columns(db, "sync_log")
+
+    def test_fresh_db_planned_workouts_unique_index_includes_user_id(self, tmp_path):
+        """The unique index on planned_workouts must include user_id so two users
+        can have a workout with the same date+title."""
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("user1", "hash1")
+        db.ensure_default_user("user2", "hash2")
+        # Both users can have a workout on the same date with the same title
+        db.upsert_planned_workout(date="2026-05-01", title="Tempo", user_id=1)
+        db.upsert_planned_workout(date="2026-05-01", title="Tempo", user_id=2)
+        workouts = db.get_all_planned_workouts()
+        assert len(workouts) == 2
+
+    def test_reinit_existing_db_preserves_data(self, tmp_path):
+        """Reinitialising against an existing fully-migrated DB does not destroy data."""
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=42,
+            name="Test Run",
+            date="2026-05-01",
+            fit_path="activities/test.fit",
+            user_id=1,
+        )
+
+        # Re-open (triggers _init_schema again)
+        db2 = RunCoachDB(db_path)
+        run = db2.get_run(run_id)
+        assert run is not None
+        assert run["name"] == "Test Run"
+
+    def test_reinit_existing_db_schema_unchanged(self, tmp_path):
+        """Reinitialising an existing DB does not add or remove columns."""
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        cols_before = self._get_columns(db, "runs")
+
+        db2 = RunCoachDB(db_path)
+        cols_after = self._get_columns(db2, "runs")
+
+        assert cols_before == cols_after
+
+    def test_first_user_is_always_admin(self, tmp_path):
+        """The first user created is always promoted to admin by _init_schema."""
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        user = db.get_user_by_username("athlete")
+        assert user["is_admin"] == 1
+
+    def test_second_user_is_not_admin(self, tmp_path):
+        """Subsequent users are not automatically admin."""
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        user2_id = db.create_user("guest", "hash2")
+        user2 = db.get_user_by_id(user2_id)
+        assert user2["is_admin"] == 0
