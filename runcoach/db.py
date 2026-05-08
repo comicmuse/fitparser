@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS run_chat (
     model_used TEXT,
     prompt_tokens INTEGER,
     completion_tokens INTEGER,
-    created_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (run_id) REFERENCES runs(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
