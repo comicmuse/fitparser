@@ -740,7 +740,14 @@ class TestDatabaseStartup:
         "activities_new", "error_message", "user_id",
     }
 
+    EXPECTED_RUN_CHAT_COLUMNS = {
+        "id", "run_id", "user_id", "role", "message", "model_used",
+        "prompt_tokens", "completion_tokens", "created_at",
+    }
+
     def _get_columns(self, db: RunCoachDB, table: str) -> set[str]:
+        allowed = {"runs", "users", "planned_workouts", "sync_log", "run_chat"}
+        assert table in allowed, f"Unknown table: {table}"
         with db._connect() as conn:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
         return {row[1] for row in rows}
@@ -764,6 +771,11 @@ class TestDatabaseStartup:
         """Fresh DB has all expected columns on the sync_log table."""
         db = RunCoachDB(tmp_path / "test.db")
         assert self.EXPECTED_SYNC_LOG_COLUMNS == self._get_columns(db, "sync_log")
+
+    def test_fresh_db_run_chat_columns(self, tmp_path):
+        """Fresh DB has all expected columns on the run_chat table."""
+        db = RunCoachDB(tmp_path / "test.db")
+        assert self.EXPECTED_RUN_CHAT_COLUMNS == self._get_columns(db, "run_chat")
 
     def test_fresh_db_planned_workouts_unique_index_includes_user_id(self, tmp_path):
         """The unique index on planned_workouts must include user_id so two users
