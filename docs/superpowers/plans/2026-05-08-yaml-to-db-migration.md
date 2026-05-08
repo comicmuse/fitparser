@@ -235,7 +235,6 @@ def test_update_analyzed_md_path_optional(self, tmp_path):
 - [ ] **Step 7: Run the tests**
 
 ```bash
-source .venv/bin/activate
 pytest tests/test_db.py -v
 ```
 
@@ -649,7 +648,6 @@ runcoach-migrate = "runcoach.cli:migrate_main"
 - [ ] **Step 3: Reinstall to register the new entry point**
 
 ```bash
-source .venv/bin/activate
 pip install -e .
 ```
 
@@ -1912,7 +1910,6 @@ git commit -m "refactor: update CLI to use run IDs and parsed_data"
 - [ ] **Step 1: Run full test suite**
 
 ```bash
-source .venv/bin/activate
 pytest -v --tb=short
 ```
 
