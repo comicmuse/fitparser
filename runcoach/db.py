@@ -138,24 +138,27 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
-            # Always ensure the first-ever user is an admin (idempotent).
+            # If no admin exists, promote the lowest-id user — runs on every startup, safe to repeat.
             conn.execute(
                 """UPDATE users SET is_admin = 1
                    WHERE id = (SELECT MIN(id) FROM users)
                    AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)"""
             )
             # Seed athlete_profile from coach_profile.txt on first startup if blank.
+            # If no admin exists, promote the lowest-id user — safe to repeat.
             seed_path = Path(__file__).resolve().parent.parent / "coach_profile.txt"
-            if seed_path.exists():
-                try:
-                    seed_text = seed_path.read_text(encoding="utf-8").strip()
+            try:
+                seed_text = seed_path.read_text(encoding="utf-8").strip()
+                if seed_text:
                     conn.execute(
                         """UPDATE users SET athlete_profile = ?
                            WHERE athlete_profile IS NULL AND id = (SELECT MIN(id) FROM users)""",
                         (seed_text,),
                     )
-                except Exception:
-                    log.exception("Failed to seed athlete_profile from coach_profile.txt")
+            except FileNotFoundError:
+                pass
+            except Exception:
+                log.exception("Failed to seed athlete_profile from coach_profile.txt")
 
     # ------ runs ------
 
