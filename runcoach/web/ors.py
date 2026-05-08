@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 def fetch_routes(lat: float, lng: float, distance_m: int, ors_api_key: str) -> list[dict]:
-    """Fetch up to 3 round-trip routes from ORS in parallel. Returns empty list on total failure."""
+    """Fetch 3 round-trip route variations from ORS in parallel. Returns empty list on total failure."""
 
     def _fetch_one(seed: int) -> dict | None:
         payload = {
@@ -19,7 +19,6 @@ def fetch_routes(lat: float, lng: float, distance_m: int, ors_api_key: str) -> l
             "options": {
                 "round_trip": {
                     "length": distance_m,
-                    "points": 3,
                     "seed": seed,
                 },
                 "avoid_features": ["fords", "ferries"],
