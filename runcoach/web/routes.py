@@ -493,6 +493,13 @@ def offline():
     return render_template("offline.html"), 200
 
 
+@bp.route("/recent-run-ids")
+@_login_required
+def recent_run_ids():
+    runs = _db().get_runs_paginated(limit=10, offset=0, user_id=_current_user_id())
+    return jsonify({"ids": [r["id"] for r in runs]})
+
+
 @bp.route("/run/<int:run_id>/status")
 @_login_required
 def run_status(run_id: int):
