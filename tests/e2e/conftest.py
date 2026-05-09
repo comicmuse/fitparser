@@ -109,7 +109,9 @@ def flask_server(e2e_data_dir, mock_ollama, e2e_ollama_model):
 
 @pytest.fixture(scope="session")
 def seeded_run_id(flask_server, e2e_data_dir):
-    """Insert a pre-parsed run (pointing at real YAML) once for the session."""
+    """Insert a pre-parsed run with parsed_data populated once for the session."""
+    import json
+    import yaml
     from runcoach.db import RunCoachDB
 
     db = RunCoachDB(e2e_data_dir / "runcoach.db")
@@ -119,7 +121,15 @@ def seeded_run_id(flask_server, e2e_data_dir):
     run_id = db.insert_manual_run(
         "Day 25 - Testing", "2026-01-29", SAMPLE_FIT_REL, 7070, 2700
     )
-    db.update_parsed(run_id, SAMPLE_YAML_REL, 176.0, 145, "Day 25 - Testing")
+    parsed = yaml.safe_load((SAMPLE_DIR / SAMPLE_YAML_NAME).read_text())
+    db.update_parsed(
+        run_id,
+        yaml_path=None,
+        avg_power_w=176.0,
+        avg_hr=145,
+        workout_name="Day 25 - Testing",
+        parsed_data=json.dumps(parsed),
+    )
     return run_id
 
 
