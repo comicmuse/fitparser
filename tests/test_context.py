@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as _json
 import pytest
 from datetime import date, timedelta
 from pathlib import Path
@@ -136,17 +137,10 @@ class TestBuildWeeklyContext:
 
     def test_build_weekly_context_with_runs(self, temp_db, tmp_path):
         """Test context building with runs in the 7-day window."""
-        # Create a data directory structure
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
-        # Create a sample YAML file
-        yaml_dir = data_dir / "activities" / "2026" / "02"
-        yaml_dir.mkdir(parents=True)
-        yaml_path = yaml_dir / "20260225_test_run" / "20260225_test_run.yaml"
-        yaml_path.parent.mkdir(parents=True)
-
-        sample_yaml = {
+        sample_parsed = {
             "date": "2026-02-25",
             "name": "Test Run",
             "distance_km": 10.0,
@@ -159,8 +153,6 @@ class TestBuildWeeklyContext:
                 "block_2": {"type": "active"},
             }
         }
-        with open(yaml_path, "w") as f:
-            yaml.dump(sample_yaml, f)
 
         # Insert run into database
         temp_db.insert_run(
@@ -172,14 +164,15 @@ class TestBuildWeeklyContext:
             fit_path="activities/2026/02/20260225_test_run/20260225_test_run.fit",
         )
 
-        # Update to parsed stage with yaml_path
+        # Update to parsed stage with parsed_data
         runs = temp_db.get_all_runs(1)
         temp_db.update_parsed(
             run_id=runs[0]["id"],
-            yaml_path="activities/2026/02/20260225_test_run/20260225_test_run.yaml",
+            yaml_path=None,
             avg_power_w=200,
             avg_hr=150,
             workout_name="Test Run",
+            parsed_data=_json.dumps(sample_parsed),
         )
 
         # Build context for one week after the run
@@ -227,13 +220,7 @@ class TestBuildWeeklyContext:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
-        # Create YAML for a run on the target date
-        yaml_dir = data_dir / "activities" / "2026" / "03"
-        yaml_dir.mkdir(parents=True)
-        yaml_path = yaml_dir / "20260301_future_run" / "20260301_future_run.yaml"
-        yaml_path.parent.mkdir(parents=True)
-
-        sample_yaml = {
+        sample_parsed = {
             "date": "2026-03-01",
             "name": "Future Run",
             "distance_km": 5.0,
@@ -241,8 +228,6 @@ class TestBuildWeeklyContext:
             "avg_power": 180,
             "critical_power": 250,
         }
-        with open(yaml_path, "w") as f:
-            yaml.dump(sample_yaml, f)
 
         temp_db.insert_run(
             stryd_activity_id=12346,
@@ -256,10 +241,11 @@ class TestBuildWeeklyContext:
         runs = temp_db.get_all_runs(1)
         temp_db.update_parsed(
             run_id=runs[0]["id"],
-            yaml_path="activities/2026/03/20260301_future_run/20260301_future_run.yaml",
+            yaml_path=None,
             avg_power_w=180,
             avg_hr=None,
             workout_name="Future Run",
+            parsed_data=_json.dumps(sample_parsed),
         )
 
         # Build context for the same date as the run
@@ -354,20 +340,16 @@ class TestBuildWeeklyContext:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
-        # Create a run before the target date with CP=200
-        run_dir_1 = data_dir / "run1"
-        run_dir_1.mkdir()
-        yaml_file_1 = run_dir_1 / "run1.yaml"
-        yaml_file_1.write_text(
-            "date: '2026-02-25'\n"
-            "workout_name: Test Run 1\n"
-            "distance_km: 5.0\n"
-            "duration_min: 30.0\n"
-            "avg_power: 180\n"
-            "avg_hr: 145\n"
-            "critical_power: 200\n"
-            "blocks: {}\n"
-        )
+        run1_parsed = {
+            "date": "2026-02-25",
+            "workout_name": "Test Run 1",
+            "distance_km": 5.0,
+            "duration_min": 30.0,
+            "avg_power": 180,
+            "avg_hr": 145,
+            "critical_power": 200,
+            "blocks": {},
+        }
 
         temp_db.insert_run(
             stryd_activity_id=1,
@@ -377,10 +359,11 @@ class TestBuildWeeklyContext:
         )
         temp_db.update_parsed(
             run_id=1,
-            yaml_path="run1/run1.yaml",
+            yaml_path=None,
             avg_power_w=180,
             avg_hr=145,
             workout_name="Test Run 1",
+            parsed_data=_json.dumps(run1_parsed),
         )
 
         # Build context for a run on 2026-03-01 with NEW CP=210
@@ -410,20 +393,16 @@ class TestBuildWeeklyContext:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
-        # Create a run before the target date with CP=210
-        run_dir_1 = data_dir / "run1"
-        run_dir_1.mkdir()
-        yaml_file_1 = run_dir_1 / "run1.yaml"
-        yaml_file_1.write_text(
-            "date: '2026-02-25'\n"
-            "workout_name: Test Run 1\n"
-            "distance_km: 5.0\n"
-            "duration_min: 30.0\n"
-            "avg_power: 190\n"
-            "avg_hr: 145\n"
-            "critical_power: 210\n"
-            "blocks: {}\n"
-        )
+        run1_parsed = {
+            "date": "2026-02-25",
+            "workout_name": "Test Run 1",
+            "distance_km": 5.0,
+            "duration_min": 30.0,
+            "avg_power": 190,
+            "avg_hr": 145,
+            "critical_power": 210,
+            "blocks": {},
+        }
 
         temp_db.insert_run(
             stryd_activity_id=1,
@@ -433,10 +412,11 @@ class TestBuildWeeklyContext:
         )
         temp_db.update_parsed(
             run_id=1,
-            yaml_path="run1/run1.yaml",
+            yaml_path=None,
             avg_power_w=190,
             avg_hr=145,
             workout_name="Test Run 1",
+            parsed_data=_json.dumps(run1_parsed),
         )
 
         # Build context for a run on 2026-03-01 with DECREASED CP=200
@@ -466,20 +446,16 @@ class TestBuildWeeklyContext:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
-        # Create a run before the target date with CP=200
-        run_dir_1 = data_dir / "run1"
-        run_dir_1.mkdir()
-        yaml_file_1 = run_dir_1 / "run1.yaml"
-        yaml_file_1.write_text(
-            "date: '2026-02-25'\n"
-            "workout_name: Test Run 1\n"
-            "distance_km: 5.0\n"
-            "duration_min: 30.0\n"
-            "avg_power: 180\n"
-            "avg_hr: 145\n"
-            "critical_power: 200\n"
-            "blocks: {}\n"
-        )
+        run1_parsed = {
+            "date": "2026-02-25",
+            "workout_name": "Test Run 1",
+            "distance_km": 5.0,
+            "duration_min": 30.0,
+            "avg_power": 180,
+            "avg_hr": 145,
+            "critical_power": 200,
+            "blocks": {},
+        }
 
         temp_db.insert_run(
             stryd_activity_id=1,
@@ -489,10 +465,11 @@ class TestBuildWeeklyContext:
         )
         temp_db.update_parsed(
             run_id=1,
-            yaml_path="run1/run1.yaml",
+            yaml_path=None,
             avg_power_w=180,
             avg_hr=145,
             workout_name="Test Run 1",
+            parsed_data=_json.dumps(run1_parsed),
         )
 
         # Build context for a run on 2026-03-01 with SAME CP=200
