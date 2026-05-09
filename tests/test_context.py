@@ -441,6 +441,63 @@ class TestBuildWeeklyContext:
         assert cp_update["change_pct"] == pytest.approx(-4.76, rel=0.01)
         assert "decreased from 210W to 200W" in cp_update["note"]
 
+    def test_build_weekly_context_uses_yaml_fallback(self, temp_db, tmp_path):
+        """Context is built from YAML file for runs that have yaml_path but no parsed_data."""
+        import yaml as _yaml
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        target_date = "2026-02-25"
+
+        # Write a YAML file to disk (simulating a pre-migration run)
+        yaml_rel = "activities/2026/02/20260225_run/20260225_run.yaml"
+        yaml_abs = data_dir / yaml_rel
+        yaml_abs.parent.mkdir(parents=True, exist_ok=True)
+        content = {
+            "date": target_date,
+            "workout_name": "YAML Fallback Run",
+            "duration_min": 45.0,
+            "distance_km": 8.0,
+            "avg_power": 220,
+            "avg_hr": 148,
+            "critical_power": 270,
+            "blocks": [],
+        }
+        yaml_abs.write_text(_yaml.safe_dump(content), encoding="utf-8")
+
+        # Insert run with yaml_path but NO parsed_data (pre-migration state)
+        run_id = temp_db.insert_run(
+            stryd_activity_id=99,
+            name="YAML Fallback Run",
+            date=target_date,
+            fit_path="activities/2026/02/20260225_run/20260225_run.fit",
+        )
+        temp_db.update_parsed(
+            run_id=run_id,
+            yaml_path=yaml_rel,
+            avg_power_w=220,
+            avg_hr=148,
+            workout_name="YAML Fallback Run",
+            # Note: no parsed_data kwarg → stays NULL
+        )
+
+        # Verify parsed_data is indeed NULL (pre-migration state)
+        assert temp_db.get_run(run_id)["parsed_data"] is None
+
+        # Build context — should include this run via the YAML fallback
+        context = build_weekly_context(
+            run_date="2026-03-01",
+            data_dir=data_dir,
+            db=temp_db,
+        )
+
+        # Run should appear in the week's context
+        tc = context["training_context"]
+        assert tc["summary"]["total_runs"] >= 1
+        activity_names = [a.get("name", "") for a in tc["activities"]]
+        assert "YAML Fallback Run" in activity_names
+
     def test_build_weekly_context_no_cp_change(self, temp_db, tmp_path):
         """Test context when CP stays the same."""
         data_dir = tmp_path / "data"
