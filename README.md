@@ -2,18 +2,17 @@
 
 [![CI/CD](https://github.com/comicmuse/fitparser/actions/workflows/ci.yml/badge.svg)](https://github.com/comicmuse/fitparser/actions/workflows/ci.yml)
 
-Automated running workout analysis — syncs activities from [Stryd](https://www.stryd.com/), parses Garmin FIT files into structured YAML blocks, and generates AI coaching commentary using OpenAI.
+Automated running workout analysis — syncs activities from [Stryd](https://www.stryd.com/), parses Garmin FIT files into structured workout blocks, and generates AI coaching commentary using a configurable LLM (OpenAI, Claude, or Ollama).
 
-Installable as a **Progressive Web App (PWA)** on Android (or any browser) with push notifications when new analyses are ready.
+Installable as a **Progressive Web App (PWA)** on Android (or any browser).
 
 ## Features
 
 - **Stryd sync** — automatically fetches new activities on a configurable schedule
 - **FIT parsing** — breaks workouts into blocks (warmup / work / rest / cooldown) with per-block power, HR, pace, and HR zone distribution
-- **AI analysis** — sends structured workout data + weekly training context (ATL/CTL/RSB) to OpenAI for coaching commentary
+- **AI analysis** — sends structured workout data + weekly training context (ATL/CTL/RSB) to a configurable LLM (OpenAI, Claude, or Ollama) for coaching commentary
 - **Web dashboard** — dark-themed Flask UI with activity log, block timeline visualisation, HR zone charts, and rendered markdown commentary
 - **PWA** — installable on Android home screen, works offline for cached pages
-- **Push notifications** — Web Push (VAPID) alerts when a new analysis completes
 - **Manual upload** — drag-and-drop FIT files for runs without Stryd sync
 - **Docker** — single-container deployment
 
@@ -44,8 +43,12 @@ All config is via environment variables (or `.env` file):
 |---|---|---|
 | `STRYD_EMAIL` | — | Stryd account email |
 | `STRYD_PASSWORD` | — | Stryd account password |
-| `OPENAI_API_KEY` | — | OpenAI API key |
-| `OPENAI_MODEL` | `gpt-4o` | Model to use for analysis |
+| `OPENAI_API_KEY` | — | OpenAI API key (takes priority if multiple LLMs configured) |
+| `OPENAI_MODEL` | `gpt-4o` | OpenAI model to use |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key (Claude) |
+| `ANTHROPIC_MODEL` | `claude-opus-4-6` | Anthropic model to use |
+| `OLLAMA_BASE_URL` | — | Ollama base URL (e.g. `http://localhost:11434`) |
+| `OLLAMA_MODEL` | `llama3.2` | Ollama model to use |
 | `LLM_AUTO_ANALYSE` | `true` | Auto-analyze after sync (`false` = on-demand only) |
 | `ANALYZE_FROM` | — | Only auto-analyze runs on/after this date (YYYY-MM-DD) |
 | `DATA_DIR` | `data` | Root directory for activities, database, and outputs |
@@ -54,46 +57,18 @@ All config is via environment variables (or `.env` file):
 | `TIMEZONE` | `Europe/London` | Timezone for FIT timestamp parsing |
 | `FLASK_PORT` | `5000` | Web server port |
 | `FLASK_DEBUG` | `false` | Flask debug mode |
-| `VAPID_PRIVATE_KEY` | — | VAPID private key for push notifications |
-| `VAPID_PUBLIC_KEY` | — | VAPID public key for push notifications |
-| `VAPID_EMAIL` | — | Contact email embedded in push messages |
 
 ### Athlete Profile
 
 The athlete profile is stored in the database and managed via the **Athlete Profile** page in the web UI (`/athlete-profile`). It is injected into the AI coaching prompt for every analysis — include your race goal, training approach, body weight for Stryd calculations, and any other context the coach should know.
-
-## Push Notifications (VAPID Setup)
-
-Generate keys (one-time):
-
-```bash
-source .venv/bin/activate
-vapid --gen
-# Then extract base64url keys:
-python3 -c "
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
-import base64
-with open('private_key.pem', 'rb') as f:
-    pk = serialization.load_pem_private_key(f.read(), password=None)
-priv = base64.urlsafe_b64encode(pk.private_numbers().private_value.to_bytes(32, 'big')).decode().rstrip('=')
-pub = base64.urlsafe_b64encode(pk.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)).decode().rstrip('=')
-print(f'VAPID_PRIVATE_KEY={priv}')
-print(f'VAPID_PUBLIC_KEY={pub}')
-"
-```
-
-Add the output to your `.env`, then delete the PEM files.
-
-No sign-up or third-party service required — VAPID keys are self-generated cryptographic keypairs.
 
 ## Pipeline
 
 The pipeline runs three stages sequentially:
 
 1. **Sync** — authenticate with Stryd API, download new FIT files
-2. **Parse** — convert FIT → structured YAML with block segmentation, power/HR/pace stats, HR zone distribution, and power target compliance
-3. **Analyze** — send YAML + 7-day training context to OpenAI, store markdown commentary
+2. **Parse** — convert FIT → structured block data (power/HR/pace stats, HR zone distribution, power target compliance) stored as JSON in the database
+3. **Analyze** — send workout data + 7-day training context to the configured LLM, store commentary in the database
 
 Runs automatically on the configured schedule, or trigger manually via the **Sync Now** button or CLI:
 
@@ -106,13 +81,12 @@ runcoach-pipeline
 ```
 runcoach/
   __init__.py
-  analyzer.py      # OpenAI analysis with training context
+  analyzer.py      # LLM analysis with training context
   config.py         # Environment-based configuration
   context.py        # Weekly training load context (ATL/CTL/RSB)
   db.py             # SQLite database (WAL mode)
-  parser.py         # FIT → YAML block parser
+  parser.py         # FIT → block data parser
   pipeline.py       # Sync → Parse → Analyze pipeline
-  push.py           # Web Push notification helper
   scheduler.py      # Background scheduler thread
   sync.py           # Stryd API sync
   web/
@@ -126,8 +100,7 @@ runcoach/
 
 - **Python 3.11+**, Flask, SQLite (WAL)
 - **fitparse** for Garmin FIT decoding
-- **OpenAI API** for coaching analysis
-- **pywebpush** / **py-vapid** for Web Push notifications
+- **OpenAI / Anthropic / Ollama** for coaching analysis (configurable)
 - **Chart.js** for HR zone visualisation
 - **Docker** for deployment
 
