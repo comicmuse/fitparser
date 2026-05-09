@@ -88,9 +88,19 @@ runcoach-cli analyze --date 2026-05-01
 runcoach-migrate
 ```
 
+### Pre-Merge Test Command
+
+**Before merging any branch, run the full test suite — both unit tests and E2E tests are required to pass:**
+
+```bash
+pytest && pytest -m e2e --no-cov -v
+```
+
+Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end.
+
 ### Running Tests
 
-The project includes comprehensive unit tests with pytest. Always run tests before committing changes.
+The project includes comprehensive unit and Playwright E2E tests. Always run tests before committing changes.
 
 ```bash
 # Install test dependencies (first time only)
