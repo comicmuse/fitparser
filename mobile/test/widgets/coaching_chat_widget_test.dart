@@ -6,8 +6,8 @@ import '../../lib/widgets/coaching_chat_widget.dart';
 void main() {
   group('shouldAutoScrollChat', () {
     const history = [
-      const ChatMessage(role: 'assistant', message: 'Welcome'),
-      const ChatMessage(role: 'assistant', message: 'How did it feel?'),
+      ChatMessage(role: 'assistant', message: 'Welcome'),
+      ChatMessage(role: 'assistant', message: 'How did it feel?'),
     ];
 
     test('does not auto-scroll when there is no previous state', () {
