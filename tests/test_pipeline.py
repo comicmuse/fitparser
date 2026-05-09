@@ -153,13 +153,8 @@ class TestPipelineParseStage:
 
 class TestPipelineAnalyzeStage:
     def _insert_parsed_run(self, config, db, tmp_path):
-        """Helper: insert a run already in 'parsed' stage with a YAML file."""
-        import yaml as _yaml
-        yaml_dir = config.data_dir / "activities"
-        yaml_dir.mkdir(parents=True, exist_ok=True)
-        yaml_path = yaml_dir / "run.yaml"
-        yaml_path.write_text(_yaml.dump({"workout_name": "Test", "avg_power": 260}))
-
+        """Helper: insert a run already in 'parsed' stage with parsed_data JSON."""
+        import json as _json
         run_id = db.insert_run(
             stryd_activity_id=10,
             name="Parsed Run",
@@ -168,10 +163,11 @@ class TestPipelineAnalyzeStage:
         )
         db.update_parsed(
             run_id=run_id,
-            yaml_path="activities/run.yaml",
+            yaml_path=None,
             avg_power_w=260,
             avg_hr=145,
             workout_name="Test",
+            parsed_data=_json.dumps({"workout_name": "Test", "avg_power": 260}),
         )
         return run_id
 
@@ -179,7 +175,6 @@ class TestPipelineAnalyzeStage:
         config.llm_auto_analyse = True
         run_id = self._insert_parsed_run(config, db, tmp_path)
 
-        md_path = config.data_dir / "activities" / "run.md"
         mock_result = {
             "commentary": "Great run!",
             "prompt_tokens": 100,
@@ -188,7 +183,7 @@ class TestPipelineAnalyzeStage:
 
         with patch(
             "runcoach.pipeline.analyze_and_write",
-            return_value=(md_path, mock_result),
+            return_value=mock_result,
         ):
             result = run_full_pipeline(config, db)
 
@@ -197,6 +192,7 @@ class TestPipelineAnalyzeStage:
         updated = db.get_run(run_id)
         assert updated["stage"] == "analyzed"
         assert updated["commentary"] == "Great run!"
+        assert updated["md_path"] is None
 
     def test_analyze_stage_records_error_on_failure(self, config, db, tmp_path):
         config.llm_auto_analyse = True
@@ -214,8 +210,8 @@ class TestPipelineAnalyzeStage:
     def test_analyze_respects_date_from_filter(self, config, db, tmp_path):
         """analyze_from config causes old runs to be skipped."""
         config.llm_auto_analyse = True
-        config.analyze_from = "2026-04-01"  # future date
-        run_id = self._insert_parsed_run(config, db, tmp_path)  # date="2026-03-05"
+        config.analyze_from = "2026-04-01"
+        run_id = self._insert_parsed_run(config, db, tmp_path)
 
         with patch("runcoach.pipeline.analyze_and_write") as mock_analyze:
             result = run_full_pipeline(config, db)

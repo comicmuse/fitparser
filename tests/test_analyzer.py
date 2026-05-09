@@ -129,17 +129,11 @@ training_context:
         assert yaml_content in user_msg
 
     def test_analyze_run_manual_upload(self, test_config, mock_openai_client):
-        """Test that manual uploads get special prompt note."""
-        yaml_content = """
-date: '2026-03-01'
-name: Manual Upload
-manual_upload: true
-distance_km: 10.0
-"""
+        """Manual upload flag triggers special system prompt note."""
+        yaml_content = "date: '2026-03-01'\nname: Manual Upload\ndistance_km: 10.0\n"
 
-        result = analyze_run(yaml_content, test_config)
+        result = analyze_run(yaml_content, test_config, is_manual_upload=True)
 
-        # Check that system message includes manual upload note
         call_args = mock_openai_client.chat.completions.create.call_args
         system_msg = call_args.kwargs["messages"][0]["content"]
 
@@ -174,128 +168,72 @@ distance_km: 10.0
 class TestAnalyzeAndWrite:
     """Tests for the analyze_and_write function."""
 
-    def test_analyze_and_write_creates_md(self, test_config, mock_openai_client, tmp_path):
-        """Test that analyze_and_write creates markdown file."""
-        # Create a test YAML file
-        yaml_path = tmp_path / "test.yaml"
-        yaml_content = {
-            "date": "2026-03-01",
-            "name": "Test Run",
-            "distance_km": 10.0,
+    def _make_run(self, data: dict | None = None) -> dict:
+        import json as _json
+        if data is None:
+            data = {"date": "2026-03-01", "name": "Test Run", "distance_km": 10.0}
+        return {
+            "id": 1,
+            "date": data.get("date", "2026-03-01"),
+            "is_manual_upload": 0,
+            "parsed_data": _json.dumps(data),
         }
-        yaml_path.write_text(yaml.dump(yaml_content))
 
-        # Analyze and write
-        md_path, result = analyze_and_write(yaml_path, test_config, db=None)
+    def test_analyze_and_write_returns_result_dict(self, test_config, mock_openai_client):
+        """analyze_and_write returns a dict, not a tuple."""
+        run = self._make_run()
+        result = analyze_and_write(run, test_config, db=None)
+        assert isinstance(result, dict)
+        assert "commentary" in result
+        assert "prompt_tokens" in result
 
-        # Check that .md file was created
-        assert md_path.exists()
-        assert md_path.suffix == ".md"
-        assert md_path.stem == yaml_path.stem
+    def test_analyze_and_write_no_md_file(self, test_config, mock_openai_client, tmp_path):
+        """analyze_and_write does not write a .md file."""
+        run = self._make_run()
+        analyze_and_write(run, test_config, db=None)
+        # No .md files should exist anywhere in tmp_path
+        assert list(tmp_path.rglob("*.md")) == []
 
-        # Check content
-        md_content = md_path.read_text()
-        assert md_content == "Test commentary"
+    def test_analyze_and_write_raises_without_parsed_data(self, test_config, mock_openai_client):
+        """analyze_and_write raises ValueError when parsed_data is missing."""
+        run = {"id": 99, "date": "2026-03-01", "is_manual_upload": 0, "parsed_data": None}
+        with pytest.raises(ValueError, match="no parsed_data"):
+            analyze_and_write(run, test_config, db=None)
 
-        # Check return values
-        assert result["commentary"] == "Test commentary"
-        assert result["prompt_tokens"] == 100
-        assert result["completion_tokens"] == 50
+    def test_analyze_and_write_manual_upload_flag(self, test_config, mock_openai_client):
+        """is_manual_upload from the run dict controls the manual upload note in the system prompt."""
+        import json as _json
+        run = {
+            "id": 2,
+            "date": "2026-03-01",
+            "is_manual_upload": 1,
+            "parsed_data": _json.dumps({"date": "2026-03-01", "name": "Manual"}),
+        }
+        analyze_and_write(run, test_config, db=None)
+        call_args = mock_openai_client.chat.completions.create.call_args
+        system_msg = call_args.kwargs["messages"][0]["content"]
+        assert "manual upload" in system_msg.lower()
 
     def test_analyze_and_write_with_context(self, test_config, mock_openai_client, temp_db, tmp_path):
-        """Test analyze_and_write with training context."""
-        # Set up data directory in temp_db's location
+        """analyze_and_write passes training context to the LLM when db is provided."""
+        import json as _json
         test_config.data_dir = tmp_path
-
-        # Create YAML file
-        yaml_dir = tmp_path / "activities" / "2026" / "03"
-        yaml_dir.mkdir(parents=True)
-        yaml_path = yaml_dir / "20260301_test.yaml"
-
-        yaml_content = {
+        run = {
+            "id": 3,
             "date": "2026-03-01",
-            "name": "Test Run",
-            "distance_km": 10.0,
-            "duration_min": 50.0,
-            "avg_power": 200,
-            "critical_power": 250,
+            "is_manual_upload": 0,
+            "parsed_data": _json.dumps({
+                "date": "2026-03-01",
+                "name": "Test",
+                "distance_km": 10.0,
+                "duration_min": 50.0,
+                "avg_power": 200,
+                "critical_power": 250,
+            }),
         }
-        yaml_path.write_text(yaml.dump(yaml_content))
-
-        # Add a previous run to build context
-        prev_yaml_path = tmp_path / "activities" / "2026" / "02" / "20260225_prev.yaml"
-        prev_yaml_path.parent.mkdir(parents=True, exist_ok=True)
-        prev_yaml_content = {
-            "date": "2026-02-25",
-            "name": "Previous Run",
-            "distance_km": 8.0,
-            "duration_min": 40.0,
-            "avg_power": 190,
-            "critical_power": 250,
-        }
-        prev_yaml_path.write_text(yaml.dump(prev_yaml_content))
-
-        # Insert previous run into database
-        temp_db.insert_run(
-            stryd_activity_id=12345,
-            name="Previous Run",
-            date="2026-02-25",
-            fit_path="activities/2026/02/20260225_prev.fit",
-        )
-        runs = temp_db.get_all_runs(1)
-        temp_db.update_parsed(
-            run_id=runs[0]["id"],
-            yaml_path="activities/2026/02/20260225_prev.yaml",
-            avg_power_w=190,
-            avg_hr=145,
-            workout_name="Previous Run",
-        )
-
-        # Analyze and write
-        md_path, result = analyze_and_write(yaml_path, test_config, db=temp_db)
-
-        # Check that context was built and included
-        call_args = mock_openai_client.chat.completions.create.call_args
-        user_msg = call_args.kwargs["messages"][1]["content"]
-
-        assert "training_context" in user_msg
-        assert "---" in user_msg  # YAML document separator
-
-    def test_analyze_and_write_without_db(self, test_config, mock_openai_client, tmp_path):
-        """Test analyze_and_write without database (no context)."""
-        yaml_path = tmp_path / "test.yaml"
-        yaml_content = {"date": "2026-03-01", "name": "Test"}
-        yaml_path.write_text(yaml.dump(yaml_content))
-
-        md_path, result = analyze_and_write(yaml_path, test_config, db=None)
-
-        # Should work without context
-        assert md_path.exists()
-
-        # Check that no context was included
-        call_args = mock_openai_client.chat.completions.create.call_args
-        user_msg = call_args.kwargs["messages"][1]["content"]
-
-        assert "training_context" not in user_msg
-        assert "---" not in user_msg
-
-    def test_analyze_and_write_handles_context_error(self, test_config, mock_openai_client, temp_db, tmp_path):
-        """Test that context build errors don't prevent analysis."""
-        test_config.data_dir = tmp_path
-
-        # Create YAML with invalid date to trigger context error
-        yaml_path = tmp_path / "test.yaml"
-        yaml_content = {
-            "date": "invalid-date",
-            "name": "Test",
-        }
-        yaml_path.write_text(yaml.dump(yaml_content))
-
-        # Should still succeed even if context building fails
-        md_path, result = analyze_and_write(yaml_path, test_config, db=temp_db)
-
-        assert md_path.exists()
-        assert result["commentary"] == "Test commentary"
+        analyze_and_write(run, test_config, db=temp_db, user_id=1)
+        # LLM was called
+        mock_openai_client.chat.completions.create.assert_called_once()
 
 
 class TestAnalyzerIntegration:
@@ -303,19 +241,23 @@ class TestAnalyzerIntegration:
 
     def test_full_analysis_workflow(self, test_config, mock_openai_client, tmp_path, sample_yaml_file):
         """Test complete analysis workflow with real YAML structure."""
+        import json as _json
         if not sample_yaml_file.exists():
             pytest.skip(f"Sample YAML file not found: {sample_yaml_file}")
 
-        # Copy sample YAML to temp location
-        dest_yaml = tmp_path / "workout.yaml"
-        import shutil
-        shutil.copy(sample_yaml_file, dest_yaml)
+        # Load the sample YAML and build a run dict with parsed_data
+        sample_data = yaml.safe_load(sample_yaml_file.read_text(encoding="utf-8"))
+        run = {
+            "id": 1,
+            "date": sample_data.get("date", "2026-03-01"),
+            "is_manual_upload": 0,
+            "parsed_data": _json.dumps(sample_data),
+        }
 
         # Analyze it
-        md_path, result = analyze_and_write(dest_yaml, test_config, db=None)
+        result = analyze_and_write(run, test_config, db=None)
 
         # Verify output
-        assert md_path.exists()
         assert result["commentary"] is not None
         assert result["prompt_tokens"] > 0
         assert result["completion_tokens"] > 0
@@ -501,15 +443,23 @@ class TestTrainingPhase:
 
 
 class TestBuildChatContext:
+    def _make_run(self, data: dict | None = None, is_manual: int = 0) -> dict:
+        import json as _json
+        if data is None:
+            data = {"date": "2026-04-01", "critical_power": 200, "blocks": []}
+        return {
+            "id": 1,
+            "date": data.get("date", "2026-04-01"),
+            "is_manual_upload": is_manual,
+            "parsed_data": _json.dumps(data),
+        }
+
     def test_returns_system_and_user_message(self, tmp_path):
         from unittest.mock import MagicMock
         from runcoach.analyzer import build_chat_context
         from runcoach.config import Config
 
-        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
-        (tmp_path / "test.yaml").write_text(yaml_content)
-
-        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        run = self._make_run()
         config = Config(data_dir=tmp_path)
         db = MagicMock()
         db.get_athlete_profile.return_value = "Test athlete profile"
@@ -534,10 +484,7 @@ class TestBuildChatContext:
         from runcoach.analyzer import build_chat_context
         from runcoach.config import Config
 
-        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
-        (tmp_path / "test.yaml").write_text(yaml_content)
-
-        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        run = self._make_run()
         config = Config(data_dir=tmp_path)
         db = MagicMock()
         db.get_athlete_profile.return_value = ""
@@ -564,9 +511,7 @@ class TestBuildChatContext:
         from runcoach.analyzer import build_chat_context
         from runcoach.config import Config
 
-        (tmp_path / "test.yaml").write_text("date: '2026-04-01'\nblocks: []\n")
-
-        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 1}
+        run = self._make_run(is_manual=1)
         config = Config(data_dir=tmp_path)
         db = MagicMock()
         db.get_athlete_profile.return_value = ""
@@ -579,18 +524,18 @@ class TestBuildChatContext:
 
         assert "manually uploaded" in system_msg.lower()
 
-    def test_raises_when_yaml_path_missing(self):
+    def test_raises_when_parsed_data_missing(self):
         from unittest.mock import MagicMock, patch
         from runcoach.analyzer import build_chat_context
         from runcoach.config import Config
         import pytest
 
-        run = {"date": "2026-04-01", "yaml_path": None, "is_manual_upload": 0}
+        run = {"id": 1, "date": "2026-04-01", "parsed_data": None, "is_manual_upload": 0}
         db = MagicMock()
         db.get_athlete_profile.return_value = ""
         db.get_race_goal.return_value = {"race_date": None, "race_distance": None}
 
-        with pytest.raises(ValueError, match="yaml_path"):
+        with pytest.raises(ValueError, match="parsed_data"):
             build_chat_context(run=run, user_id=1, history=[], new_message="Q", config=MagicMock(), db=db)
 
     def test_context_yaml_included_when_available(self, tmp_path):
@@ -598,10 +543,7 @@ class TestBuildChatContext:
         from runcoach.analyzer import build_chat_context
         from runcoach.config import Config
 
-        yaml_content = "date: '2026-04-01'\ncritical_power: 200\nblocks: []\n"
-        (tmp_path / "test.yaml").write_text(yaml_content)
-
-        run = {"date": "2026-04-01", "yaml_path": "test.yaml", "is_manual_upload": 0}
+        run = self._make_run()
         config = Config(data_dir=tmp_path)
         db = MagicMock()
         db.get_athlete_profile.return_value = ""

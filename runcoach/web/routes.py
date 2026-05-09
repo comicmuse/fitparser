@@ -408,12 +408,10 @@ def analyze_run_route(run_id: int):
             db = _db()
             run = db.get_run(run_id)
             try:
-                yaml_path = config.data_dir / run["yaml_path"]
-                md_path, result = analyze_and_write(yaml_path, config, db=db, user_id=user_id)
-                md_path_rel = str(md_path.relative_to(config.data_dir))
+                result = analyze_and_write(run, config, db=db, user_id=user_id)
                 db.update_analyzed(
                     run_id=run["id"],
-                    md_path=md_path_rel,
+                    md_path=None,
                     commentary=result["commentary"],
                     model_used=config.active_model,
                     prompt_tokens=result.get("prompt_tokens"),

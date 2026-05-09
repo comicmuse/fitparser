@@ -446,14 +446,10 @@ def analyze_run(run_id: int):
                     log.error(f"Run {run_id} not found during analysis")
                     return
 
-                yaml_path = config.data_dir / fresh_run["yaml_path"]
-                md_path, result = analyze_and_write(yaml_path, config, db=db)
-
-                # Update database with results
-                md_path_rel = str(md_path.relative_to(config.data_dir))
+                result = analyze_and_write(fresh_run, config, db=db)
                 db.update_analyzed(
                     run_id=fresh_run["id"],
-                    md_path=md_path_rel,
+                    md_path=None,
                     commentary=result["commentary"],
                     model_used=config.active_model,
                     prompt_tokens=result.get("prompt_tokens"),
@@ -462,7 +458,7 @@ def analyze_run(run_id: int):
                 log.info(f"Analysis complete for run {run_id}")
 
             except Exception as e:
-                log.exception(f"Analysis failed for run {run_id}")  # Use log.exception for full traceback
+                log.exception(f"Analysis failed for run {run_id}")
                 db.update_error(run_id, f"Analysis error: {e}")
 
     thread = threading.Thread(target=analyze_task, daemon=True)
