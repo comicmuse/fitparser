@@ -15,7 +15,7 @@ The system has three main stages:
 
 ### Local Setup
 
-This project uses a `.venv` virtual environment. It should have been activated before you started. You can check the venv environment variables before you do anything and let the user know if they're not present. **NEVER** install packages or run commands using the global Python installation.
+This project uses a `.venv` virtual environment. **The venv is activated before Claude starts** — do not prefix commands with `source .venv/bin/activate`. Check `VIRTUAL_ENV` is set at the start of a session and warn the user if it is absent. **NEVER** install packages or run commands using the global Python installation.
 
 ```bash
 # Create virtual environment and install
@@ -104,7 +104,6 @@ The project includes comprehensive unit and Playwright E2E tests. Always run tes
 
 ```bash
 # Install test dependencies (first time only)
-source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Run all tests
