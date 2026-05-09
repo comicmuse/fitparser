@@ -717,7 +717,7 @@ class TestDatabaseStartup:
         "fit_path", "yaml_path", "md_path", "stage", "error_message", "avg_power_w",
         "avg_hr", "workout_name", "commentary", "analyzed_at", "model_used",
         "prompt_tokens", "completion_tokens", "synced_at", "parsed_at",
-        "created_at", "updated_at", "is_manual_upload", "stryd_rss",
+        "created_at", "updated_at", "is_manual_upload", "stryd_rss", "parsed_data",
         "garmin_connect_id", "strava_activity_id", "strava_map_polyline", "user_id",
     }
 
@@ -833,3 +833,58 @@ class TestDatabaseStartup:
         user2_id = db.create_user("guest", "hash2")
         user2 = db.get_user_by_id(user2_id)
         assert user2["is_admin"] == 0
+
+    def test_update_parsed_stores_parsed_data(self, tmp_path):
+        """update_parsed() stores the JSON blob in parsed_data."""
+        import json
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=1, name="Run", date="2026-05-01",
+            fit_path="test.fit", user_id=1,
+        )
+        payload = json.dumps({"avg_power": 250, "blocks": {}})
+        db.update_parsed(
+            run_id=run_id,
+            yaml_path=None,
+            avg_power_w=250,
+            avg_hr=140,
+            workout_name="Test",
+            parsed_data=payload,
+        )
+        run = db.get_run(run_id)
+        assert run["stage"] == "parsed"
+        assert run["parsed_data"] == payload
+
+    def test_store_parsed_data_overwrites(self, tmp_path):
+        """store_parsed_data() replaces the JSON blob for an existing run."""
+        import json
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=2, name="Run2", date="2026-05-02",
+            fit_path="test2.fit", user_id=1,
+        )
+        db.update_parsed(run_id=run_id, yaml_path=None,
+                         avg_power_w=None, avg_hr=None, workout_name=None)
+        assert db.get_run(run_id)["parsed_data"] is None
+
+        db.store_parsed_data(run_id, json.dumps({"blocks": {}}))
+        assert db.get_run(run_id)["parsed_data"] is not None
+
+    def test_update_analyzed_md_path_optional(self, tmp_path):
+        """update_analyzed() accepts md_path=None without error."""
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=3, name="Run3", date="2026-05-03",
+            fit_path="test3.fit", user_id=1,
+        )
+        db.update_parsed(run_id=run_id, yaml_path=None,
+                         avg_power_w=None, avg_hr=None, workout_name=None)
+        db.update_analyzed(run_id=run_id, md_path=None, commentary="Good run",
+                           model_used="gpt-4o")
+        run = db.get_run(run_id)
+        assert run["stage"] == "analyzed"
+        assert run["commentary"] == "Good run"
+        assert run["md_path"] is None
