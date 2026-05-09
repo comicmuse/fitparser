@@ -239,7 +239,7 @@ def _build_system_prompt(
 
 
 def _build_context_yaml(
-    yaml_content: str,
+    parsed: dict,
     run_date: str,
     config: Config,
     db: RunCoachDB,
@@ -247,7 +247,6 @@ def _build_context_yaml(
 ) -> str | None:
     """Build weekly training context YAML for a run. Returns None on failure."""
     try:
-        parsed = yaml.safe_load(yaml_content)
         current_cp = parsed.get("critical_power")
         from runcoach.context import build_weekly_context, build_training_summary
         from datetime import date as _date
@@ -281,16 +280,17 @@ def analyze_run(
     db: RunCoachDB | None = None,
     run_date: str | None = None,
     user_id: int | None = None,
+    is_manual_upload: bool = False,
 ) -> dict:
     """
     Send YAML workout data to the LLM for coaching analysis.
 
-    If context_yaml is provided, it is prepended as a separate YAML document.
+    yaml_content is the YAML-formatted string (reconstructed from parsed_data).
+    is_manual_upload must be passed explicitly by the caller.
 
     Returns a dict with keys: commentary, prompt_tokens, completion_tokens.
     """
-    is_manual = "manual_upload: true" in yaml_content
-    system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
+    system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual_upload)
 
     if context_yaml:
         user_msg = context_yaml.rstrip("\n") + "\n---\n" + yaml_content
@@ -308,24 +308,35 @@ def build_chat_context(
     config: Config,
     db: RunCoachDB,
 ) -> tuple[str, str]:
-    """Build (system_msg, user_msg) for a follow-up chat turn.
+    """Build (system_msg, user_msg) for a follow-up chat turn."""
+    import json as _json
 
-    Includes full workout YAML, weekly training context, conversation history,
-    and the new question. Ready to pass directly to _dispatch_llm().
-    """
+    if run.get("parsed_data"):
+        try:
+            parsed = _json.loads(run["parsed_data"])
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')} has corrupt parsed_data: {e}") from e
+    elif run.get("yaml_path"):
+        yaml_path = config.data_dir / run["yaml_path"]
+        if not yaml_path.exists():
+            raise ValueError(
+                f"Run {run.get('id')} has no parsed_data and YAML not found at {yaml_path}"
+            )
+        try:
+            parsed = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')}: could not read YAML fallback: {e}") from e
+    else:
+        raise ValueError(f"Run {run.get('id')} has no parsed_data — must be parsed before chat")
+
     run_date = run.get("date")
     is_manual = bool(run.get("is_manual_upload"))
     system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
-
-    if not run.get("yaml_path"):
-        raise ValueError(f"Run has no yaml_path — must be parsed before chat is available")
-
-    yaml_path = config.data_dir / run["yaml_path"]
-    yaml_content = yaml_path.read_text(encoding="utf-8")
+    yaml_content = yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True)
 
     context_yaml = None
     if run_date:
-        context_yaml = _build_context_yaml(yaml_content, run_date, config, db, user_id)
+        context_yaml = _build_context_yaml(parsed, run_date, config, db, user_id)
 
     parts = []
     if context_yaml:
@@ -352,34 +363,50 @@ def build_chat_context(
 
 
 def analyze_and_write(
-    yaml_path: Path,
+    run: dict,
     config: Config,
     db: RunCoachDB | None = None,
     user_id: int | None = None,
-) -> tuple[Path, dict]:
+) -> dict:
     """
-    Read a YAML file, build training context, analyze it, write the .md file.
+    Read parsed_data from a run dict, build training context, analyze, return result.
 
-    Returns (md_path, result_dict).
+    No longer writes a .md file. Returns the result dict directly (not a tuple).
     """
-    yaml_content = yaml_path.read_text(encoding="utf-8")
+    import json as _json
 
-    # Build weekly training context if we have a DB reference
+    if run.get("parsed_data"):
+        try:
+            parsed = _json.loads(run["parsed_data"])
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')} has corrupt parsed_data: {e}") from e
+    elif run.get("yaml_path"):
+        yaml_path = config.data_dir / run["yaml_path"]
+        if not yaml_path.exists():
+            raise ValueError(
+                f"Run {run.get('id')} has no parsed_data and YAML not found at {yaml_path}"
+            )
+        try:
+            parsed = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')}: could not read YAML fallback: {e}") from e
+    else:
+        raise ValueError(f"Run {run.get('id')} has no parsed_data — cannot analyze")
+
+    yaml_content = yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True)
+
+    is_manual = bool(run.get("is_manual_upload"))
+    run_date: str | None = run.get("date")
+
     context_yaml = None
-    run_date: str | None = None
-    if db is not None:
-        parsed = yaml.safe_load(yaml_content)
-        run_date = parsed.get("date")
-        if run_date and db is not None:
-            context_yaml = _build_context_yaml(yaml_content, run_date, config, db, user_id)
+    if db is not None and run_date:
+        context_yaml = _build_context_yaml(parsed, run_date, config, db, user_id)
 
-    result = analyze_run(
-        yaml_content, config, context_yaml=context_yaml, db=db,
-        run_date=run_date, user_id=user_id,
+    return analyze_run(
+        yaml_content, config,
+        context_yaml=context_yaml,
+        db=db,
+        run_date=run_date,
+        user_id=user_id,
+        is_manual_upload=is_manual,
     )
-
-    md_path = yaml_path.with_suffix(".md")
-    md_path.write_text(result["commentary"], encoding="utf-8")
-    log.info("Wrote %s", md_path)
-
-    return md_path, result

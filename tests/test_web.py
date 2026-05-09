@@ -197,6 +197,42 @@ class TestRunView:
         # Commentary should be rendered as HTML
         assert b"Great workout" in response.data or b"power" in response.data
 
+    def test_run_detail_loads_workout_data_from_parsed_data(self, client, app):
+        """Run detail page renders without error when parsed_data is set."""
+        db = app.config["db"]
+        run_id = db.insert_run(
+            stryd_activity_id=77,
+            name="Detail Test",
+            date="2026-03-10",
+            fit_path="activities/detail.fit",
+        )
+        db.update_parsed(
+            run_id=run_id,
+            yaml_path=None,
+            avg_power_w=230,
+            avg_hr=150,
+            workout_name="Detail Test",
+            parsed_data=_json.dumps({
+                "workout_name": "Detail Test",
+                "avg_power": 230,
+                "blocks": {},
+            }),
+        )
+        resp = client.get(f"/run/{run_id}")
+        assert resp.status_code == 200
+
+    def test_run_detail_handles_missing_parsed_data(self, client, app):
+        """Run detail page renders without error when parsed_data is NULL."""
+        db = app.config["db"]
+        run_id = db.insert_run(
+            stryd_activity_id=78,
+            name="No Data",
+            date="2026-03-11",
+            fit_path="activities/nodata.fit",
+        )
+        resp = client.get(f"/run/{run_id}")
+        assert resp.status_code == 200
+
 
 class TestAPIEndpoints:
     """Tests for API endpoints."""
@@ -1297,17 +1333,11 @@ class TestComputePowerScaleMax:
 class TestWorkoutChart:
     """Integration tests for the holistic workout chart."""
 
-    def _write_yaml(self, config, filename, data):
-        import yaml as _yaml
-        act_dir = config.data_dir / "activities"
-        act_dir.mkdir(parents=True, exist_ok=True)
-        (act_dir / filename).write_text(_yaml.dump(data))
-        return "activities/" + filename
-
     def test_workout_chart_renders_with_targets(self, client, app):
         """Run detail page renders new chart elements when YAML has power targets."""
+        import json as _json
         db = app.config["db"]
-        yaml_path = self._write_yaml(app.config["config"], "chart_test.yaml", {
+        blocks_data = {
             "blocks": {
                 "warmup": {
                     "type": "warmup", "duration_min": 10.0, "avg_power": 160.0,
@@ -1327,13 +1357,14 @@ class TestWorkoutChart:
                                          "vert_osc_med": 8.5, "form_power_med": 62},
                 },
             }
-        })
+        }
         run_id = db.insert_run(
             stryd_activity_id=77777, name="Chart Test Run",
             date="2026-05-01", fit_path="activities/chart_test.fit",
         )
-        db.update_parsed(run_id=run_id, yaml_path=yaml_path,
-                         avg_power_w=210.0, avg_hr=150, workout_name="Test Workout")
+        db.update_parsed(run_id=run_id, yaml_path=None,
+                         avg_power_w=210.0, avg_hr=150, workout_name="Test Workout",
+                         parsed_data=_json.dumps(blocks_data))
 
         response = client.get(f"/run/{run_id}")
         assert response.status_code == 200
@@ -1369,8 +1400,9 @@ class TestWorkoutChart:
 
     def test_workout_chart_no_targets_renders(self, client, app):
         """Chart renders correctly when no blocks have power targets."""
+        import json as _json
         db = app.config["db"]
-        yaml_path = self._write_yaml(app.config["config"], "no_target.yaml", {
+        blocks_data = {
             "blocks": {
                 "easy": {
                     "type": "work", "duration_min": 30.0, "avg_power": 180.0,
@@ -1379,13 +1411,14 @@ class TestWorkoutChart:
                                  "Z4_pct": 0.0, "Z5_pct": 0.0},
                 }
             }
-        })
+        }
         run_id = db.insert_run(
             stryd_activity_id=77778, name="Easy Run",
             date="2026-05-02", fit_path="activities/no_target.fit",
         )
-        db.update_parsed(run_id=run_id, yaml_path=yaml_path,
-                         avg_power_w=180.0, avg_hr=145, workout_name=None)
+        db.update_parsed(run_id=run_id, yaml_path=None,
+                         avg_power_w=180.0, avg_hr=145, workout_name=None,
+                         parsed_data=_json.dumps(blocks_data))
 
         response = client.get(f"/run/{run_id}")
         assert response.status_code == 200

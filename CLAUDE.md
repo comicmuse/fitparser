@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RunCoach is an automated running workout analysis system that syncs activities from Stryd, parses Garmin FIT files into structured YAML blocks, and generates AI coaching commentary using OpenAI. It's a Progressive Web App (PWA) with push notifications.
+RunCoach is an automated running workout analysis system that syncs activities from Stryd, parses Garmin FIT files into structured workout blocks, and generates AI coaching commentary using a configurable LLM (OpenAI, Claude, or Ollama). It's a Progressive Web App (PWA).
 
 The system has three main stages:
 1. **Sync** — authenticate with Stryd API, download new FIT files
-2. **Parse** — convert FIT → structured YAML with block segmentation, power/HR/pace stats, HR zone distribution
-3. **Analyze** — send YAML + 7-day training context (ATL/CTL/RSB) to OpenAI, store markdown commentary
+2. **Parse** — convert FIT → structured block data (power/HR/pace/zones) stored as JSON in `runs.parsed_data`
+3. **Analyze** — send workout data + 7-day training context (ATL/CTL/RSB) to OpenAI, store commentary in DB
 
 ## Development Commands
 
@@ -75,17 +75,17 @@ docker compose up -d
 
 ### Testing Individual Components
 ```bash
-# Parse a single FIT file to YAML
+# Parse a single FIT file and store parsed data in DB
 runcoach-cli parse --file path/to/file.fit
 
-# Parse all FIT files in a directory
-runcoach-cli parse --directory path/to/dir/
+# Analyze a run by DB ID
+runcoach-cli analyze --run-id 42
 
-# Analyze a single YAML file
-runcoach-cli analyze --file path/to/file.yaml
+# Analyze all parsed runs on a given date
+runcoach-cli analyze --date 2026-05-01
 
-# Analyze all YAML files in a directory
-runcoach-cli analyze --directory path/to/dir/
+# Back-fill parsed_data for all historical runs (run once after deploy)
+runcoach-migrate
 ```
 
 ### Running Tests
@@ -151,16 +151,17 @@ Uses a threading lock to prevent concurrent pipeline runs.
 
 ### Data Flow
 1. **Sync** (`sync.py`) → Downloads FIT files from Stryd, stores metadata in SQLite with stage='synced'
-2. **Parse** (`parser.py`) → Calls `fit_parser.py` to segment FIT into workout blocks (warmup/work/rest/cooldown), writes YAML, updates DB to stage='parsed'
-3. **Analyze** (`analyzer.py`) → Builds weekly training context via `context.py`, sends to OpenAI with athlete profile + schema, writes markdown commentary, updates DB to stage='analyzed'
+2. **Parse** (`parser.py`) → Calls `fit_parser.py` to segment FIT into workout blocks (warmup/work/rest/cooldown), stores JSON in `runs.parsed_data`, updates DB to stage='parsed'
+3. **Analyze** (`analyzer.py`) → Builds weekly training context via `context.py`, sends to OpenAI with athlete profile + schema, stores commentary in `runs.commentary`, updates DB to stage='analyzed'
 
 ### Database Schema (`db.py`)
 - **runs** table: tracks activity progression through pipeline stages (synced → parsed → analyzed → error)
   - `stryd_activity_id`: links to Stryd API (nullable for manual uploads)
   - `stage`: current pipeline stage
   - `is_manual_upload`: distinguishes manual FIT uploads from Stryd sync
+  - `parsed_data`: JSON-serialised output of `build_blocks_from_fit()`
+  - `commentary`: AI coaching markdown text
 - **planned_workouts** table: stores prescribed workouts from Stryd training calendar
-- **push_subscriptions** table: Web Push endpoints for notifications
 - **sync_log** table: audit trail of sync operations
 
 Uses WAL mode for better concurrency.
@@ -177,23 +178,23 @@ Also includes:
 - Next 2 scheduled workouts (for forward-looking advice)
 
 ### FIT Parsing (`runcoach/fit_parser.py`)
-Core module for converting Garmin FIT files to structured YAML:
+Core module for converting Garmin FIT files to structured workout data:
 - Extracts workout steps and laps from FIT files
 - Maps steps to laps by index
 - Calculates per-block stats (duration, distance, avg HR/power, HR drift)
 - Computes power target compliance (% time below/in/above target band)
 - Calculates HR zone distribution using 5-zone model
-- Outputs structured YAML with all block data
+- Returns a summary dict; caller serialises to JSON and stores in `runs.parsed_data`
 
 Main public API: `build_blocks_from_fit(fit_path, tz_name)` returns a summary dict.
 
 ### AI Analysis (`analyzer.py`)
-Sends training context + workout YAML to OpenAI with:
+Sends training context + workout data to the configured LLM with:
 - System prompt including athlete profile loaded from the `users` table in the database
 - `workout_yaml_schema.json` for structured data format
 - Special handling for manual uploads (no power data penalty)
 
-Returns markdown commentary stored in DB and written to `.md` file.
+Reads `parsed_data` JSON from the run dict, reconstructs a YAML string for the LLM prompt (format unchanged), and stores the returned commentary in `runs.commentary`. No `.md` file is written. The active provider is resolved by `config.llm_provider` (OpenAI → Claude → Ollama, in priority order based on which keys are set).
 
 ### Stryd Integration (`runcoach/stryd_api.py`)
 Inlined API client for authentication and activity retrieval:
@@ -222,7 +223,10 @@ Optional integration for route maps and webhook-triggered sync:
 
 All config via environment variables (see `config.py`):
 - `STRYD_EMAIL` / `STRYD_PASSWORD`: Stryd API credentials
-- `OPENAI_API_KEY` / `OPENAI_MODEL`: OpenAI configuration
+- `OPENAI_API_KEY` / `OPENAI_MODEL`: OpenAI LLM (default model: `gpt-4o`)
+- `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL`: Claude LLM (default model: `claude-opus-4-6`)
+- `OLLAMA_BASE_URL` / `OLLAMA_MODEL` / `OLLAMA_NUM_CTX`: Ollama LLM (default model: `llama3.2`)
+- Only one LLM provider needs to be configured; OpenAI takes priority if multiple are set
 - `LLM_AUTO_ANALYSE`: Auto-analyze after sync (default: true)
 - `ANALYZE_FROM`: Only auto-analyze runs on/after this date (YYYY-MM-DD)
 - `DATA_DIR`: Root for activities, database, outputs (default: `data/`)
@@ -238,10 +242,12 @@ data/
       MM/
         YYYYMMDD_activity_name/
           YYYYMMDD_activity_name.fit    # Original FIT file
-          YYYYMMDD_activity_name.yaml   # Parsed workout blocks
-          YYYYMMDD_activity_name.md     # AI commentary
+          YYYYMMDD_activity_name.yaml   # Legacy — pre-migration runs only; not written for new runs
+          YYYYMMDD_activity_name.md     # Legacy — pre-migration runs only; not written for new runs
   runcoach.db                           # SQLite database (runs, planned_workouts, etc.)
 ```
+
+Parsed block data and AI commentary are now stored in the `runs` table (`parsed_data` and `commentary` columns). `.yaml` and `.md` files are kept on disk for historical reference but are no longer written or read by the application (except as a fallback for pre-migration runs that lack `parsed_data`).
 
 ## Important Patterns
 
@@ -249,20 +255,14 @@ data/
 Manual uploads (drag-and-drop FIT files in web UI):
 - Have `is_manual_upload=1` in database
 - Have `stryd_activity_id=NULL`
-- Include `manual_upload: true` in YAML
 - AI analysis skips power data criticism (many manual uploads lack Stryd power)
+- Detection is via `run["is_manual_upload"]` DB column — not YAML content
 
 ### Prescribed Workout Comparison
 When a Stryd training plan workout is prescribed for a date:
 - `context.py` includes it in `prescribed_workout` field
 - AI coach compares actual execution to prescription
 - Flags meaningful deviations in power zones, duration, distance
-
-### Push Notifications
-Uses Web Push (VAPID) for analysis completion alerts:
-- Self-generated keypairs (no third-party service)
-- Keys stored as base64url in environment
-- `push.py` sends notifications to all subscribed endpoints
 
 ## Development Notes
 
@@ -273,7 +273,7 @@ Uses Web Push (VAPID) for analysis completion alerts:
 - Database migrations handled inline in `db.py._init_schema()`
 - Background scheduler runs in separate thread (`scheduler.py`)
 - All timestamps stored as ISO 8601 strings in UTC
-- Always create appropriate tests for any significant change to funictionality, or for any new behaviour
+- Always create appropriate tests for any significant change to functionality, or for any new behaviour
 
 ## Athlete Profile
 

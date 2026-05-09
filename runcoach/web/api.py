@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-import yaml
 from datetime import datetime, timezone, date as date_type
-from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
@@ -77,22 +75,14 @@ def format_run_for_api(run: dict, include_yaml: bool = False) -> dict:
     }
 
     # Include full YAML data if requested
-    if include_yaml and run["yaml_path"]:
-        try:
-            yaml_path = Path(run["yaml_path"])
-            # If path is relative, make it relative to data directory
-            if not yaml_path.is_absolute():
-                config: Config = current_app.config["RUNCOACH_CONFIG"]
-                yaml_path = config.data_dir / yaml_path
-
-            if yaml_path.exists():
-                with open(yaml_path) as f:
-                    result["yaml_data"] = yaml.safe_load(f)
-            else:
-                log.warning(f"YAML file not found for run {run['id']}: {yaml_path}")
+    if include_yaml:
+        if run.get("parsed_data"):
+            try:
+                result["yaml_data"] = json.loads(run["parsed_data"])
+            except Exception as e:
+                log.error(f"Failed to deserialize parsed_data for run {run['id']}: {e}")
                 result["yaml_data"] = None
-        except Exception as e:
-            log.error(f"Failed to load YAML for run {run['id']}: {e}")
+        else:
             result["yaml_data"] = None
 
     return result
@@ -446,14 +436,10 @@ def analyze_run(run_id: int):
                     log.error(f"Run {run_id} not found during analysis")
                     return
 
-                yaml_path = config.data_dir / fresh_run["yaml_path"]
-                md_path, result = analyze_and_write(yaml_path, config, db=db)
-
-                # Update database with results
-                md_path_rel = str(md_path.relative_to(config.data_dir))
+                result = analyze_and_write(fresh_run, config, db=db)
                 db.update_analyzed(
                     run_id=fresh_run["id"],
-                    md_path=md_path_rel,
+                    md_path=None,
                     commentary=result["commentary"],
                     model_used=config.active_model,
                     prompt_tokens=result.get("prompt_tokens"),
@@ -462,7 +448,7 @@ def analyze_run(run_id: int):
                 log.info(f"Analysis complete for run {run_id}")
 
             except Exception as e:
-                log.exception(f"Analysis failed for run {run_id}")  # Use log.exception for full traceback
+                log.exception(f"Analysis failed for run {run_id}")
                 db.update_error(run_id, f"Analysis error: {e}")
 
     thread = threading.Thread(target=analyze_task, daemon=True)

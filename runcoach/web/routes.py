@@ -25,9 +25,12 @@ import markdown as md
 import nh3
 from runcoach.web.ors import fetch_routes as _ors_fetch_routes
 
+import json as _json
+
 from runcoach.analyzer import analyze_and_write, build_chat_context, _dispatch_llm
 from runcoach.auth import hash_password, verify_password
 from runcoach.config import Config
+from runcoach.parser import parse_fit_file
 from runcoach.pipeline import run_full_pipeline
 from runcoach.web import csrf
 
@@ -266,8 +269,6 @@ def workouts():
 @bp.route("/run/<int:run_id>")
 @_login_required
 def run_detail(run_id: int):
-    import yaml as _yaml
-    
     db = _db()
     user_id = _current_user_id()
     config: Config = current_app.config["config"]
@@ -289,16 +290,13 @@ def run_detail(run_id: int):
         for msg in chat_history_raw
     ]
 
-    # Load YAML data for visualizations
+    # Load workout data for visualizations from DB column
     workout_data = None
-    if run.get("yaml_path"):
-        yaml_path = config.data_dir / run["yaml_path"]
-        if yaml_path.exists():
-            try:
-                with open(yaml_path, "r", encoding="utf-8") as f:
-                    workout_data = _yaml.safe_load(f)
-            except Exception:
-                pass
+    if run.get("parsed_data"):
+        try:
+            workout_data = _json.loads(run["parsed_data"])
+        except Exception:
+            pass
 
     power_scale_max = 300
     if workout_data and workout_data.get("blocks"):
@@ -405,12 +403,10 @@ def analyze_run_route(run_id: int):
             db = _db()
             run = db.get_run(run_id)
             try:
-                yaml_path = config.data_dir / run["yaml_path"]
-                md_path, result = analyze_and_write(yaml_path, config, db=db, user_id=user_id)
-                md_path_rel = str(md_path.relative_to(config.data_dir))
+                result = analyze_and_write(run, config, db=db, user_id=user_id)
                 db.update_analyzed(
                     run_id=run["id"],
-                    md_path=md_path_rel,
+                    md_path=None,
                     commentary=result["commentary"],
                     model_used=config.active_model,
                     prompt_tokens=result.get("prompt_tokens"),
@@ -514,8 +510,6 @@ def upload():
     from datetime import datetime
     from pathlib import Path
 
-    from runcoach.parser import parse_and_write
-
     config: Config = current_app.config["config"]
     db = _db()
     user_id = _current_user_id()
@@ -590,42 +584,42 @@ def upload():
 
     # Parse the FIT file immediately to get distance/duration
     try:
-        # Get planned workout title for this date to use full name (FIT truncates at 32 chars)
         planned_workout_title = None
         planned_workouts = db.get_planned_workout_for_date(date_str, user_id=user_id)
         if planned_workouts:
             planned_workout_title = planned_workouts[0]["title"]
 
-        yaml_path = parse_and_write(
-            fit_path,
-            timezone=config.timezone,
-            manual_upload=True,
-            planned_workout_title=planned_workout_title,
-        )
-        yaml_path_rel = str(yaml_path.relative_to(config.data_dir))
+        parsed_summary = parse_fit_file(fit_path, timezone=config.timezone)
 
-        # Read back parsed summary for DB fields
-        import yaml as _yaml
-        with open(yaml_path, "r", encoding="utf-8") as f:
-            parsed = _yaml.safe_load(f)
+        # Replace truncated workout name with full planned title if available
+        if planned_workout_title:
+            fit_name = parsed_summary.get("workout_name", "")
+            if fit_name and len(fit_name) == 32 and planned_workout_title.startswith(fit_name):
+                parsed_summary["workout_name"] = planned_workout_title
+                parsed_summary["workout_name_source"] = "planned_workout"
+            elif fit_name and planned_workout_title.startswith(fit_name[:31]):
+                parsed_summary["workout_name"] = planned_workout_title
+                parsed_summary["workout_name_source"] = "planned_workout"
 
         # Insert as manual run
         run_id = db.insert_manual_run(
             name=activity_name,
             date=date_str,
             fit_path=fit_path_rel,
-            distance_m=parsed.get("distance_km", 0) * 1000 if parsed.get("distance_km") else None,
-            moving_time_s=int(parsed.get("duration_min", 0) * 60) if parsed.get("duration_min") else None,
+            distance_m=parsed_summary.get("distance_km", 0) * 1000
+                       if parsed_summary.get("distance_km") else None,
+            moving_time_s=int(parsed_summary.get("duration_min", 0) * 60)
+                          if parsed_summary.get("duration_min") else None,
             user_id=user_id,
         )
 
-        # Update as parsed
         db.update_parsed(
             run_id=run_id,
-            yaml_path=yaml_path_rel,
-            avg_power_w=parsed.get("avg_power"),
-            avg_hr=parsed.get("avg_hr"),
-            workout_name=parsed.get("workout_name"),
+            yaml_path=None,
+            avg_power_w=parsed_summary.get("avg_power"),
+            avg_hr=parsed_summary.get("avg_hr"),
+            workout_name=parsed_summary.get("workout_name"),
+            parsed_data=_json.dumps(parsed_summary),
         )
 
         flash(f"Uploaded and parsed: {activity_name}")
@@ -633,7 +627,6 @@ def upload():
 
     except Exception as e:
         log.exception("Failed to parse uploaded FIT file: %s", e)
-        # Still insert the run even if parsing failed
         run_id = db.insert_manual_run(
             name=activity_name,
             date=date_str,

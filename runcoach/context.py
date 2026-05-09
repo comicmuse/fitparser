@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as _json
 import logging
 from datetime import date, timedelta
 from pathlib import Path
@@ -54,6 +55,28 @@ def _classify_workout_type(name: str, blocks: dict) -> str:
     return "run"
 
 
+def _load_run_parsed(run: dict, data_dir: Path) -> dict | None:
+    """Load the parsed workout dict for a run.
+
+    Reads from parsed_data column if available; falls back to the YAML file
+    for runs that pre-date the DB migration.
+    """
+    if run.get("parsed_data"):
+        try:
+            return _json.loads(run["parsed_data"])
+        except Exception:
+            return None
+    if run.get("yaml_path"):
+        yaml_path = data_dir / run["yaml_path"]
+        if yaml_path.exists():
+            try:
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    return yaml.safe_load(f)
+            except Exception:
+                return None
+    return None
+
+
 def build_weekly_context(
     run_date: str,
     data_dir: Path,
@@ -79,7 +102,7 @@ def build_weekly_context(
     all_runs = db.get_all_runs(user_id) if user_id is not None else db.get_all_runs(1)
     week_runs = [
         r for r in all_runs
-        if r.get("yaml_path")
+        if (r.get("parsed_data") or r.get("yaml_path"))
         and r["date"] >= window_start.isoformat()
         and r["date"] < target.isoformat()
         and r["stage"] in ("parsed", "analyzed")
@@ -96,18 +119,14 @@ def build_weekly_context(
     # This helps us detect if CP changed with the current run
     previous_cp = None
     for run in sorted(all_runs, key=lambda r: r["date"], reverse=True):  # Most recent first
-        if run.get("yaml_path") and run["date"] < target.isoformat():
-            yaml_path = data_dir / run["yaml_path"]
-            if yaml_path.exists():
-                try:
-                    with open(yaml_path, "r", encoding="utf-8") as f:
-                        parsed = yaml.safe_load(f)
-                    cp = parsed.get("critical_power")
-                    if cp and cp > 0:
-                        previous_cp = cp
-                        break
-                except Exception:
-                    continue
+        if (run.get("parsed_data") or run.get("yaml_path")) and run["date"] < target.isoformat():
+            parsed = _load_run_parsed(run, data_dir)
+            if parsed is None:
+                continue
+            cp = parsed.get("critical_power")
+            if cp and cp > 0:
+                previous_cp = cp
+                break
 
     # Use current CP if provided, otherwise fall back to previous CP
     critical_power = current_cp if current_cp else previous_cp
@@ -120,14 +139,9 @@ def build_weekly_context(
         cp_change_amount = current_cp - previous_cp
 
     for run in week_runs:
-        yaml_path = data_dir / run["yaml_path"]
-        if not yaml_path.exists():
-            continue
-        try:
-            with open(yaml_path, "r", encoding="utf-8") as f:
-                parsed = yaml.safe_load(f)
-        except Exception:
-            log.warning("Could not read %s, skipping", yaml_path)
+        parsed = _load_run_parsed(run, data_dir)
+        if parsed is None:
+            log.warning("Could not load parsed data for run %s, skipping", run.get("id"))
             continue
 
         dist = parsed.get("distance_km", 0) or 0
@@ -182,7 +196,7 @@ def build_weekly_context(
     window_42_start = target - timedelta(days=42)
     chronic_runs = [
         r for r in all_runs
-        if r.get("yaml_path")
+        if (r.get("parsed_data") or r.get("yaml_path"))
         and r["date"] >= window_42_start.isoformat()
         and r["date"] < target.isoformat()
         and r["stage"] in ("parsed", "analyzed")
@@ -191,13 +205,8 @@ def build_weekly_context(
     chronic_rss = 0.0
     chronic_run_count = 0
     for run in chronic_runs:
-        yaml_path = data_dir / run["yaml_path"]
-        if not yaml_path.exists():
-            continue
-        try:
-            with open(yaml_path, "r", encoding="utf-8") as f:
-                parsed = yaml.safe_load(f)
-        except Exception:
+        parsed = _load_run_parsed(run, data_dir)
+        if parsed is None:
             continue
 
         # Prefer Stryd RSS if available

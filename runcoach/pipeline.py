@@ -7,8 +7,10 @@ from pathlib import Path
 
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
+import json as _json
+
 from runcoach.sync import sync_new_activities, sync_planned_workouts
-from runcoach.parser import parse_and_write
+from runcoach.parser import parse_fit_file
 from runcoach.analyzer import analyze_and_write
 
 log = logging.getLogger(__name__)
@@ -80,7 +82,6 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
                 fit_path = config.data_dir / run["fit_path"]
                 stryd_rss = run.get("stryd_rss")
 
-                # Get planned workout title for this date to use full name
                 planned_workout_title = None
                 if run.get("date"):
                     planned_workouts = db.get_planned_workout_for_date(
@@ -89,25 +90,28 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
                     if planned_workouts:
                         planned_workout_title = planned_workouts[0]["title"]
 
-                yaml_path = parse_and_write(
-                    fit_path,
-                    timezone=config.timezone,
-                    stryd_rss=stryd_rss,
-                    planned_workout_title=planned_workout_title,
-                )
-                yaml_path_rel = str(yaml_path.relative_to(config.data_dir))
+                parsed_summary = parse_fit_file(fit_path, timezone=config.timezone)
 
-                # Read back parsed summary for DB fields
-                import yaml as _yaml
-                with open(yaml_path, "r", encoding="utf-8") as f:
-                    parsed = _yaml.safe_load(f)
+                if planned_workout_title:
+                    fit_name = parsed_summary.get("workout_name", "")
+                    if fit_name and len(fit_name) == 32 and planned_workout_title.startswith(fit_name):
+                        parsed_summary["workout_name"] = planned_workout_title
+                        parsed_summary["workout_name_source"] = "planned_workout"
+                    elif fit_name and planned_workout_title.startswith(fit_name[:31]):
+                        parsed_summary["workout_name"] = planned_workout_title
+                        parsed_summary["workout_name_source"] = "planned_workout"
+
+                if stryd_rss is not None:
+                    parsed_summary["stryd_rss"] = round(stryd_rss, 1)
+                    parsed_summary["stryd_rss_note"] = "Running Stress Score from Stryd (official)"
 
                 db.update_parsed(
                     run_id=run["id"],
-                    yaml_path=yaml_path_rel,
-                    avg_power_w=parsed.get("avg_power"),
-                    avg_hr=parsed.get("avg_hr"),
-                    workout_name=parsed.get("workout_name"),
+                    yaml_path=None,
+                    avg_power_w=parsed_summary.get("avg_power"),
+                    avg_hr=parsed_summary.get("avg_hr"),
+                    workout_name=parsed_summary.get("workout_name"),
+                    parsed_data=_json.dumps(parsed_summary),
                 )
                 summary["parsed"] += 1
             except Exception as e:
@@ -123,15 +127,10 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
         else:
             for run in db.get_pending_runs("parsed", user_id=user_id, date_from=config.analyze_from):
                 try:
-                    yaml_path = config.data_dir / run["yaml_path"]
-                    md_path, result = analyze_and_write(
-                        yaml_path, config, db=db, user_id=user_id
-                    )
-                    md_path_rel = str(md_path.relative_to(config.data_dir))
-
+                    result = analyze_and_write(run, config, db=db, user_id=user_id)
                     db.update_analyzed(
                         run_id=run["id"],
-                        md_path=md_path_rel,
+                        md_path=None,
                         commentary=result["commentary"],
                         model_used=config.active_model,
                         prompt_tokens=result.get("prompt_tokens"),

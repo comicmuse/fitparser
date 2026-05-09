@@ -717,7 +717,7 @@ class TestDatabaseStartup:
         "fit_path", "yaml_path", "md_path", "stage", "error_message", "avg_power_w",
         "avg_hr", "workout_name", "commentary", "analyzed_at", "model_used",
         "prompt_tokens", "completion_tokens", "synced_at", "parsed_at",
-        "created_at", "updated_at", "is_manual_upload", "stryd_rss",
+        "created_at", "updated_at", "is_manual_upload", "stryd_rss", "parsed_data",
         "garmin_connect_id", "strava_activity_id", "strava_map_polyline", "user_id",
     }
 
@@ -833,3 +833,174 @@ class TestDatabaseStartup:
         user2_id = db.create_user("guest", "hash2")
         user2 = db.get_user_by_id(user2_id)
         assert user2["is_admin"] == 0
+
+    def test_update_parsed_stores_parsed_data(self, tmp_path):
+        """update_parsed() stores the JSON blob in parsed_data."""
+        import json
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=1, name="Run", date="2026-05-01",
+            fit_path="test.fit", user_id=1,
+        )
+        payload = json.dumps({"avg_power": 250, "blocks": {}})
+        db.update_parsed(
+            run_id=run_id,
+            yaml_path=None,
+            avg_power_w=250,
+            avg_hr=140,
+            workout_name="Test",
+            parsed_data=payload,
+        )
+        run = db.get_run(run_id)
+        assert run["stage"] == "parsed"
+        assert run["parsed_data"] == payload
+
+    def test_store_parsed_data_overwrites(self, tmp_path):
+        """store_parsed_data() replaces the JSON blob for an existing run."""
+        import json
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=2, name="Run2", date="2026-05-02",
+            fit_path="test2.fit", user_id=1,
+        )
+        db.update_parsed(run_id=run_id, yaml_path=None,
+                         avg_power_w=None, avg_hr=None, workout_name=None)
+        assert db.get_run(run_id)["parsed_data"] is None
+
+        expected = json.dumps({"blocks": {}})
+        db.store_parsed_data(run_id, expected)
+        assert db.get_run(run_id)["parsed_data"] == expected
+
+    def test_update_analyzed_md_path_optional(self, tmp_path):
+        """update_analyzed() accepts md_path=None without error."""
+        db = RunCoachDB(tmp_path / "test.db")
+        db.ensure_default_user("athlete", "hash")
+        run_id = db.insert_run(
+            stryd_activity_id=3, name="Run3", date="2026-05-03",
+            fit_path="test3.fit", user_id=1,
+        )
+        db.update_parsed(run_id=run_id, yaml_path=None,
+                         avg_power_w=None, avg_hr=None, workout_name=None)
+        db.update_analyzed(run_id=run_id, md_path=None, commentary="Good run",
+                           model_used="gpt-4o")
+        run = db.get_run(run_id)
+        assert run["stage"] == "analyzed"
+        assert run["commentary"] == "Good run"
+        assert run["md_path"] is None
+
+
+class TestMigrateCommand:
+    """Tests for the runcoach-migrate back-fill command."""
+
+    def test_migrate_populates_parsed_data_from_yaml(self, tmp_path):
+        """Runs with yaml_path get parsed_data populated from the YAML file."""
+        import json
+        import yaml as _yaml
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.cli import migrate
+        from runcoach.auth import hash_password
+
+        config = Config(
+            openai_api_key="x", openai_model="gpt-4o",
+            data_dir=tmp_path / "data", timezone="Europe/London",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("pass"))
+
+        # Write a YAML file
+        yaml_rel = "activities/20260501_run.yaml"
+        yaml_abs = config.data_dir / yaml_rel
+        yaml_abs.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"workout_name": "Easy Run", "avg_power": 250}
+        yaml_abs.write_text(_yaml.safe_dump(payload), encoding="utf-8")
+
+        # Insert a run with yaml_path but no parsed_data
+        run_id = db.insert_run(
+            stryd_activity_id=1, name="Run", date="2026-05-01",
+            fit_path="activities/20260501_run.fit", user_id=1,
+        )
+        db.update_parsed(
+            run_id=run_id, yaml_path=yaml_rel,
+            avg_power_w=250, avg_hr=None, workout_name="Easy Run",
+        )
+        assert db.get_run(run_id)["parsed_data"] is None
+
+        migrate(config, db)
+
+        run = db.get_run(run_id)
+        assert run["parsed_data"] is not None
+        assert json.loads(run["parsed_data"])["avg_power"] == 250
+
+    def test_migrate_skips_missing_yaml(self, tmp_path):
+        """Runs whose YAML file is missing are skipped (not errored)."""
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.cli import migrate
+        from runcoach.auth import hash_password
+
+        config = Config(
+            openai_api_key="x", openai_model="gpt-4o",
+            data_dir=tmp_path / "data", timezone="Europe/London",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("pass"))
+
+        run_id = db.insert_run(
+            stryd_activity_id=2, name="Run", date="2026-05-02",
+            fit_path="activities/missing.fit", user_id=1,
+        )
+        db.update_parsed(
+            run_id=run_id, yaml_path="activities/missing.yaml",
+            avg_power_w=None, avg_hr=None, workout_name=None,
+        )
+
+        migrate(config, db)  # must not raise
+
+        assert db.get_run(run_id)["parsed_data"] is None
+
+    def test_migrate_is_idempotent(self, tmp_path):
+        """Running migrate twice doesn't change already-populated runs."""
+        import json
+        import yaml as _yaml
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.cli import migrate
+        from runcoach.auth import hash_password
+
+        config = Config(
+            openai_api_key="x", openai_model="gpt-4o",
+            data_dir=tmp_path / "data", timezone="Europe/London",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("pass"))
+
+        yaml_rel = "activities/run.yaml"
+        yaml_abs = config.data_dir / yaml_rel
+        yaml_abs.parent.mkdir(parents=True, exist_ok=True)
+        yaml_abs.write_text(_yaml.safe_dump({"avg_power": 200}), encoding="utf-8")
+
+        run_id = db.insert_run(
+            stryd_activity_id=3, name="Run", date="2026-05-03",
+            fit_path="activities/run.fit", user_id=1,
+        )
+        db.update_parsed(
+            run_id=run_id, yaml_path=yaml_rel,
+            avg_power_w=200, avg_hr=None, workout_name=None,
+        )
+
+        migrate(config, db)
+        first = db.get_run(run_id)["parsed_data"]
+
+        migrate(config, db)  # second run must not change anything
+        second = db.get_run(run_id)["parsed_data"]
+
+        assert first == second

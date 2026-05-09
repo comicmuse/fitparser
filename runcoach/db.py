@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS runs (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     is_manual_upload INTEGER NOT NULL DEFAULT 0,
     stryd_rss REAL,
+    parsed_data TEXT,
     garmin_connect_id TEXT,
     strava_activity_id TEXT,
     strava_map_polyline TEXT,
@@ -138,14 +139,20 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
-            # If no admin exists, promote the lowest-id user — runs on every startup, safe to repeat.
+            # Add parsed_data column if upgrading from an older schema.
+            existing = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(runs)").fetchall()
+            }
+            if "parsed_data" not in existing:
+                conn.execute("ALTER TABLE runs ADD COLUMN parsed_data TEXT")
+            # Always ensure the first-ever user is an admin (idempotent).
             conn.execute(
                 """UPDATE users SET is_admin = 1
                    WHERE id = (SELECT MIN(id) FROM users)
                    AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)"""
             )
             # Seed athlete_profile from coach_profile.txt on first startup if blank.
-            # If no admin exists, promote the lowest-id user — safe to repeat.
             seed_path = Path(__file__).resolve().parent.parent / "coach_profile.txt"
             try:
                 seed_text = seed_path.read_text(encoding="utf-8").strip()
@@ -262,27 +269,37 @@ class RunCoachDB:
     def update_parsed(
         self,
         run_id: int,
-        yaml_path: str,
+        yaml_path: str | None,
         avg_power_w: float | None,
         avg_hr: int | None,
         workout_name: str | None,
+        parsed_data: str | None = None,
     ) -> None:
         now = _now_iso()
         with self._connect() as conn:
             conn.execute(
                 """UPDATE runs
                    SET stage='parsed', yaml_path=?, avg_power_w=?,
-                       avg_hr=?, workout_name=?, parsed_at=?, updated_at=?
+                       avg_hr=?, workout_name=?, parsed_data=?, parsed_at=?, updated_at=?
                    WHERE id=?""",
-                (yaml_path, avg_power_w, avg_hr, workout_name, now, now, run_id),
+                (yaml_path, avg_power_w, avg_hr, workout_name, parsed_data, now, now, run_id),
+            )
+
+    def store_parsed_data(self, run_id: int, parsed_data: str) -> None:
+        """Overwrite parsed_data for an existing run (used by migration command)."""
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE runs SET parsed_data = ?, updated_at = ? WHERE id = ?",
+                (parsed_data, now, run_id),
             )
 
     def update_analyzed(
         self,
         run_id: int,
-        md_path: str,
-        commentary: str,
-        model_used: str,
+        md_path: str | None = None,
+        commentary: str = "",
+        model_used: str = "",
         prompt_tokens: int | None = None,
         completion_tokens: int | None = None,
     ) -> None:
