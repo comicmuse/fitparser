@@ -287,10 +287,11 @@ class RunCoachDB:
 
     def store_parsed_data(self, run_id: int, parsed_data: str) -> None:
         """Overwrite parsed_data for an existing run (used by migration command)."""
+        now = _now_iso()
         with self._connect() as conn:
             conn.execute(
-                "UPDATE runs SET parsed_data = ? WHERE id = ?",
-                (parsed_data, run_id),
+                "UPDATE runs SET parsed_data = ?, updated_at = ? WHERE id = ?",
+                (parsed_data, now, run_id),
             )
 
     def update_analyzed(

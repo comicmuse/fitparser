@@ -869,8 +869,9 @@ class TestDatabaseStartup:
                          avg_power_w=None, avg_hr=None, workout_name=None)
         assert db.get_run(run_id)["parsed_data"] is None
 
-        db.store_parsed_data(run_id, json.dumps({"blocks": {}}))
-        assert db.get_run(run_id)["parsed_data"] is not None
+        expected = json.dumps({"blocks": {}})
+        db.store_parsed_data(run_id, expected)
+        assert db.get_run(run_id)["parsed_data"] == expected
 
     def test_update_analyzed_md_path_optional(self, tmp_path):
         """update_analyzed() accepts md_path=None without error."""
