@@ -311,12 +311,12 @@ def build_chat_context(
     """Build (system_msg, user_msg) for a follow-up chat turn."""
     import json as _json
 
+    if not run.get("parsed_data"):
+        raise ValueError(f"Run {run.get('id')} has no parsed_data — must be parsed before chat")
+
     run_date = run.get("date")
     is_manual = bool(run.get("is_manual_upload"))
     system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
-
-    if not run.get("parsed_data"):
-        raise ValueError(f"Run {run.get('id')} has no parsed_data — must be parsed before chat")
 
     parsed = _json.loads(run["parsed_data"])
     yaml_content = yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True)

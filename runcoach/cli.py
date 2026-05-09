@@ -80,8 +80,16 @@ def analyze_file(yaml_path: Path, config: Config, db: RunCoachDB | None = None) 
 
     log.info("Analyzing %s...", yaml_path)
     try:
-        md_path, _ = analyze_and_write(yaml_path, config, db=db)
-        log.info("Wrote %s", md_path)
+        parsed = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        run = {
+            "id": None,
+            "date": None,
+            "is_manual_upload": 0,
+            "parsed_data": json.dumps(parsed),
+        }
+        result = analyze_and_write(run, config, db=db)
+        log.info("Analysis complete: %d prompt tokens, %d completion tokens",
+                 result.get("prompt_tokens") or 0, result.get("completion_tokens") or 0)
     except Exception as e:
         log.error("Failed to analyze %s: %s", yaml_path, e)
         sys.exit(1)
