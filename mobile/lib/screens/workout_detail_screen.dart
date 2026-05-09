@@ -246,6 +246,100 @@ class _StructureTab extends StatelessWidget {
     _ => const Color(0xFFCCCCCC),
   };
 
+  Widget _buildSegmentCard(PlannedWorkoutSegment seg,
+      {double horizontalMargin = 16}) {
+    final color = _blockColor(seg.intensityClass);
+    final hasPower = seg.powerMinPct != null && seg.powerMaxPct != null;
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: 3),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border(left: BorderSide(color: color, width: 3)),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  seg.intensityClass.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                if (hasPower) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '${seg.powerMinPct}–${seg.powerMaxPct}% CP',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            Text(
+              seg.formattedDuration,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF888888),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRepeatGroup(PlannedWorkoutBlock block, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 4),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+              borderRadius: BorderRadius.circular(14),
+              color: const Color(0xFFF59E0B).withOpacity(0.06),
+            ),
+            padding: const EdgeInsets.fromLTRB(0, 10, 0, 6),
+            child: Column(
+              children: block.segments
+                  .map((seg) => _buildSegmentCard(seg, horizontalMargin: 8))
+                  .toList(),
+            ),
+          ),
+          Positioned(
+            top: -9,
+            left: 12,
+            child: Container(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                '× ${block.repeat} REPEAT',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFF59E0B),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final structure = workout.structure;
@@ -267,75 +361,14 @@ class _StructureTab extends StatelessWidget {
       itemCount: structure.length,
       itemBuilder: (context, i) {
         final block = structure[i];
+        if (block.repeat > 1) {
+          return _buildRepeatGroup(block, context);
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (block.repeat > 1)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 16, 2),
-                child: Text(
-                  '× ${block.repeat}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF888888),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ...block.segments.map((seg) {
-              final color = _blockColor(seg.intensityClass);
-              final hasPower =
-                  seg.powerMinPct != null && seg.powerMaxPct != null;
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border(left: BorderSide(color: color, width: 3)),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            seg.intensityClass.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: color,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          if (hasPower) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              '${seg.powerMinPct}–${seg.powerMaxPct}% CP',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      Text(
-                        seg.formattedDuration,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF888888),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ],
+          children: block.segments
+              .map((seg) => _buildSegmentCard(seg))
+              .toList(),
         );
       },
     );
