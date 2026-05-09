@@ -1,6 +1,8 @@
 """Playwright E2E tests for the holistic workout chart."""
 from __future__ import annotations
 
+import json
+
 import pytest
 from playwright.sync_api import expect
 
@@ -83,3 +85,44 @@ def test_old_chart_elements_absent(logged_in_page, server_url, seeded_run_id):
     expect(page.locator("#hrZoneChart")).to_have_count(0)
     expect(page.locator(".block-grid")).to_have_count(0)
     expect(page.locator(".block-card")).to_have_count(0)
+
+
+def test_detail_avg_power_uses_target_compliance_color(logged_in_page, server_url, seeded_run_id):
+    """Avg Power value in detail card is coloured by compliance with target range."""
+    page = logged_in_page
+    page.goto(f"{server_url}/run/{seeded_run_id}")
+    page.wait_for_load_state("networkidle")
+
+    found_targeted_segment = False
+    cols = page.locator(".wc-col").all()
+    for col in cols:
+        segment_raw = col.get_attribute("data-segment")
+        assert segment_raw is not None
+        segment = json.loads(segment_raw)
+        target = segment.get("target")
+        avg_power = segment.get("avg_power")
+        if not target or avg_power is None:
+            continue
+
+        found_targeted_segment = True
+        if avg_power > target["max_w"]:
+            expected = "above"
+        elif avg_power < target["min_w"]:
+            expected = "below"
+        else:
+            expected = "in"
+
+        col.click()
+        page.wait_for_timeout(500)
+
+        avg_power_box = page.locator(".wc-stat-box", has_text="Avg Power")
+        expect(avg_power_box).to_be_visible()
+        avg_power_value = avg_power_box.locator(".wc-stat-val").first
+        klass = avg_power_value.get_attribute("class") or ""
+        assert f"wc-stat-val--{expected}" in klass
+
+        # Close before checking the next segment
+        page.locator("#wc-detail").click()
+        page.wait_for_timeout(500)
+
+    assert found_targeted_segment, "Expected at least one segment with target power and avg power"
