@@ -1502,3 +1502,58 @@ class TestRouteSuggestion:
         assert resp.status_code == 502
         data = resp.get_json()
         assert "error" in data
+
+
+class TestOfflineRoutes:
+    def test_recent_run_ids_authenticated(self, client, app):
+        db = app.config["db"]
+        # Insert 12 runs — expect only the 10 most recent IDs returned
+        ids = []
+        for i in range(12):
+            run_id = db.insert_run(
+                stryd_activity_id=i + 1,
+                name=f"Run {i}",
+                date=f"2026-0{(i % 9) + 1}-01",
+                fit_path=f"activities/run{i}.fit",
+            )
+            ids.append(run_id)
+
+        response = client.get("/recent-run-ids")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "ids" in data
+        assert len(data["ids"]) == 10
+        # Most recent 10 runs (last inserted = highest IDs)
+        assert set(data["ids"]) == set(ids[-10:])
+
+    def test_recent_run_ids_unauthenticated(self, app):
+        # Fresh client with no session
+        c = app.test_client()
+        response = c.get("/recent-run-ids")
+        assert response.status_code == 302  # redirect to login
+
+    def test_recent_run_ids_empty(self, client):
+        # No runs in DB — should return empty list
+        response = client.get("/recent-run-ids")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ids"] == []
+
+    def test_offline_page_no_auth_required(self, app):
+        # /offline must work without a session (SW serves it from cache)
+        c = app.test_client()
+        response = c.get("/offline")
+        assert response.status_code == 200
+        assert b"offline" in response.data.lower()
+
+    def test_offline_page_has_no_external_deps(self, app):
+        c = app.test_client()
+        response = c.get("/offline")
+        html = response.data.decode()
+        # Must not load any external URLs (fonts, CDN, etc.)
+        assert "http" not in html or all(
+            ref.startswith("/static/") or "http" not in ref
+            for ref in html.split("src=")[1:]
+        )
+        # Must be self-contained — no base template extends
+        assert "{% extends" not in html
