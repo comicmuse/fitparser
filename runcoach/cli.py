@@ -10,13 +10,14 @@ Provides two main subcommands:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
 
 import yaml
 
-from runcoach.parser import parse_and_write
+from runcoach.parser import parse_fit_file
 from runcoach.analyzer import analyze_and_write
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
@@ -40,13 +41,11 @@ def parse_file(fit_path: Path, timezone: str, output_path: Path | None = None) -
         sys.exit(1)
 
     log.info("Parsing %s...", fit_path)
-    yaml_path = parse_and_write(fit_path, timezone=timezone, manual_upload=False)
+    summary = parse_fit_file(fit_path, timezone=timezone)
 
-    if output_path:
-        yaml_path.rename(output_path)
-        log.info("Wrote %s", output_path)
-    else:
-        log.info("Wrote %s", yaml_path)
+    log.info("Parsed summary: avg_power=%s W, avg_hr=%s bpm, workout_name=%s",
+             summary.get("avg_power"), summary.get("avg_hr"), summary.get("workout_name"))
+    log.info("Parsed data: %s", json.dumps(summary, indent=2))
 
 
 def parse_directory(directory: Path, timezone: str, pattern: str = "*.fit") -> None:
