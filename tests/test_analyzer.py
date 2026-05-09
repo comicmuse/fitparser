@@ -195,8 +195,8 @@ class TestAnalyzeAndWrite:
         assert list(tmp_path.rglob("*.md")) == []
 
     def test_analyze_and_write_raises_without_parsed_data(self, test_config, mock_openai_client):
-        """analyze_and_write raises ValueError when parsed_data is missing."""
-        run = {"id": 99, "date": "2026-03-01", "is_manual_upload": 0, "parsed_data": None}
+        """analyze_and_write raises ValueError when both parsed_data and yaml_path are missing."""
+        run = {"id": 99, "date": "2026-03-01", "is_manual_upload": 0, "parsed_data": None, "yaml_path": None}
         with pytest.raises(ValueError, match="no parsed_data"):
             analyze_and_write(run, test_config, db=None)
 
@@ -530,7 +530,7 @@ class TestBuildChatContext:
         from runcoach.config import Config
         import pytest
 
-        run = {"id": 1, "date": "2026-04-01", "parsed_data": None, "is_manual_upload": 0}
+        run = {"id": 1, "date": "2026-04-01", "parsed_data": None, "yaml_path": None, "is_manual_upload": 0}
         db = MagicMock()
         db.get_athlete_profile.return_value = ""
         db.get_race_goal.return_value = {"race_date": None, "race_distance": None}

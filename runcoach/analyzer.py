@@ -311,14 +311,27 @@ def build_chat_context(
     """Build (system_msg, user_msg) for a follow-up chat turn."""
     import json as _json
 
-    if not run.get("parsed_data"):
+    if run.get("parsed_data"):
+        try:
+            parsed = _json.loads(run["parsed_data"])
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')} has corrupt parsed_data: {e}") from e
+    elif run.get("yaml_path"):
+        yaml_path = config.data_dir / run["yaml_path"]
+        if not yaml_path.exists():
+            raise ValueError(
+                f"Run {run.get('id')} has no parsed_data and YAML not found at {yaml_path}"
+            )
+        try:
+            parsed = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')}: could not read YAML fallback: {e}") from e
+    else:
         raise ValueError(f"Run {run.get('id')} has no parsed_data — must be parsed before chat")
 
     run_date = run.get("date")
     is_manual = bool(run.get("is_manual_upload"))
     system_msg = _build_system_prompt(db, user_id, run_date, is_manual_upload=is_manual)
-
-    parsed = _json.loads(run["parsed_data"])
     yaml_content = yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True)
 
     context_yaml = None
@@ -362,10 +375,24 @@ def analyze_and_write(
     """
     import json as _json
 
-    if not run.get("parsed_data"):
+    if run.get("parsed_data"):
+        try:
+            parsed = _json.loads(run["parsed_data"])
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')} has corrupt parsed_data: {e}") from e
+    elif run.get("yaml_path"):
+        yaml_path = config.data_dir / run["yaml_path"]
+        if not yaml_path.exists():
+            raise ValueError(
+                f"Run {run.get('id')} has no parsed_data and YAML not found at {yaml_path}"
+            )
+        try:
+            parsed = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(f"Run {run.get('id')}: could not read YAML fallback: {e}") from e
+    else:
         raise ValueError(f"Run {run.get('id')} has no parsed_data — cannot analyze")
 
-    parsed = _json.loads(run["parsed_data"])
     yaml_content = yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True)
 
     is_manual = bool(run.get("is_manual_upload"))
