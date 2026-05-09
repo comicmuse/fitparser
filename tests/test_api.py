@@ -241,6 +241,52 @@ class TestAPIRuns:
         assert data["stryd_activity_id"] == 9876543 or data["stryd_activity_id"] == "9876543"
         assert "strava_map_polyline" in data
 
+    def _insert_parsed_run(self, app) -> int:
+        """Insert a run with parsed_data in the DB and return its ID."""
+        import json as _json
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        run_id = db.insert_run(
+            stryd_activity_id=42,
+            name="Test Run",
+            date="2026-03-07",
+            fit_path="activities/test.fit",
+            user_id=user_id,
+        )
+        db.update_parsed(
+            run_id=run_id,
+            yaml_path=None,
+            avg_power_w=250,
+            avg_hr=145,
+            workout_name="Easy Run",
+            parsed_data=_json.dumps({"workout_name": "Easy Run", "avg_power": 250}),
+        )
+        return run_id
+
+    def test_get_run_includes_yaml_data(self, client, app, auth_headers):
+        """GET /api/v1/runs/:id includes yaml_data sourced from parsed_data."""
+        run_id = self._insert_parsed_run(app)
+        resp = client.get(f"/api/v1/runs/{run_id}", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "yaml_data" in data
+        assert data["yaml_data"]["avg_power"] == 250
+
+    def test_get_run_yaml_data_none_when_no_parsed_data(self, client, app, auth_headers):
+        """GET /api/v1/runs/:id returns yaml_data=None when parsed_data is NULL."""
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        run_id = db.insert_run(
+            stryd_activity_id=99,
+            name="Unparsed",
+            date="2026-03-08",
+            fit_path="activities/unparsed.fit",
+            user_id=user_id,
+        )
+        resp = client.get(f"/api/v1/runs/{run_id}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.get_json()["yaml_data"] is None
+
 
 # ---------------------------------------------------------------------------
 # Sync
