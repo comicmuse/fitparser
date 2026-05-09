@@ -488,6 +488,11 @@ def status():
     )
 
 
+@bp.route("/offline")
+def offline():
+    return render_template("offline.html"), 200
+
+
 @bp.route("/run/<int:run_id>/status")
 @_login_required
 def run_status(run_id: int):
