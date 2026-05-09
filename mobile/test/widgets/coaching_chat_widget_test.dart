@@ -25,7 +25,10 @@ void main() {
     test('auto-scrolls when a new user message is added', () {
       final previous = ChatState(messages: history, isSending: false);
       final next = ChatState(
-        messages: [...history, const ChatMessage(role: 'user', message: 'Hi')],
+        messages: [
+          ...history,
+          const ChatMessage(role: 'user', message: 'Hi'),
+        ],
         isSending: true,
       );
 
@@ -34,7 +37,10 @@ void main() {
 
     test('auto-scrolls when assistant response is added', () {
       final previous = ChatState(
-        messages: [...history, const ChatMessage(role: 'user', message: 'Hi')],
+        messages: [
+          ...history,
+          const ChatMessage(role: 'user', message: 'Hi'),
+        ],
         isSending: true,
       );
       final next = ChatState(
