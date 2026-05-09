@@ -197,6 +197,42 @@ class TestRunView:
         # Commentary should be rendered as HTML
         assert b"Great workout" in response.data or b"power" in response.data
 
+    def test_run_detail_loads_workout_data_from_parsed_data(self, client, app):
+        """Run detail page renders without error when parsed_data is set."""
+        db = app.config["db"]
+        run_id = db.insert_run(
+            stryd_activity_id=77,
+            name="Detail Test",
+            date="2026-03-10",
+            fit_path="activities/detail.fit",
+        )
+        db.update_parsed(
+            run_id=run_id,
+            yaml_path=None,
+            avg_power_w=230,
+            avg_hr=150,
+            workout_name="Detail Test",
+            parsed_data=_json.dumps({
+                "workout_name": "Detail Test",
+                "avg_power": 230,
+                "blocks": {},
+            }),
+        )
+        resp = client.get(f"/run/{run_id}")
+        assert resp.status_code == 200
+
+    def test_run_detail_handles_missing_parsed_data(self, client, app):
+        """Run detail page renders without error when parsed_data is NULL."""
+        db = app.config["db"]
+        run_id = db.insert_run(
+            stryd_activity_id=78,
+            name="No Data",
+            date="2026-03-11",
+            fit_path="activities/nodata.fit",
+        )
+        resp = client.get(f"/run/{run_id}")
+        assert resp.status_code == 200
+
 
 class TestAPIEndpoints:
     """Tests for API endpoints."""

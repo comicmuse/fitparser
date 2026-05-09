@@ -269,8 +269,6 @@ def workouts():
 @bp.route("/run/<int:run_id>")
 @_login_required
 def run_detail(run_id: int):
-    import yaml as _yaml
-    
     db = _db()
     user_id = _current_user_id()
     config: Config = current_app.config["config"]
@@ -292,16 +290,13 @@ def run_detail(run_id: int):
         for msg in chat_history_raw
     ]
 
-    # Load YAML data for visualizations
+    # Load workout data for visualizations from DB column
     workout_data = None
-    if run.get("yaml_path"):
-        yaml_path = config.data_dir / run["yaml_path"]
-        if yaml_path.exists():
-            try:
-                with open(yaml_path, "r", encoding="utf-8") as f:
-                    workout_data = _yaml.safe_load(f)
-            except Exception:
-                pass
+    if run.get("parsed_data"):
+        try:
+            workout_data = _json.loads(run["parsed_data"])
+        except Exception:
+            pass
 
     power_scale_max = 300
     if workout_data and workout_data.get("blocks"):
