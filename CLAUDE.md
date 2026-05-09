@@ -90,13 +90,18 @@ runcoach-migrate
 
 ### Pre-Merge Test Command
 
-**Before merging any branch, run the full test suite — both unit tests and E2E tests are required to pass:**
+**Before merging any branch, run the full test suite — all of the following are required to pass:**
 
 ```bash
 pytest && pytest -m e2e --no-cov -v
 ```
 
-Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end.
+```bash
+# If any Flutter files were changed:
+cd mobile && dart format --output=none --set-exit-if-changed . && flutter test
+```
+
+Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end. `dart format` is enforced by CI — always run it before committing Flutter changes.
 
 ### Running Tests
 
