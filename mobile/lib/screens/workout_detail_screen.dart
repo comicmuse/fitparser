@@ -309,7 +309,7 @@ class _StructureTab extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
               borderRadius: BorderRadius.circular(14),
-              color: const Color(0xFFF59E0B).withOpacity(0.06),
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.06),
             ),
             padding: const EdgeInsets.fromLTRB(0, 10, 0, 6),
             child: Column(
