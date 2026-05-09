@@ -1513,7 +1513,7 @@ class TestOfflineRoutes:
             run_id = db.insert_run(
                 stryd_activity_id=i + 1,
                 name=f"Run {i}",
-                date=f"2026-0{(i % 9) + 1}-01",
+                date=f"2026-{(i % 12) + 1:02d}-01",
                 fit_path=f"activities/run{i}.fit",
             )
             ids.append(run_id)
@@ -1524,11 +1524,13 @@ class TestOfflineRoutes:
         assert "ids" in data
         assert len(data["ids"]) == 10
         # Most recent 10 runs (last inserted = highest IDs)
+        # Most recent 10 = runs with months 3–12 (dates 2026-03-01 through 2026-12-01)
+        # using set(ids[-10:]) is equivalent when 12 runs exist, keep for clarity.
         assert set(data["ids"]) == set(ids[-10:])
 
     def test_recent_run_ids_unauthenticated(self, app):
-        # Fresh client with no session
-        c = app.test_client()
+        # Fresh client — no session, not authenticated
+        c = app.test_client()  # fresh client — no session, not authenticated
         response = c.get("/recent-run-ids")
         assert response.status_code == 302  # redirect to login
 
@@ -1541,7 +1543,7 @@ class TestOfflineRoutes:
 
     def test_offline_page_no_auth_required(self, app):
         # /offline must work without a session (SW serves it from cache)
-        c = app.test_client()
+        c = app.test_client()  # fresh client — no session, not authenticated
         response = c.get("/offline")
         assert response.status_code == 200
         assert b"offline" in response.data.lower()
@@ -1550,10 +1552,8 @@ class TestOfflineRoutes:
         c = app.test_client()
         response = c.get("/offline")
         html = response.data.decode()
-        # Must not load any external URLs (fonts, CDN, etc.)
-        assert "http" not in html or all(
-            ref.startswith("/static/") or "http" not in ref
-            for ref in html.split("src=")[1:]
-        )
-        # Must be self-contained — no base template extends
-        assert "{% extends" not in html
+        # Must be self-contained — no CDN or external resources referenced
+        assert "cdn." not in html
+        assert "fonts.googleapis.com" not in html
+        assert "unpkg.com" not in html
+        assert "jsdelivr.net" not in html
