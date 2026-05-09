@@ -21,6 +21,7 @@ dependencies = [
 runcoach = "runcoach.web:main"
 runcoach-pipeline = "runcoach.pipeline:main"
 runcoach-cli = "runcoach.cli:main"
+runcoach-migrate = "runcoach.cli:migrate_main"
 
 [project.optional-dependencies]
 claude = ["anthropic>=0.40"]

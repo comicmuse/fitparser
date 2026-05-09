@@ -162,6 +162,53 @@ def backfill_rss(config: Config, db: RunCoachDB, dry_run: bool = False) -> None:
     log.info("Done: %d updated, %d skipped%s", updated, skipped, " (dry run)" if dry_run else "")
 
 
+def migrate(config: Config, db: RunCoachDB) -> None:
+    """
+    Back-fill parsed_data for all runs that have a yaml_path but no parsed_data.
+
+    Idempotent — skips runs already having parsed_data populated.
+    """
+    with db._connect() as conn:
+        rows = conn.execute(
+            """SELECT id, name, date, yaml_path FROM runs
+               WHERE yaml_path IS NOT NULL AND parsed_data IS NULL
+               ORDER BY date""",
+        ).fetchall()
+
+    migrated = skipped = 0
+    for row in rows:
+        run_id, name, date, yaml_rel = row["id"], row["name"], row["date"], row["yaml_path"]
+        yaml_path = config.data_dir / yaml_rel
+        if not yaml_path.exists():
+            log.warning("YAML not found for run %d (%s %s), skipping", run_id, date, name)
+            skipped += 1
+            continue
+
+        try:
+            parsed = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            log.warning("Could not read %s: %s", yaml_path, e)
+            skipped += 1
+            continue
+
+        db.store_parsed_data(run_id, json.dumps(parsed))
+        log.info("Migrated run %d (%s %s)", run_id, date, name)
+        migrated += 1
+
+    log.info(
+        "Migration complete: %d migrated, %d skipped (missing YAML)",
+        migrated, skipped,
+    )
+    print(f"Done: {migrated} migrated, {skipped} skipped.")
+
+
+def migrate_main() -> None:
+    """CLI entry point for the one-shot YAML→DB migration."""
+    config = Config.from_env()
+    db = RunCoachDB(config.db_path)
+    migrate(config, db)
+
+
 def main() -> None:
     """CLI entry point with argparse for subcommands."""
     parser = argparse.ArgumentParser(

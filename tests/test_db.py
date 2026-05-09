@@ -889,3 +889,118 @@ class TestDatabaseStartup:
         assert run["stage"] == "analyzed"
         assert run["commentary"] == "Good run"
         assert run["md_path"] is None
+
+
+class TestMigrateCommand:
+    """Tests for the runcoach-migrate back-fill command."""
+
+    def test_migrate_populates_parsed_data_from_yaml(self, tmp_path):
+        """Runs with yaml_path get parsed_data populated from the YAML file."""
+        import json
+        import yaml as _yaml
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.cli import migrate
+        from runcoach.auth import hash_password
+
+        config = Config(
+            openai_api_key="x", openai_model="gpt-4o",
+            data_dir=tmp_path / "data", timezone="Europe/London",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("pass"))
+
+        # Write a YAML file
+        yaml_rel = "activities/20260501_run.yaml"
+        yaml_abs = config.data_dir / yaml_rel
+        yaml_abs.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"workout_name": "Easy Run", "avg_power": 250}
+        yaml_abs.write_text(_yaml.safe_dump(payload), encoding="utf-8")
+
+        # Insert a run with yaml_path but no parsed_data
+        run_id = db.insert_run(
+            stryd_activity_id=1, name="Run", date="2026-05-01",
+            fit_path="activities/20260501_run.fit", user_id=1,
+        )
+        db.update_parsed(
+            run_id=run_id, yaml_path=yaml_rel,
+            avg_power_w=250, avg_hr=None, workout_name="Easy Run",
+        )
+        assert db.get_run(run_id)["parsed_data"] is None
+
+        migrate(config, db)
+
+        run = db.get_run(run_id)
+        assert run["parsed_data"] is not None
+        assert json.loads(run["parsed_data"])["avg_power"] == 250
+
+    def test_migrate_skips_missing_yaml(self, tmp_path):
+        """Runs whose YAML file is missing are skipped (not errored)."""
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.cli import migrate
+        from runcoach.auth import hash_password
+
+        config = Config(
+            openai_api_key="x", openai_model="gpt-4o",
+            data_dir=tmp_path / "data", timezone="Europe/London",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("pass"))
+
+        run_id = db.insert_run(
+            stryd_activity_id=2, name="Run", date="2026-05-02",
+            fit_path="activities/missing.fit", user_id=1,
+        )
+        db.update_parsed(
+            run_id=run_id, yaml_path="activities/missing.yaml",
+            avg_power_w=None, avg_hr=None, workout_name=None,
+        )
+
+        migrate(config, db)  # must not raise
+
+        assert db.get_run(run_id)["parsed_data"] is None
+
+    def test_migrate_is_idempotent(self, tmp_path):
+        """Running migrate twice doesn't change already-populated runs."""
+        import json
+        import yaml as _yaml
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.cli import migrate
+        from runcoach.auth import hash_password
+
+        config = Config(
+            openai_api_key="x", openai_model="gpt-4o",
+            data_dir=tmp_path / "data", timezone="Europe/London",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("pass"))
+
+        yaml_rel = "activities/run.yaml"
+        yaml_abs = config.data_dir / yaml_rel
+        yaml_abs.parent.mkdir(parents=True, exist_ok=True)
+        yaml_abs.write_text(_yaml.safe_dump({"avg_power": 200}), encoding="utf-8")
+
+        run_id = db.insert_run(
+            stryd_activity_id=3, name="Run", date="2026-05-03",
+            fit_path="activities/run.fit", user_id=1,
+        )
+        db.update_parsed(
+            run_id=run_id, yaml_path=yaml_rel,
+            avg_power_w=200, avg_hr=None, workout_name=None,
+        )
+
+        migrate(config, db)
+        first = db.get_run(run_id)["parsed_data"]
+
+        migrate(config, db)  # second run must not change anything
+        second = db.get_run(run_id)["parsed_data"]
+
+        assert first == second
