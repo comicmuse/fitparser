@@ -100,11 +100,10 @@ class TestPipelineLock:
 class TestPipelineParseStage:
     def test_parse_stage_processes_synced_runs(self, config, db, tmp_path):
         """Runs in 'synced' stage should be parsed."""
-        # Create a minimal FIT file placeholder at the expected path
         fit_dir = config.data_dir / "activities"
         fit_dir.mkdir(parents=True, exist_ok=True)
         fit_path = fit_dir / "test.fit"
-        fit_path.write_bytes(b"\x00" * 20)  # dummy bytes
+        fit_path.write_bytes(b"\x00" * 20)
 
         run_id = db.insert_run(
             stryd_activity_id=1,
@@ -113,16 +112,10 @@ class TestPipelineParseStage:
             fit_path="activities/test.fit",
         )
 
-        fake_yaml = {"workout_name": "Easy Run", "avg_power": 250, "avg_hr": 140}
+        import json as _json
+        fake_summary = {"workout_name": "Easy Run", "avg_power": 250, "avg_hr": 140}
 
-        yaml_output = config.data_dir / "activities" / "test.yaml"
-
-        def fake_parse(fit_path, timezone, stryd_rss=None, planned_workout_title=None):
-            import yaml as _yaml
-            yaml_output.write_text(_yaml.dump(fake_yaml))
-            return yaml_output
-
-        with patch("runcoach.pipeline.parse_and_write", side_effect=fake_parse):
+        with patch("runcoach.pipeline.parse_fit_file", return_value=fake_summary):
             result = run_full_pipeline(config, db)
 
         assert result["parsed"] == 1
@@ -131,6 +124,8 @@ class TestPipelineParseStage:
         updated = db.get_run(run_id)
         assert updated["stage"] == "parsed"
         assert updated["workout_name"] == "Easy Run"
+        assert updated["parsed_data"] is not None
+        assert _json.loads(updated["parsed_data"])["avg_power"] == 250
 
     def test_parse_stage_records_error_on_failure(self, config, db):
         """A parse failure should increment errors and set stage to 'error'."""
@@ -145,7 +140,7 @@ class TestPipelineParseStage:
             fit_path="activities/bad.fit",
         )
 
-        with patch("runcoach.pipeline.parse_and_write", side_effect=RuntimeError("parse boom")):
+        with patch("runcoach.pipeline.parse_fit_file", side_effect=RuntimeError("parse boom")):
             result = run_full_pipeline(config, db)
 
         assert result["errors"] == 1
