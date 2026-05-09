@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -40,6 +41,10 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
         );
       }
     });
+  }
+
+  bool _shouldAutoScroll(ChatState? previous, ChatState next) {
+    return shouldAutoScrollChat(previous, next);
   }
 
   Future<void> _triggerAnalysis() async {
@@ -84,7 +89,11 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _stopPolling());
     }
 
-    ref.listen(chatProvider(widget.run.id), (_, __) => _scrollToBottom());
+    ref.listen(chatProvider(widget.run.id), (previous, next) {
+      if (_shouldAutoScroll(previous, next)) {
+        _scrollToBottom();
+      }
+    });
 
     return Column(
       children: [
@@ -190,6 +199,22 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
       ],
     );
   }
+}
+
+@visibleForTesting
+bool shouldAutoScrollChat(ChatState? previous, ChatState next) {
+  if (previous == null) return false;
+
+  final hasNewMessage = next.messages.length > previous.messages.length;
+  if (!hasNewMessage) return false;
+
+  final isInitialHistoryLoad =
+      previous.isLoading &&
+      !next.isLoading &&
+      !previous.isSending &&
+      !next.isSending;
+
+  return !isInitialHistoryLoad;
 }
 
 class _AiCommentaryBubble extends StatelessWidget {
