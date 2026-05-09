@@ -472,6 +472,12 @@
     var seg = segments[idx];
     var d   = seg.dynamics || {};
     var t   = seg.target   || null;
+    var powerMod = null;
+    if (t && seg.avg_power != null) {
+      if (seg.avg_power > t.max_w) powerMod = 'above';
+      else if (seg.avg_power < t.min_w) powerMod = 'below';
+      else powerMod = 'in';
+    }
 
     document.getElementById('wc-d-name').textContent = seg.name;
     document.getElementById('wc-d-type').textContent = seg.type || '';
@@ -485,7 +491,7 @@
       seg.distance_km != null ? seg.distance_km.toFixed(2) + ' km' : '—', 'Distance'));
     statsEl.appendChild(mkStatBox(fmtPace(seg.duration_min, seg.distance_km), 'Avg Pace'));
     statsEl.appendChild(mkStatBox(
-      seg.avg_power != null ? Math.round(seg.avg_power) + ' W' : '—', 'Avg Power'));
+      seg.avg_power != null ? Math.round(seg.avg_power) + ' W' : '—', 'Avg Power', powerMod));
     statsEl.appendChild(mkStatBox(
       t ? t.min_w + '–' + t.max_w + ' W' : '—', 'Target', t ? null : 'muted'));
     statsEl.appendChild(mkStatBox(
