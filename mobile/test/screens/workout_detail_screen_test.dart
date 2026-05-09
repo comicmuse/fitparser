@@ -97,7 +97,7 @@ void main() {
       expect(hasAmberBorder, isFalse);
     });
 
-    testWidgets('segment cards inside repeat use narrower margin', (tester) async {
+    testWidgets('segment cards inside repeat group render without error', (tester) async {
       final workout = _makeWorkout(structure: [_repeatBlock(3)]);
       await tester.pumpWidget(_wrap(workout));
       await tester.tap(find.text('Structure'));
