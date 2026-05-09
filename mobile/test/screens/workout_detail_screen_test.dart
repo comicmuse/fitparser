@@ -13,36 +13,28 @@ PlannedWorkout _makeWorkout({required List<PlannedWorkoutBlock> structure}) =>
     );
 
 PlannedWorkoutBlock _repeatBlock(int repeat) => PlannedWorkoutBlock(
-      repeat: repeat,
-      segments: [
-        PlannedWorkoutSegment(
-          intensityClass: 'work',
-          durationS: 360,
-          powerMinPct: 95,
-          powerMaxPct: 105,
-        ),
-        PlannedWorkoutSegment(
-          intensityClass: 'rest',
-          durationS: 120,
-        ),
-      ],
-    );
+  repeat: repeat,
+  segments: [
+    PlannedWorkoutSegment(
+      intensityClass: 'work',
+      durationS: 360,
+      powerMinPct: 95,
+      powerMaxPct: 105,
+    ),
+    PlannedWorkoutSegment(intensityClass: 'rest', durationS: 120),
+  ],
+);
 
 PlannedWorkoutBlock _singleBlock(String intensityClass) => PlannedWorkoutBlock(
-      repeat: 1,
-      segments: [
-        PlannedWorkoutSegment(
-          intensityClass: intensityClass,
-          durationS: 600,
-        ),
-      ],
-    );
+  repeat: 1,
+  segments: [
+    PlannedWorkoutSegment(intensityClass: intensityClass, durationS: 600),
+  ],
+);
 
 Widget _wrap(PlannedWorkout workout) => ProviderScope(
-      child: MaterialApp(
-        home: WorkoutDetailScreen(workout: workout),
-      ),
-    );
+  child: MaterialApp(home: WorkoutDetailScreen(workout: workout)),
+);
 
 void main() {
   group('_StructureTab repeat group', () {
@@ -76,10 +68,9 @@ void main() {
     });
 
     testWidgets('does not show amber border for repeat == 1', (tester) async {
-      final workout = _makeWorkout(structure: [
-        _singleBlock('warmup'),
-        _singleBlock('cooldown'),
-      ]);
+      final workout = _makeWorkout(
+        structure: [_singleBlock('warmup'), _singleBlock('cooldown')],
+      );
       await tester.pumpWidget(_wrap(workout));
       await tester.tap(find.text('Structure'));
       await tester.pumpAndSettle();
@@ -97,7 +88,9 @@ void main() {
       expect(hasAmberBorder, isFalse);
     });
 
-    testWidgets('segment cards inside repeat group render without error', (tester) async {
+    testWidgets('segment cards inside repeat group render without error', (
+      tester,
+    ) async {
       final workout = _makeWorkout(structure: [_repeatBlock(3)]);
       await tester.pumpWidget(_wrap(workout));
       await tester.tap(find.text('Structure'));

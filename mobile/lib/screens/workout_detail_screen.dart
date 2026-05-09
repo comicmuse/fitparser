@@ -246,8 +246,10 @@ class _StructureTab extends StatelessWidget {
     _ => const Color(0xFFCCCCCC),
   };
 
-  Widget _buildSegmentCard(PlannedWorkoutSegment seg,
-      {double horizontalMargin = 16}) {
+  Widget _buildSegmentCard(
+    PlannedWorkoutSegment seg, {
+    double horizontalMargin = 16,
+  }) {
     final color = _blockColor(seg.intensityClass);
     final hasPower = seg.powerMinPct != null && seg.powerMaxPct != null;
     return Card(
