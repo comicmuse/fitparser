@@ -24,6 +24,7 @@ from flask import (
 import markdown as md
 import nh3
 from runcoach.web.ors import fetch_routes as _ors_fetch_routes
+from runcoach.weather import fetch_forecast, score_forecast
 
 import json as _json
 
@@ -1355,3 +1356,25 @@ def route_suggestion():
         return jsonify({"error": "Route service unavailable"}), 502
 
     return jsonify({"routes": all_routes})
+
+
+@bp.route("/api/best-run-time")
+@_login_required
+def best_run_time():
+    try:
+        lat = float(request.args["lat"])
+        lng = float(request.args["lng"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "lat and lng are required numeric parameters"}), 400
+
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return jsonify({"error": "lat/lng out of range"}), 400
+
+    cfg: Config = current_app.config["config"]
+    try:
+        forecast = fetch_forecast(lat, lng, cfg.timezone)
+    except Exception as exc:
+        log.warning("Open-Meteo fetch failed: %s", exc)
+        return jsonify({"error": "Weather service unavailable"}), 503
+
+    return jsonify(score_forecast(forecast)), 200
