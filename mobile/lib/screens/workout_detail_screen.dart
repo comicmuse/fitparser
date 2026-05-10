@@ -8,6 +8,13 @@ import '../models/planned_workout.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/power_zone_bar.dart';
 
+/// Returns the badge label for a route source, or null if no badge should be shown.
+String? routeSourceLabel(String? source) => switch (source) {
+  'strava' => 'My routes',
+  'previous' => 'Previously run',
+  _ => null,
+};
+
 class WorkoutDetailScreen extends ConsumerStatefulWidget {
   final PlannedWorkout workout;
   const WorkoutDetailScreen({required this.workout, super.key});
@@ -452,42 +459,93 @@ class _RouteTab extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: FlutterMap(
-            options: MapOptions(
-              initialCameraFit: CameraFit.coordinates(
-                coordinates: points,
-                padding: const EdgeInsets.all(32),
-              ),
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
-            ),
+          child: Stack(
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.runcoach.app',
-              ),
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: points,
-                    color: const Color(0xFFea580c),
-                    strokeWidth: 3,
+              FlutterMap(
+                options: MapOptions(
+                  initialCameraFit: CameraFit.coordinates(
+                    coordinates: points,
+                    padding: const EdgeInsets.all(32),
                   ),
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  ),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.runcoach.app',
+                  ),
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: points,
+                        color: const Color(0xFFea580c),
+                        strokeWidth: 3,
+                      ),
+                    ],
+                  ),
+                  if (points.isNotEmpty)
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: points.first,
+                          child: const Icon(
+                            Icons.circle,
+                            color: Color(0xFF4ADE80),
+                            size: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
-              if (points.isNotEmpty)
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: points.first,
-                      child: const Icon(
-                        Icons.circle,
-                        color: Color(0xFF4ADE80),
-                        size: 12,
+              if (routeSourceLabel(route['source'] as String?) != null)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      routeSourceLabel(route['source'] as String?)!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
+                  ),
+                ),
+              if ((route['name'] as String?) != null &&
+                  routeSourceLabel(route['source'] as String?) != null)
+                Positioned(
+                  top: 44,
+                  left: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      route['name'] as String,
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
             ],
           ),
