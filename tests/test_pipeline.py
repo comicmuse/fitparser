@@ -270,3 +270,50 @@ class TestPipelineSyncStage:
 
         # errors only counts sync_new_activities failures
         assert result["errors"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+
+class TestPipelineNotifications:
+    def test_sends_notification_after_successful_analysis(self, tmp_path):
+        import json
+        from unittest.mock import patch
+        from runcoach.auth import hash_password
+        from runcoach.config import Config
+        from runcoach.db import RunCoachDB
+        from runcoach.pipeline import run_full_pipeline
+
+        config = Config(
+            openai_api_key="test-key",
+            data_dir=tmp_path / "data",
+            timezone="Europe/London",
+            llm_auto_analyse=True,
+            fcm_service_account_path="/fake/sa.json",
+        )
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+        db = RunCoachDB(config.db_path)
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        with db._connect() as conn:
+            conn.execute(
+                """INSERT INTO runs
+                   (name, date, fit_path, stage, synced_at, parsed_data, user_id)
+                   VALUES (?, ?, ?, 'parsed', datetime('now'), ?, ?)""",
+                ("Easy Run", "2026-05-10", "fake.fit",
+                 json.dumps({"workout_name": "Easy Run", "blocks": []}), user_id),
+            )
+        run_id = db.get_pending_runs("parsed", user_id=user_id)[0]["id"]
+
+        with patch("runcoach.pipeline.analyze_and_write") as mock_analyze, \
+             patch("runcoach.notifications.send_analysis_notification") as mock_notify:
+            mock_analyze.return_value = {
+                "commentary": "Great run!",
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+            }
+            run_full_pipeline(config, db, user_id=user_id)
+
+        mock_notify.assert_called_once_with(run_id, "Easy Run", user_id, db, config)

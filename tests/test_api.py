@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 from runcoach.web import create_app
 from runcoach.config import Config
@@ -711,6 +711,63 @@ class TestDashboard:
         assert seg["power_max_pct"] == 120
 
 
+class TestDeviceTokenEndpoints:
+    def test_register_token(self, client, auth_headers):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"token": "fcm-test-123", "platform": "android"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["message"] == "Device token registered"
+
+    def test_register_token_idempotent(self, client, auth_headers):
+        for _ in range(2):
+            resp = client.post(
+                "/api/v1/device-tokens",
+                json={"token": "fcm-idem", "platform": "android"},
+                headers=auth_headers,
+            )
+            assert resp.status_code == 200
+
+    def test_register_token_missing_body(self, client, auth_headers):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"platform": "android"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_register_token_requires_auth(self, client):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"token": "tok", "platform": "android"},
+        )
+        assert resp.status_code == 401
+
+    def test_delete_token(self, client, auth_headers):
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "fcm-delete-me", "platform": "android"},
+            headers=auth_headers,
+        )
+        resp = client.delete(
+            "/api/v1/device-tokens",
+            json={"token": "fcm-delete-me"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["message"] == "Device token removed"
+
+    def test_delete_token_missing_body(self, client, auth_headers):
+        resp = client.delete(
+            "/api/v1/device-tokens",
+            json={},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+
 class TestRouteSuggestion:
     def test_requires_auth(self, client):
         resp = client.post(
@@ -759,3 +816,32 @@ class TestRouteSuggestion:
         assert len(data["routes"]) >= 1
         assert "coords" in data["routes"][0]
         assert "distance_m" in data["routes"][0]
+
+
+class TestAnalyzeRunNotification:
+    def test_sends_notification_after_on_demand_analysis(self, client, auth_headers, app):
+        import json, time
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+
+        with db._connect() as conn:
+            conn.execute(
+                """INSERT INTO runs
+                   (name, date, fit_path, stage, synced_at, parsed_data, user_id)
+                   VALUES (?, ?, ?, 'parsed', datetime('now'), ?, ?)""",
+                ("Test Run", "2026-05-10", "fake.fit",
+                 json.dumps({"workout_name": "Test Run", "blocks": []}), user_id),
+            )
+        run_id = db.get_pending_runs("parsed", user_id=user_id)[0]["id"]
+
+        with patch("runcoach.analyzer.analyze_and_write") as mock_analyze, \
+             patch("runcoach.notifications.send_analysis_notification") as mock_notify:
+            mock_analyze.return_value = {
+                "commentary": "Well done!",
+                "prompt_tokens": 50,
+                "completion_tokens": 25,
+            }
+            client.post(f"/api/v1/runs/{run_id}/analyze", headers=auth_headers)
+            time.sleep(0.2)  # let background thread finish
+
+        mock_notify.assert_called_once_with(run_id, "Test Run", user_id, ANY, ANY)

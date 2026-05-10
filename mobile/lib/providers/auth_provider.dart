@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import '../services/secure_storage_service.dart';
 
 final secureStorageProvider = Provider<SecureStorageService>(
@@ -35,13 +36,19 @@ final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(ref.read(secureStorageProvider), baseUrl: url);
 });
 
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService(ref.read(apiServiceProvider));
+});
+
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthNotifier extends StateNotifier<AuthStatus> {
   final SecureStorageService _storage;
   final ApiService _api;
+  final NotificationService _notifService;
 
-  AuthNotifier(this._storage, this._api) : super(AuthStatus.unknown) {
+  AuthNotifier(this._storage, this._api, this._notifService)
+    : super(AuthStatus.unknown) {
     _checkAuth();
   }
 
@@ -64,6 +71,7 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
   }
 
   Future<void> logout() async {
+    await _notifService.deregister();
     await _api.logout();
     await _storage.clearTokens();
     state = AuthStatus.unauthenticated;
@@ -72,7 +80,8 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthStatus>((ref) {
   final api = ref.read(apiServiceProvider);
-  final notifier = AuthNotifier(ref.read(secureStorageProvider), api);
+  final notif = ref.read(notificationServiceProvider);
+  final notifier = AuthNotifier(ref.read(secureStorageProvider), api, notif);
   api.onAuthFailed = notifier.revalidate;
   return notifier;
 });

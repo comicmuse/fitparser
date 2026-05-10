@@ -6,6 +6,8 @@ services:
     volumes:
       # Mount your data directory - this persists activities, database, etc.
       - ./data:/app/data
+      # Firebase service account for push notifications (optional — omit if FCM not configured)
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
     env_file:
       # Create .env from .env.example and fill in your credentials
       - .env

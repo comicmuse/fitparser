@@ -9,6 +9,7 @@ import 'screens/profile_screen.dart';
 import 'screens/run_detail_screen.dart';
 import 'screens/workout_detail_screen.dart';
 import 'models/planned_workout.dart';
+import 'widgets/in_app_notification_banner.dart';
 
 final _rootNavKey = GlobalKey<NavigatorState>();
 final _shellNavKey = GlobalKey<NavigatorState>();
@@ -140,11 +141,41 @@ class ScaffoldWithNavBar extends ConsumerWidget {
   }
 }
 
-class RunCoachApp extends ConsumerWidget {
+class RunCoachApp extends ConsumerStatefulWidget {
   const RunCoachApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RunCoachApp> createState() => _RunCoachAppState();
+}
+
+class _RunCoachAppState extends ConsumerState<RunCoachApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final notifService = ref.read(notificationServiceProvider);
+
+      notifService.onNotificationTap = (runId) {
+        _rootNavKey.currentContext?.go('/home/run/$runId');
+      };
+
+      notifService.onForegroundMessage = (runId, runName) {
+        final ctx = _rootNavKey.currentContext;
+        if (ctx == null) return;
+        final overlay = Overlay.of(ctx);
+        showInAppNotificationBanner(
+          overlay: overlay,
+          runName: runName,
+          onTap: () => ctx.go('/home/run/$runId'),
+        );
+      };
+
+      notifService.initialize();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'RunCoach',

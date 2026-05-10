@@ -117,6 +117,17 @@ CREATE TABLE IF NOT EXISTS run_chat (
 
 CREATE INDEX IF NOT EXISTS idx_run_chat_run_user ON run_chat(run_id, user_id);
 
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    platform TEXT NOT NULL DEFAULT 'android',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id ON device_tokens(user_id);
+
 """
 
 
@@ -1168,3 +1179,31 @@ class RunCoachDB:
                 "SELECT password_hash FROM users WHERE id = ?", (user_id,)
             ).fetchone()
         return row[0] if row else None
+
+    # ------ device_tokens ------
+
+    def upsert_device_token(
+        self, user_id: int, token: str, platform: str = "android"
+    ) -> None:
+        now = _now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO device_tokens (user_id, token, platform, created_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(token) DO UPDATE SET
+                     user_id = excluded.user_id,
+                     platform = excluded.platform""",
+                (user_id, token, platform, now),
+            )
+
+    def get_device_tokens_for_user(self, user_id: int) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM device_tokens WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_device_token(self, token: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM device_tokens WHERE token = ?", (token,))

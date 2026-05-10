@@ -137,6 +137,15 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
                         completion_tokens=result.get("completion_tokens"),
                     )
                     summary["analyzed"] += 1
+                    try:
+                        from runcoach.notifications import send_analysis_notification
+                        send_analysis_notification(
+                            run["id"], run.get("name", "Run"), user_id, db, config
+                        )
+                    except Exception:
+                        log.warning(
+                            "Push notification failed for run %s (non-fatal)", run["id"]
+                        )
                 except Exception as e:
                     log.exception("Analysis failed for run %s: %s", run["id"], e)
                     db.update_error(run["id"], f"Analysis error: {e}")
