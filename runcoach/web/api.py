@@ -643,6 +643,21 @@ def _parse_structure(raw_json_str: str | None) -> list | None:
         return None
 
 
+def _format_planned_workout(w: dict) -> dict:
+    """Format a planned workout row for API response."""
+    return {
+        "id": w["id"],
+        "date": w["date"],
+        "name": w["title"],
+        "description": w.get("description") or "",
+        "distance_m": w.get("distance_m"),
+        "duration_s": w.get("duration_s"),
+        "stress": w.get("stress"),
+        "intensity_zones": _parse_zones(w.get("intensity_zones")),
+        "structure": _parse_structure(w.get("raw_json")),
+    }
+
+
 @api_bp.route("/dashboard", methods=["GET"])
 @require_auth
 def dashboard():
@@ -656,19 +671,7 @@ def dashboard():
     # Next planned workout
     today = date_type.today().isoformat()
     upcoming = db.get_upcoming_planned_workouts(from_date=today, limit=1, user_id=user_id)
-    next_workout = None
-    if upcoming:
-        w = upcoming[0]
-        next_workout = {
-            "id": w["id"],
-            "date": w["date"],
-            "name": w["title"],
-            "description": w.get("description") or "",
-            "distance_m": w.get("distance_m"),
-            "duration_s": w.get("duration_s"),
-            "intensity_zones": _parse_zones(w.get("intensity_zones")),
-            "structure": _parse_structure(w.get("raw_json")),
-        }
+    next_workout = _format_planned_workout(upcoming[0]) if upcoming else None
 
     # Training summary
     try:

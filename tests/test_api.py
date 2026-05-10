@@ -710,6 +710,39 @@ class TestDashboard:
         assert seg["power_min_pct"] == 100
         assert seg["power_max_pct"] == 120
 
+    def test_dashboard_next_workout_includes_stress(self, client, auth_headers, app):
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        db.upsert_planned_workout(
+            date=future_date,
+            title="Threshold Run",
+            description="Hard effort",
+            stress=62.5,
+            user_id=user_id,
+        )
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        assert nw["stress"] == pytest.approx(62.5)
+
+    def test_dashboard_next_workout_stress_null_when_unset(self, client, auth_headers, app):
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        future_date = (date.today() + timedelta(days=2)).isoformat()
+        db.upsert_planned_workout(
+            date=future_date,
+            title="Easy Run",
+            description="Recovery",
+            user_id=user_id,
+        )
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        assert nw["stress"] is None
+
 
 class TestDeviceTokenEndpoints:
     def test_register_token(self, client, auth_headers):
