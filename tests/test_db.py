@@ -1004,3 +1004,56 @@ class TestMigrateCommand:
         second = db.get_run(run_id)["parsed_data"]
 
         assert first == second
+
+
+class TestDeviceTokens:
+    def test_upsert_and_retrieve(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        db.upsert_device_token(user_id, "token-abc", "android")
+        tokens = db.get_device_tokens_for_user(user_id)
+        assert len(tokens) == 1
+        assert tokens[0]["token"] == "token-abc"
+        assert tokens[0]["platform"] == "android"
+
+    def test_upsert_is_idempotent(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        db.upsert_device_token(user_id, "token-abc", "android")
+        db.upsert_device_token(user_id, "token-abc", "android")
+        assert len(db.get_device_tokens_for_user(user_id)) == 1
+
+    def test_upsert_updates_platform(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        db.upsert_device_token(user_id, "token-abc", "android")
+        db.upsert_device_token(user_id, "token-abc", "ios")
+        tokens = db.get_device_tokens_for_user(user_id)
+        assert len(tokens) == 1
+        assert tokens[0]["platform"] == "ios"
+
+    def test_delete_device_token(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        db.upsert_device_token(user_id, "token-xyz", "android")
+        db.delete_device_token("token-xyz")
+        assert db.get_device_tokens_for_user(user_id) == []
+
+    def test_get_tokens_empty_for_new_user(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+        assert db.get_device_tokens_for_user(user_id) == []
