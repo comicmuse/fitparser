@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Install runcoach and all dependencies
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir '.[fcm,claude]'
 
 # Data volume for activities, database, etc.
 VOLUME /app/data
