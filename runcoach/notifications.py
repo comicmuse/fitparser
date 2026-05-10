@@ -15,7 +15,9 @@ except ImportError:
 
 def _init_firebase_app(service_account_path: str) -> None:
     """Initialise the Firebase Admin app (idempotent)."""
-    if not firebase_admin._apps:
+    try:
+        firebase_admin.get_app()
+    except ValueError:
         cred = credentials.Certificate(service_account_path)
         firebase_admin.initialize_app(cred)
 

@@ -50,6 +50,14 @@ class TestSendAnalysisNotification:
         result = send_analysis_notification(42, "Evening Run", user_id, db, fcm_config)
         assert result == 0
 
+    def test_returns_zero_when_firebase_not_available(self, db_with_token, fcm_config):
+        from runcoach.notifications import send_analysis_notification
+        db, user_id = db_with_token
+
+        with patch("runcoach.notifications._FIREBASE_AVAILABLE", False):
+            result = send_analysis_notification(1, "Run", user_id, db, fcm_config)
+        assert result == 0
+
     def test_sends_to_registered_token(self, db_with_token, fcm_config):
         from runcoach.notifications import send_analysis_notification
         db, user_id = db_with_token
@@ -64,6 +72,7 @@ class TestSendAnalysisNotification:
         sent_msg = mock_messaging.send.call_args[0][0]
         assert sent_msg.data["run_id"] == "7"
         assert sent_msg.token == "device-token-111"
+        assert sent_msg.notification.title == "New Analysis Ready"
 
     def test_removes_stale_token_on_unregistered_error(self, db_with_token, fcm_config):
         from runcoach.notifications import send_analysis_notification
