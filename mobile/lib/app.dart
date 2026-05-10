@@ -5,6 +5,7 @@ import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/activities_screen.dart';
+import 'screens/plan_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/run_detail_screen.dart';
 import 'screens/workout_detail_screen.dart';
@@ -83,6 +84,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
+          GoRoute(path: '/plan', builder: (_, __) => const PlanScreen()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
         ],
       ),
@@ -101,7 +103,8 @@ class ScaffoldWithNavBar extends ConsumerWidget {
     final index = switch (location) {
       String l when l.startsWith('/home') => 0,
       String l when l.startsWith('/activities') => 1,
-      String l when l.startsWith('/profile') => 2,
+      String l when l.startsWith('/plan') => 2,
+      String l when l.startsWith('/profile') => 3,
       _ => 0,
     };
 
@@ -116,6 +119,8 @@ class ScaffoldWithNavBar extends ConsumerWidget {
             case 1:
               context.go('/activities');
             case 2:
+              context.go('/plan');
+            case 3:
               context.go('/profile');
           }
         },
@@ -129,6 +134,11 @@ class ScaffoldWithNavBar extends ConsumerWidget {
             icon: Icon(Icons.list_outlined),
             selectedIcon: Icon(Icons.list),
             label: 'Activities',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Plan',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
