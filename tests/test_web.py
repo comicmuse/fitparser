@@ -1565,6 +1565,14 @@ class TestBestRunTimeWeb:
         r = client.get("/api/best-run-time?lat=53.3&lng=-6.3")
         assert r.status_code in (302, 401)
 
+    def test_missing_params_returns_400(self, client):
+        r = client.get("/api/best-run-time")
+        assert r.status_code == 400
+
+    def test_out_of_range_lat_returns_400(self, client):
+        r = client.get("/api/best-run-time?lat=999&lng=0")
+        assert r.status_code == 400
+
     def test_returns_scored_forecast(self, client, mocker):
         fake_result = {
             "date": "2026-05-10",
