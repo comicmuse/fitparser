@@ -99,7 +99,7 @@ except Exception:
 
 ### Modified: `runcoach/web/api.py` — `analyze_run` endpoint
 
-Same inline call added inside the `analyze_task` background thread, after `db.update_analyzed()`.
+Same inline call added inside the `analyze_task` background thread, after `db.update_analyzed()`. Because `request.user_id` is unavailable inside the thread (request context is gone), `user_id` must be captured into a local variable in the route handler before the thread is created — the same pattern already used for `run_id`.
 
 ---
 
@@ -174,6 +174,38 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 });
 ```
 
+`AuthNotifier` gets `NotificationService` injected alongside `ApiService`, and calls `_notifService.deregister()` during logout:
+
+```dart
+class AuthNotifier extends StateNotifier<AuthStatus> {
+  final SecureStorageService _storage;
+  final ApiService _api;
+  final NotificationService _notifService;
+
+  AuthNotifier(this._storage, this._api, this._notifService) : super(AuthStatus.unknown) {
+    _checkAuth();
+  }
+
+  Future<void> logout() async {
+    await _notifService.deregister();  // deregister FCM token before clearing auth
+    await _api.logout();
+    await _storage.clearTokens();
+    state = AuthStatus.unauthenticated;
+  }
+  // ... rest unchanged
+}
+
+final authProvider = StateNotifierProvider<AuthNotifier, AuthStatus>((ref) {
+  final api = ref.read(apiServiceProvider);
+  final notif = ref.read(notificationServiceProvider);
+  final notifier = AuthNotifier(ref.read(secureStorageProvider), api, notif);
+  api.onAuthFailed = notifier.revalidate;
+  return notifier;
+});
+```
+
+`NotificationService` gains a `deregister()` method that fetches the current FCM token and calls `api.deleteDeviceToken()`. If `getToken()` returns null or throws, logout proceeds silently.
+
 ### Modified: `mobile/lib/main.dart`
 
 ```dart
@@ -198,7 +230,7 @@ notifService.initialize();
 
 ### Logout
 
-`AuthNotifier.logout()` fetches the current FCM token and calls `api.deleteDeviceToken(token)` before clearing stored auth tokens.
+`AuthNotifier.logout()` calls `notifService.deregister()` before clearing stored auth tokens. `NotificationService.deregister()` fetches the current FCM token via `FirebaseMessaging.instance.getToken()` and calls `api.deleteDeviceToken(token)`. If token retrieval fails, logout proceeds silently.
 
 ---
 
