@@ -155,6 +155,18 @@ class ApiService {
     return routes.map((e) => e as Map<String, dynamic>).toList();
   }
 
+  // Best run time
+  Future<Map<String, dynamic>> getBestRunTime({
+    required double lat,
+    required double lng,
+  }) async {
+    final r = await _dio.get<Map<String, dynamic>>(
+      '/best-run-time',
+      queryParameters: {'lat': lat, 'lng': lng},
+    );
+    return r.data!;
+  }
+
   // Device tokens
   Future<void> registerDeviceToken(String token) async {
     await _dio.post(
