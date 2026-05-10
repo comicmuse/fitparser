@@ -45,5 +45,16 @@ void main() {
       final w = PlannedWorkout.fromJson(baseJson());
       expect(w.intensityZones, equals([2340, 0, 0, 60, 0]));
     });
+
+    test('parses stress field', () {
+      final json = baseJson()..['stress'] = 45.2;
+      final w = PlannedWorkout.fromJson(json);
+      expect(w.stress, closeTo(45.2, 0.001));
+    });
+
+    test('stress is null when absent', () {
+      final w = PlannedWorkout.fromJson(baseJson());
+      expect(w.stress, isNull);
+    });
   });
 }
