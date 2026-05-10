@@ -284,7 +284,7 @@ When executing implementation plans via `superpowers:subagent-driven-development
 
 **Review scope:** Skip the full two-stage (spec + quality) review for pure config/boilerplate tasks — adding a dataclass field, editing a YAML file, appending two method stubs. A quick self-review by the implementer is enough. Reserve the full review cycle for tasks with real logic (DB queries, API endpoints, async flows, new service classes).
 
-**Run targeted tests during implementation, not the full suite.** Each subagent should run only the relevant test file (e.g. `pytest tests/test_db.py`) after implementing, leaving `pytest && pytest -m e2e --no-cov -v` for the final Task 13-style verification step. The full Python suite takes ~2.5 minutes and running it after every task wastes ~15 minutes across a 6-task feature.
+**Run targeted tests during implementation, not the full suite.** Each subagent should run only the relevant test file (e.g. `pytest tests/test_db.py`) after implementing, leaving `pytest && pytest -m e2e --no-cov -v` for the final pre-merge verification step. The full Python suite takes ~2.5 minutes and running it after every task wastes ~15 minutes across a 6-task feature.
 
 **Spec compliance and code quality reviews are independent — run them in parallel**, not sequentially. Both just read the same committed files.
 
