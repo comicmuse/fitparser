@@ -744,8 +744,10 @@
       _polyline = L.polyline(route.coords, { color: '#d29922', weight: 3, opacity: 0.9 }).addTo(_map);
       _map.fitBounds(_polyline.getBounds(), { padding: [16, 16] });
       var km = (route.distance_m / 1000).toFixed(1);
+      var badge = route.source === 'strava' ? ' · My routes' : route.source === 'previous' ? ' · Previously run' : '';
+      var name = (route.source !== 'ors' && route.name) ? ' — ' + route.name : '';
       document.getElementById('route-counter').textContent =
-        'Route ' + (idx + 1) + ' of ' + _routes.length + ' · ' + km + ' km';
+        'Route ' + (idx + 1) + ' of ' + _routes.length + ' · ' + km + ' km' + badge + name;
     }
 
     window.cycleRoute = function(dir) {

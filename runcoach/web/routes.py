@@ -1305,12 +1305,53 @@ def route_suggestion():
     if distance_m <= 0:
         return jsonify({"error": "distance_m must be positive"}), 400
 
-    cfg: Config = current_app.config["config"]
-    if not cfg.ors_api_key:
-        return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
+    from runcoach.strava import decode_polyline
+    from runcoach.web.ors import filter_routes_by_proximity, deduplicate_routes
 
-    routes = _ors_fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
-    if not routes:
+    cfg: Config = current_app.config["config"]
+    db = _db()
+    user_id = _current_user_id()
+    all_routes: list[dict] = []
+
+    if cfg.ors_api_key:
+        ors_routes = _ors_fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
+        for r in ors_routes:
+            r["source"] = "ors"
+        all_routes.extend(ors_routes)
+
+    strava_db_routes = db.get_strava_routes(user_id)
+    strava_candidates = []
+    for r in strava_db_routes:
+        if not r.get("polyline") or not r.get("distance_m"):
+            continue
+        coords = decode_polyline(r["polyline"])
+        if not coords:
+            continue
+        strava_candidates.append({
+            "coords": coords,
+            "distance_m": int(r["distance_m"]),
+            "source": "strava",
+            "name": r.get("name"),
+        })
+    all_routes.extend(filter_routes_by_proximity(strava_candidates, lat, lng, distance_m))
+
+    prev_runs = db.get_runs_with_polylines(user_id, limit=200)
+    prev_candidates = []
+    for run in prev_runs:
+        coords = decode_polyline(run["strava_map_polyline"])
+        if not coords or not run.get("distance_m"):
+            continue
+        prev_candidates.append({
+            "coords": coords,
+            "distance_m": int(run["distance_m"]),
+            "source": "previous",
+            "name": run.get("name"),
+        })
+    all_routes.extend(deduplicate_routes(filter_routes_by_proximity(prev_candidates, lat, lng, distance_m)))
+
+    if not all_routes:
+        if not cfg.ors_api_key:
+            return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
         return jsonify({"error": "Route service unavailable"}), 502
 
-    return jsonify({"routes": routes})
+    return jsonify({"routes": all_routes})
