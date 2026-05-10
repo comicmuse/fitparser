@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/run.dart';
 import '../models/dashboard.dart';
 import '../models/chat_message.dart';
+import '../models/planned_workout.dart';
 import 'secure_storage_service.dart';
 
 class ApiService {
@@ -67,6 +68,14 @@ class ApiService {
   Future<Dashboard> getDashboard() async {
     final resp = await _dio.get('/dashboard');
     return Dashboard.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  // Planned workouts
+  Future<List<PlannedWorkout>> getPlannedWorkouts() async {
+    final resp = await _dio.get('/planned-workouts');
+    return (resp.data as List<dynamic>)
+        .map((e) => PlannedWorkout.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   // Runs

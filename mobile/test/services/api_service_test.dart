@@ -9,11 +9,10 @@ import 'package:runcoach/services/secure_storage_service.dart';
 
 /// Queues pre-built JSON responses and records every RequestOptions received.
 class _MockAdapter implements HttpClientAdapter {
-  final _queue = <(int, Map<String, dynamic>)>[];
+  final _queue = <(int, dynamic)>[];
   final List<RequestOptions> requests = [];
 
-  void enqueue(int status, Map<String, dynamic> body) =>
-      _queue.add((status, body));
+  void enqueue(int status, dynamic body) => _queue.add((status, body));
 
   @override
   Future<ResponseBody> fetch(
@@ -202,5 +201,52 @@ void main() {
         expect(freshRefreshAdapter.requests, isEmpty);
       },
     );
+  });
+
+  group('getPlannedWorkouts', () {
+    test('GET /planned-workouts returns parsed list', () async {
+      mainAdapter.enqueue(200, [
+        {
+          'id': 10,
+          'date': '2026-05-15',
+          'name': 'Easy Run',
+          'description': 'Recovery',
+          'distance_m': 8000.0,
+          'duration_s': 2700.0,
+          'stress': 35.0,
+          'intensity_zones': null,
+          'structure': null,
+        },
+        {
+          'id': 11,
+          'date': '2026-05-17',
+          'name': 'Intervals',
+          'description': 'Hard',
+          'distance_m': null,
+          'duration_s': null,
+          'stress': null,
+          'intensity_zones': null,
+          'structure': null,
+        },
+      ]);
+
+      final result = await service.getPlannedWorkouts();
+
+      expect(result, hasLength(2));
+      expect(result[0].id, 10);
+      expect(result[0].name, 'Easy Run');
+      expect(result[0].stress, closeTo(35.0, 0.001));
+      expect(result[1].name, 'Intervals');
+      expect(result[1].stress, isNull);
+
+      expect(mainAdapter.requests.last.path, '/planned-workouts');
+      expect(mainAdapter.requests.last.method, 'GET');
+    });
+
+    test('returns empty list when server returns []', () async {
+      mainAdapter.enqueue(200, <dynamic>[]);
+      final result = await service.getPlannedWorkouts();
+      expect(result, isEmpty);
+    });
   });
 }
