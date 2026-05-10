@@ -125,7 +125,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,fcm]"
+          pip install -e ".[dev,fcm,claude]"
 
       - name: Run tests with coverage
         run: |
@@ -194,6 +194,10 @@ jobs:
           tags: runcoach:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify optional dependencies are installed in image
+        run: |
+          docker run --rm runcoach:ci python -c "import firebase_admin; import anthropic; print('OK')"
 
       - name: Start container
         run: |
