@@ -819,6 +819,48 @@ class TestPlannedWorkouts:
         assert "Today's Workout" in names
 
 
+class TestBestRunTime:
+    def test_requires_auth(self, client):
+        r = client.get("/api/v1/best-run-time?lat=53.3&lng=-6.3")
+        assert r.status_code == 401
+
+    def test_missing_lat_returns_400(self, client, auth_headers):
+        r = client.get("/api/v1/best-run-time?lng=-6.3", headers=auth_headers)
+        assert r.status_code == 400
+
+    def test_missing_lng_returns_400(self, client, auth_headers):
+        r = client.get("/api/v1/best-run-time?lat=53.3", headers=auth_headers)
+        assert r.status_code == 400
+
+    def test_invalid_lat_returns_400(self, client, auth_headers):
+        r = client.get("/api/v1/best-run-time?lat=999&lng=-6.3", headers=auth_headers)
+        assert r.status_code == 400
+
+    def test_returns_scored_forecast(self, client, auth_headers, mocker):
+        fake_result = {
+            "date": "2026-05-10",
+            "hours": [{"hour": h, "score": 7, "temp_c": 12.0, "rain_pct": 5, "humidity_pct": 55, "wind_kmh": 10.0} for h in range(24)],
+            "best_hour": 9,
+            "best_score": 8,
+            "day_label": "Best window: 9am · 8/10",
+        }
+        mocker.patch("runcoach.web.api.fetch_forecast", return_value={})
+        mocker.patch("runcoach.web.api.score_forecast", return_value=fake_result)
+
+        r = client.get("/api/v1/best-run-time?lat=53.3&lng=-6.3", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data["best_score"] == 8
+        assert len(data["hours"]) == 24
+        assert "day_label" in data
+
+    def test_open_meteo_failure_returns_503(self, client, auth_headers, mocker):
+        import requests as req_lib
+        mocker.patch("runcoach.web.api.fetch_forecast", side_effect=req_lib.RequestException("timeout"))
+        r = client.get("/api/v1/best-run-time?lat=53.3&lng=-6.3", headers=auth_headers)
+        assert r.status_code == 503
+
+
 class TestDeviceTokenEndpoints:
     def test_register_token(self, client, auth_headers):
         resp = client.post(

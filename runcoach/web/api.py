@@ -22,6 +22,7 @@ from runcoach.analyzer import _dispatch_llm, build_chat_context
 from runcoach.context import build_training_summary
 from runcoach.web.ors import fetch_routes
 from runcoach.strava import decode_polyline
+from runcoach.weather import fetch_forecast, score_forecast
 
 
 log = logging.getLogger(__name__)
@@ -721,6 +722,28 @@ def planned_workouts():
         _format_planned_workout(w) for w in workouts
         if w["date"] not in completed_dates
     ])
+
+
+@api_bp.route("/best-run-time", methods=["GET"])
+@require_auth
+def api_best_run_time():
+    try:
+        lat = float(request.args["lat"])
+        lng = float(request.args["lng"])
+    except (KeyError, ValueError, TypeError):
+        return jsonify({"error": "lat and lng are required numeric parameters"}), 400
+
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        return jsonify({"error": "lat/lng out of range"}), 400
+
+    cfg: Config = current_app.config["config"]
+    try:
+        forecast = fetch_forecast(lat, lng, cfg.timezone)
+    except Exception as exc:
+        log.warning("Open-Meteo fetch failed: %s", exc)
+        return jsonify({"error": "Weather service unavailable"}), 503
+
+    return jsonify(score_forecast(forecast)), 200
 
 
 @api_bp.route("/route-suggestion", methods=["POST"])
