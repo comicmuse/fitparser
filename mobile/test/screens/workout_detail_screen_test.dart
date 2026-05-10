@@ -101,4 +101,22 @@ void main() {
       expect(find.text('REST'), findsOneWidget);
     });
   });
+
+  group('routeSourceLabel', () {
+    test('returns null for ors source', () {
+      expect(routeSourceLabel('ors'), isNull);
+    });
+
+    test('returns My routes for strava source', () {
+      expect(routeSourceLabel('strava'), equals('My routes'));
+    });
+
+    test('returns Previously run for previous source', () {
+      expect(routeSourceLabel('previous'), equals('Previously run'));
+    });
+
+    test('returns null for null source', () {
+      expect(routeSourceLabel(null), isNull);
+    });
+  });
 }

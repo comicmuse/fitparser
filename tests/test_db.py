@@ -1057,3 +1057,75 @@ class TestDeviceTokens:
         db.ensure_default_user("athlete", hash_password("x"))
         user_id = db.get_default_user_id()
         assert db.get_device_tokens_for_user(user_id) == []
+
+
+class TestStravaRoutes:
+    def test_upsert_and_get_strava_routes(self, temp_db):
+        routes = [
+            {
+                "strava_route_id": "111",
+                "name": "Morning Loop",
+                "distance_m": 8000.0,
+                "start_lat": 51.50,
+                "start_lng": -0.12,
+                "polyline": "abc123",
+            },
+            {
+                "strava_route_id": "222",
+                "name": "Evening 5k",
+                "distance_m": 5000.0,
+                "start_lat": 51.51,
+                "start_lng": -0.13,
+                "polyline": "def456",
+            },
+        ]
+        temp_db.upsert_strava_routes(user_id=1, routes=routes)
+        result = temp_db.get_strava_routes(user_id=1)
+        assert len(result) == 2
+        names = {r["name"] for r in result}
+        assert names == {"Morning Loop", "Evening 5k"}
+
+    def test_upsert_updates_existing_route(self, temp_db):
+        temp_db.upsert_strava_routes(user_id=1, routes=[{
+            "strava_route_id": "333",
+            "name": "Old Name",
+            "distance_m": 10000.0,
+            "start_lat": 51.5,
+            "start_lng": -0.1,
+            "polyline": "old_polyline",
+        }])
+        temp_db.upsert_strava_routes(user_id=1, routes=[{
+            "strava_route_id": "333",
+            "name": "New Name",
+            "distance_m": 10100.0,
+            "start_lat": 51.5,
+            "start_lng": -0.1,
+            "polyline": "new_polyline",
+        }])
+        result = temp_db.get_strava_routes(user_id=1)
+        assert len(result) == 1
+        assert result[0]["name"] == "New Name"
+        assert result[0]["polyline"] == "new_polyline"
+
+    def test_get_strava_routes_empty(self, temp_db):
+        result = temp_db.get_strava_routes(user_id=1)
+        assert result == []
+
+    def test_get_runs_with_polylines(self, temp_db):
+        with temp_db._connect() as conn:
+            conn.execute(
+                """INSERT INTO runs (name, date, fit_path, stage, synced_at,
+                   distance_m, strava_map_polyline, user_id)
+                   VALUES ('Run A', '2026-01-01', 'a.fit', 'analyzed',
+                   datetime('now'), 5000, 'poly1', 1)"""
+            )
+            conn.execute(
+                """INSERT INTO runs (name, date, fit_path, stage, synced_at,
+                   distance_m, user_id)
+                   VALUES ('Run B', '2026-01-02', 'b.fit', 'analyzed',
+                   datetime('now'), 6000, 1)"""
+            )
+        result = temp_db.get_runs_with_polylines(user_id=1, limit=50)
+        assert len(result) == 1
+        assert result[0]["name"] == "Run A"
+        assert result[0]["strava_map_polyline"] == "poly1"

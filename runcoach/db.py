@@ -128,6 +128,22 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id ON device_tokens(user_id);
 
+CREATE TABLE IF NOT EXISTS strava_routes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    strava_route_id TEXT NOT NULL,
+    name TEXT,
+    distance_m REAL,
+    start_lat REAL,
+    start_lng REAL,
+    polyline TEXT,
+    cached_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE (user_id, strava_route_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_strava_routes_user ON strava_routes(user_id);
+
 """
 
 
@@ -1200,3 +1216,50 @@ class RunCoachDB:
     def delete_device_token(self, token: str) -> None:
         with self._connect() as conn:
             conn.execute("DELETE FROM device_tokens WHERE token = ?", (token,))
+
+    # ------ strava_routes ------
+
+    def upsert_strava_routes(self, user_id: int, routes: list[dict]) -> None:
+        """Cache Strava saved routes for a user. Each dict must have strava_route_id,
+        name, distance_m, start_lat, start_lng, polyline. Upserts on (user_id, strava_route_id)."""
+        now = _now_iso()
+        with self._connect() as conn:
+            for r in routes:
+                conn.execute(
+                    """INSERT INTO strava_routes
+                       (user_id, strava_route_id, name, distance_m, start_lat, start_lng, polyline, cached_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(user_id, strava_route_id) DO UPDATE SET
+                         name = excluded.name,
+                         distance_m = excluded.distance_m,
+                         start_lat = excluded.start_lat,
+                         start_lng = excluded.start_lng,
+                         polyline = excluded.polyline,
+                         cached_at = excluded.cached_at""",
+                    (user_id, r["strava_route_id"], r.get("name"), r.get("distance_m"),
+                     r.get("start_lat"), r.get("start_lng"), r.get("polyline"), now),
+                )
+
+    def get_strava_routes(self, user_id: int) -> list[dict]:
+        """Return all cached Strava saved routes for a user."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM strava_routes WHERE user_id = ? ORDER BY name",
+                (user_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_runs_with_polylines(self, user_id: int, limit: int = 200) -> list[dict]:
+        """Return the most recent runs that have a Strava map polyline, ordered newest first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT id, name, date, distance_m, strava_map_polyline
+                   FROM runs
+                   WHERE user_id = ?
+                     AND strava_map_polyline IS NOT NULL
+                     AND strava_map_polyline != ''
+                   ORDER BY date DESC, id DESC
+                   LIMIT ?""",
+                (user_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]

@@ -76,6 +76,16 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
             except Exception as e:
                 log.error("Strava link stage failed for user %d: %s", user_id, e)
 
+        # 1d. Sync Strava saved routes to local cache
+        if config.strava_client_id:
+            try:
+                from runcoach.strava import sync_strava_routes
+                synced_routes = sync_strava_routes(db, user_id, config)
+                if synced_routes:
+                    log.info("Strava: synced %d route(s) for user %d", synced_routes, user_id)
+            except Exception as e:
+                log.error("Strava route sync failed for user %d: %s", user_id, e)
+
         # 2. Parse all pending FIT files for this user
         for run in db.get_pending_runs("synced", user_id=user_id):
             try:

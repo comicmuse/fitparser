@@ -173,6 +173,26 @@ class StravaClient:
         resp.raise_for_status()
         return resp.json()
 
+    def list_routes(
+        self,
+        athlete_id: str | int,
+        access_token: str,
+        per_page: int = 200,
+    ) -> list[dict]:
+        """Fetch all saved routes for an athlete.
+
+        Returns list of route dicts from Strava's GET /athletes/{id}/routes API.
+        Each dict includes id, name, distance, map.summary_polyline, starting_latlng.
+        """
+        resp = requests.get(
+            f"{STRAVA_API_BASE}/athletes/{int(athlete_id)}/routes",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"per_page": per_page, "page": 1},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     def get_valid_access_token(self, db: RunCoachDB, user_id: int) -> str | None:
         """
         Return a valid access token for the user, automatically refreshing
@@ -275,6 +295,56 @@ def link_unlinked_runs(db: RunCoachDB, user_id: int, config) -> int:
         page += 1
 
     return linked
+
+
+def sync_strava_routes(db: RunCoachDB, user_id: int, config) -> int:
+    """Fetch and cache Strava saved routes for a user.
+
+    Returns the number of routes upserted (0 if Strava not configured or no token).
+    """
+    if not config.strava_client_id:
+        return 0
+
+    client = StravaClient(config.strava_client_id, config.strava_client_secret)
+    access_token = client.get_valid_access_token(db, user_id)
+    if not access_token:
+        log.debug("Strava: no valid access token for user %d, skipping route sync", user_id)
+        return 0
+
+    tokens = db.get_strava_tokens(user_id)
+    athlete_id = tokens.get("strava_athlete_id") if tokens else None
+    if not athlete_id:
+        log.debug("Strava: no athlete_id for user %d, skipping route sync", user_id)
+        return 0
+
+    try:
+        raw_routes = client.list_routes(athlete_id, access_token)
+    except Exception as exc:
+        log.warning("Strava route sync failed for user %d: %s", user_id, exc)
+        return 0
+
+    routes_to_store = []
+    for r in raw_routes:
+        strava_id = str(r.get("id", ""))
+        if not strava_id:
+            continue
+        starting = r.get("starting_latlng") or []
+        start_lat = float(starting[0]) if len(starting) >= 2 else None
+        start_lng = float(starting[1]) if len(starting) >= 2 else None
+        routes_to_store.append({
+            "strava_route_id": strava_id,
+            "name": r.get("name"),
+            "distance_m": float(r["distance"]) if r.get("distance") else None,
+            "start_lat": start_lat,
+            "start_lng": start_lng,
+            "polyline": (r.get("map") or {}).get("summary_polyline"),
+        })
+
+    if routes_to_store:
+        db.upsert_strava_routes(user_id, routes_to_store)
+        log.info("Strava: cached %d route(s) for user %d", len(routes_to_store), user_id)
+
+    return len(routes_to_store)
 
 
 def decode_polyline(encoded: str) -> list[list[float]]:
