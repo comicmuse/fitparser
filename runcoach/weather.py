@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import requests
 from datetime import datetime
 
 log = logging.getLogger(__name__)
@@ -71,3 +72,84 @@ def score_hour(
         * _daylight_factor(dt, sunrise, sunset)
     )
     return max(1, min(10, round(raw * 10)))
+
+
+def fetch_forecast(lat: float, lng: float, tz: str) -> dict:
+    """Fetch today's hourly forecast from Open-Meteo (no API key required)."""
+    r = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": lat,
+            "longitude": lng,
+            "hourly": "temperature_2m,precipitation_probability,relativehumidity_2m,windspeed_10m",
+            "daily": "sunrise,sunset",
+            "forecast_days": 1,
+            "timezone": tz,
+        },
+        timeout=10,
+    )
+    r.raise_for_status()
+    data = r.json()
+
+    hourly = data["hourly"]
+    daily = data["daily"]
+    sunrise = datetime.fromisoformat(daily["sunrise"][0])
+    sunset = datetime.fromisoformat(daily["sunset"][0])
+
+    hours = []
+    for i, time_str in enumerate(hourly["time"]):
+        hours.append({
+            "hour": int(time_str[11:13]),
+            "dt": datetime.fromisoformat(time_str),
+            "temp_c": float(hourly["temperature_2m"][i]),
+            "rain_pct": float(hourly["precipitation_probability"][i] or 0),
+            "humidity_pct": float(hourly["relativehumidity_2m"][i]),
+            "wind_kmh": float(hourly["windspeed_10m"][i]),
+        })
+
+    return {"hours": hours, "sunrise": sunrise, "sunset": sunset}
+
+
+def score_forecast(forecast: dict) -> dict:
+    """Score all hours and build the API response payload."""
+    sunrise = forecast["sunrise"]
+    sunset = forecast["sunset"]
+
+    scored_hours = []
+    for h in forecast["hours"]:
+        s = score_hour(
+            temp_c=h["temp_c"],
+            rain_pct=h["rain_pct"],
+            humidity_pct=h["humidity_pct"],
+            wind_kmh=h["wind_kmh"],
+            dt=h["dt"],
+            sunrise=sunrise,
+            sunset=sunset,
+        )
+        scored_hours.append({
+            "hour": h["hour"],
+            "score": s,
+            "temp_c": round(h["temp_c"], 1),
+            "rain_pct": int(h["rain_pct"]),
+            "humidity_pct": int(h["humidity_pct"]),
+            "wind_kmh": round(h["wind_kmh"], 1),
+        })
+
+    best = max(scored_hours, key=lambda x: x["score"])
+    best_score = best["score"]
+    best_hour = best["hour"]
+
+    if best_score >= 4:
+        suffix = "am" if best_hour < 12 else "pm"
+        display = best_hour % 12 or 12
+        day_label = f"Best window: {display}{suffix} · {best_score}/10"
+    else:
+        day_label = "No good windows today"
+
+    return {
+        "date": sunrise.date().isoformat(),
+        "hours": scored_hours,
+        "best_hour": best_hour,
+        "best_score": best_score,
+        "day_label": day_label,
+    }

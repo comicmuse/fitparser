@@ -142,3 +142,101 @@ class TestScoreHour:
         dt = datetime(2026, 5, 10, 12, 0)
         s = score_hour(15.0, 30, 60, 20, dt, self._sr, self._ss)
         assert 1 <= s <= 10
+
+
+from unittest.mock import patch, MagicMock
+from runcoach.weather import fetch_forecast, score_forecast
+
+
+FAKE_OPEN_METEO = {
+    "hourly": {
+        "time": [f"2026-05-10T{h:02d}:00" for h in range(24)],
+        "temperature_2m": [10.0] * 24,
+        "precipitation_probability": [5] * 24,
+        "relativehumidity_2m": [55] * 24,
+        "windspeed_10m": [10.0] * 24,
+    },
+    "daily": {
+        "sunrise": ["2026-05-10T05:30"],
+        "sunset": ["2026-05-10T21:00"],
+    },
+}
+
+
+class TestFetchForecast:
+    def test_returns_24_hours(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = FAKE_OPEN_METEO
+        with patch("runcoach.weather.requests.get", return_value=mock_resp):
+            result = fetch_forecast(53.3, -6.3, "Europe/Dublin")
+        assert len(result["hours"]) == 24
+
+    def test_parses_sunrise_sunset(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = FAKE_OPEN_METEO
+        with patch("runcoach.weather.requests.get", return_value=mock_resp):
+            result = fetch_forecast(53.3, -6.3, "Europe/Dublin")
+        assert result["sunrise"] == datetime(2026, 5, 10, 5, 30)
+        assert result["sunset"] == datetime(2026, 5, 10, 21, 0)
+
+    def test_hour_dict_has_expected_keys(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = FAKE_OPEN_METEO
+        with patch("runcoach.weather.requests.get", return_value=mock_resp):
+            result = fetch_forecast(53.3, -6.3, "Europe/Dublin")
+        h = result["hours"][9]
+        assert h["hour"] == 9
+        assert "temp_c" in h
+        assert "rain_pct" in h
+        assert "humidity_pct" in h
+        assert "wind_kmh" in h
+
+
+class TestScoreForecast:
+    def _make_forecast(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = FAKE_OPEN_METEO
+        with patch("runcoach.weather.requests.get", return_value=mock_resp):
+            return fetch_forecast(53.3, -6.3, "Europe/Dublin")
+
+    def test_returns_24_scored_hours(self):
+        result = score_forecast(self._make_forecast())
+        assert len(result["hours"]) == 24
+
+    def test_each_hour_has_score(self):
+        result = score_forecast(self._make_forecast())
+        for h in result["hours"]:
+            assert 1 <= h["score"] <= 10
+
+    def test_best_hour_matches_max_score(self):
+        result = score_forecast(self._make_forecast())
+        best = max(result["hours"], key=lambda h: h["score"])
+        assert result["best_hour"] == best["hour"]
+        assert result["best_score"] == best["score"]
+
+    def test_day_label_good_day(self):
+        result = score_forecast(self._make_forecast())
+        if result["best_score"] >= 4:
+            assert "Best window:" in result["day_label"]
+            assert "/10" in result["day_label"]
+
+    def test_day_label_treadmill_day(self):
+        bad_data = {
+            "hourly": {
+                "time": [f"2026-05-10T{h:02d}:00" for h in range(24)],
+                "temperature_2m": [25.0] * 24,
+                "precipitation_probability": [100] * 24,
+                "relativehumidity_2m": [95] * 24,
+                "windspeed_10m": [55.0] * 24,
+            },
+            "daily": {
+                "sunrise": ["2026-05-10T05:30"],
+                "sunset": ["2026-05-10T21:00"],
+            },
+        }
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = bad_data
+        with patch("runcoach.weather.requests.get", return_value=mock_resp):
+            forecast = fetch_forecast(53.3, -6.3, "Europe/Dublin")
+        result = score_forecast(forecast)
+        assert result["day_label"] == "No good windows today"
