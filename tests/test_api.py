@@ -953,3 +953,90 @@ class TestAnalyzeRunNotification:
             time.sleep(0.2)  # let background thread finish
 
         mock_notify.assert_called_once_with(run_id, "Test Run", user_id, ANY, ANY)
+
+
+class TestSyncStravaRoutes:
+    def _strava_config(self, app):
+        from runcoach.config import Config
+        return Config(
+            openai_api_key="test-key",
+            openai_model="gpt-4o",
+            data_dir=app.config["config"].data_dir,
+            timezone="Europe/London",
+            secret_key="test-secret-key",
+            strava_client_id="fake-client-id",
+            strava_client_secret="fake-secret",
+        )
+
+    def test_sync_stores_routes_in_db(self, app):
+        import unittest.mock as mock
+        from runcoach.strava import sync_strava_routes
+
+        db = app.config["db"]
+        cfg = self._strava_config(app)
+        user_id = db.get_default_user_id()
+
+        with db._connect() as conn:
+            conn.execute(
+                """UPDATE users SET strava_access_token = 'tok',
+                   strava_refresh_token = 'ref', strava_token_expires_at = 9999999999,
+                   strava_athlete_id = '42' WHERE id = ?""",
+                (user_id,),
+            )
+
+        fake_routes = [
+            {
+                "id": 1001,
+                "name": "Morning Loop",
+                "distance": 8500.0,
+                "map": {"summary_polyline": "abc123"},
+                "starting_latlng": [51.5, -0.1],
+            },
+            {
+                "id": 1002,
+                "name": "Evening 5k",
+                "distance": 5000.0,
+                "map": {"summary_polyline": "def456"},
+                "starting_latlng": [51.51, -0.12],
+            },
+        ]
+
+        with mock.patch(
+            "runcoach.strava.StravaClient.list_routes",
+            return_value=fake_routes,
+        ):
+            count = sync_strava_routes(db, user_id, cfg)
+
+        assert count == 2
+        stored = db.get_strava_routes(user_id)
+        assert len(stored) == 2
+        names = {r["name"] for r in stored}
+        assert names == {"Morning Loop", "Evening 5k"}
+
+    def test_sync_skips_when_no_strava_tokens(self, app):
+        from runcoach.strava import sync_strava_routes
+
+        db = app.config["db"]
+        cfg = self._strava_config(app)  # has strava creds, but user has no tokens
+        user_id = db.get_default_user_id()
+
+        count = sync_strava_routes(db, user_id, cfg)
+        assert count == 0
+
+    def test_sync_skips_when_strava_not_configured(self, app):
+        from runcoach.strava import sync_strava_routes
+        from runcoach.config import Config
+
+        db = app.config["db"]
+        cfg_no_strava = Config(
+            openai_api_key="key",
+            openai_model="gpt-4o",
+            data_dir=app.config["config"].data_dir,
+            timezone="Europe/London",
+            secret_key="test-secret-key",
+            # no strava_client_id
+        )
+        user_id = db.get_default_user_id()
+
+        count = sync_strava_routes(db, user_id, cfg_no_strava)
+        assert count == 0

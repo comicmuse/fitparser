@@ -1010,6 +1010,14 @@ def strava_callback():
         webhook_msg = " Set STRAVA_WEBHOOK_VERIFY_TOKEN to enable automatic sync."
 
     flash(f"Connected to Strava{' as ' + athlete_name if athlete_name else ''}!{webhook_msg}")
+
+    # Cache the user's saved Strava routes now that we have a valid token.
+    try:
+        from runcoach.strava import sync_strava_routes
+        sync_strava_routes(db, user_id, config)
+    except Exception as exc:
+        log.warning("Strava route sync after OAuth failed: %s", exc)
+
     return redirect(url_for("main.athlete_profile"))
 
 
