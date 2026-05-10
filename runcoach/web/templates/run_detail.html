@@ -655,7 +655,11 @@
     </div>
     <div id="route-status" style="display:none; font-size: 0.82rem; color: var(--fg-muted, #888); margin-top: 0.5rem;"></div>
     <div id="route-map-area" style="display:none; margin-top: 0.75rem;">
-      <div id="route-map" style="height: 240px; width: 100%; border-radius: 4px;"></div>
+      <div style="position: relative;">
+        <div id="route-map" style="height: 240px; width: 100%; border-radius: 4px;"></div>
+        <div id="route-badge" style="display:none; position:absolute; top:10px; left:10px; z-index:1000; background:rgba(0,0,0,0.75); color:#fff; font-size:0.72rem; font-weight:600; padding:4px 10px; border-radius:12px; pointer-events:none;"></div>
+        <div id="route-name" style="display:none; position:absolute; top:34px; left:10px; right:10px; z-index:1000; background:rgba(0,0,0,0.55); color:#fff; font-size:0.68rem; padding:3px 8px; border-radius:8px; pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+      </div>
       <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem;">
         <button onclick="cycleRoute(-1)" style="background: none; border: 1px solid var(--border, #555); color: var(--fg, #e0e0e0); padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">← Prev</button>
         <span id="route-counter" style="font-size: 0.75rem; color: var(--fg-muted, #888);"></span>
@@ -744,10 +748,24 @@
       _polyline = L.polyline(route.coords, { color: '#d29922', weight: 3, opacity: 0.9 }).addTo(_map);
       _map.fitBounds(_polyline.getBounds(), { padding: [16, 16] });
       var km = (route.distance_m / 1000).toFixed(1);
-      var badge = route.source === 'strava' ? ' · My routes' : route.source === 'previous' ? ' · Previously run' : '';
-      var name = (route.source !== 'ors' && route.name) ? ' — ' + route.name : '';
       document.getElementById('route-counter').textContent =
-        'Route ' + (idx + 1) + ' of ' + _routes.length + ' · ' + km + ' km' + badge + name;
+        'Route ' + (idx + 1) + ' of ' + _routes.length + ' · ' + km + ' km';
+      var badgeLabel = route.source === 'strava' ? 'My routes' : route.source === 'previous' ? 'Previously run' : null;
+      var badgeEl = document.getElementById('route-badge');
+      var nameEl = document.getElementById('route-name');
+      if (badgeLabel) {
+        badgeEl.textContent = badgeLabel;
+        badgeEl.style.display = 'block';
+        if (route.name) {
+          nameEl.textContent = route.name;
+          nameEl.style.display = 'block';
+        } else {
+          nameEl.style.display = 'none';
+        }
+      } else {
+        badgeEl.style.display = 'none';
+        nameEl.style.display = 'none';
+      }
     }
 
     window.cycleRoute = function(dir) {
