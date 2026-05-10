@@ -145,6 +145,18 @@ class ApiService {
     final routes = resp.data['routes'] as List<dynamic>;
     return routes.map((e) => e as Map<String, dynamic>).toList();
   }
+
+  // Device tokens
+  Future<void> registerDeviceToken(String token) async {
+    await _dio.post(
+      '/device-tokens',
+      data: {'token': token, 'platform': 'android'},
+    );
+  }
+
+  Future<void> deleteDeviceToken(String token) async {
+    await _dio.delete('/device-tokens', data: {'token': token});
+  }
 }
 
 class _AuthInterceptor extends Interceptor {
