@@ -11,6 +11,20 @@ The system has three main stages:
 2. **Parse** — convert FIT → structured block data (power/HR/pace/zones) stored as JSON in `runs.parsed_data`
 3. **Analyze** — send workout data + 7-day training context (ATL/CTL/RSB) to OpenAI, store commentary in DB
 
+## Working on GitHub Issues
+
+When implementing a GitHub issue:
+
+1. **Create a feature branch** — never implement issue work directly on `main`:
+   ```bash
+   git checkout -b feature/issue-<number>-<short-description>
+   ```
+2. **Raise a PR** against `main` when the work is complete and tests pass, referencing the issue:
+   ```bash
+   gh pr create --title "..." --body "Closes #<number> ..."
+   ```
+3. **Close the issue** — use `gh issue close <number>` once the PR is merged (or include `Closes #<number>` in the PR body so GitHub closes it automatically on merge).
+
 ## Development Commands
 
 ### Local Setup
