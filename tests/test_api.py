@@ -711,6 +711,63 @@ class TestDashboard:
         assert seg["power_max_pct"] == 120
 
 
+class TestDeviceTokenEndpoints:
+    def test_register_token(self, client, auth_headers):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"token": "fcm-test-123", "platform": "android"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["message"] == "Device token registered"
+
+    def test_register_token_idempotent(self, client, auth_headers):
+        for _ in range(2):
+            resp = client.post(
+                "/api/v1/device-tokens",
+                json={"token": "fcm-idem", "platform": "android"},
+                headers=auth_headers,
+            )
+            assert resp.status_code == 200
+
+    def test_register_token_missing_body(self, client, auth_headers):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"platform": "android"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_register_token_requires_auth(self, client):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"token": "tok", "platform": "android"},
+        )
+        assert resp.status_code == 401
+
+    def test_delete_token(self, client, auth_headers):
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "fcm-delete-me", "platform": "android"},
+            headers=auth_headers,
+        )
+        resp = client.delete(
+            "/api/v1/device-tokens",
+            json={"token": "fcm-delete-me"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["message"] == "Device token removed"
+
+    def test_delete_token_missing_body(self, client, auth_headers):
+        resp = client.delete(
+            "/api/v1/device-tokens",
+            json={},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+
 class TestRouteSuggestion:
     def test_requires_auth(self, client):
         resp = client.post(

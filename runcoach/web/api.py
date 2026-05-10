@@ -714,3 +714,31 @@ def api_route_suggestion():
         return jsonify({"error": "Route service unavailable"}), 502
 
     return jsonify({"routes": routes})
+
+
+# ------ Device tokens (push notifications) ------
+
+@api_bp.route("/device-tokens", methods=["POST"])
+@require_auth
+def register_device_token():
+    data = request.get_json()
+    if not data or not data.get("token"):
+        return jsonify({"error": "token is required"}), 400
+    token = str(data["token"]).strip()
+    if not token:
+        return jsonify({"error": "token must not be empty"}), 400
+    platform = str(data.get("platform", "android")).strip() or "android"
+    db = get_db()
+    db.upsert_device_token(request.user_id, token, platform)
+    return jsonify({"message": "Device token registered"}), 200
+
+
+@api_bp.route("/device-tokens", methods=["DELETE"])
+@require_auth
+def unregister_device_token():
+    data = request.get_json()
+    if not data or not data.get("token"):
+        return jsonify({"error": "token is required"}), 400
+    db = get_db()
+    db.delete_device_token(str(data["token"]))
+    return jsonify({"message": "Device token removed"}), 200
