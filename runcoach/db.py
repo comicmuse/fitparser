@@ -150,13 +150,6 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
-            # Add parsed_data column if upgrading from an older schema.
-            existing = {
-                row[1]
-                for row in conn.execute("PRAGMA table_info(runs)").fetchall()
-            }
-            if "parsed_data" not in existing:
-                conn.execute("ALTER TABLE runs ADD COLUMN parsed_data TEXT")
             # Always ensure the first-ever user is an admin (idempotent).
             conn.execute(
                 """UPDATE users SET is_admin = 1
