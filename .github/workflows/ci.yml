@@ -71,6 +71,32 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Create dummy google-services.json for CI build
+        run: |
+          cat > mobile/android/app/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "runcoach-ci",
+              "storage_bucket": "runcoach-ci.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.runcoach.mobile"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [{"current_key": "placeholder"}],
+                "services": {"appinvite_service": {"other_platform_oauth_client": []}}
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
       - name: Build debug APK
         working-directory: mobile
         run: flutter build apk --debug --dart-define=BASE_URL=http://localhost:5001/api/v1
@@ -99,7 +125,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,fcm]"
 
       - name: Run tests with coverage
         run: |
