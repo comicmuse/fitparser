@@ -935,12 +935,14 @@ class TestStravaWebhookEvent:
             access_token="fake-access",
             refresh_token="fake-refresh",
             expires_at=int(time.time()) + 3600,
+            strava_athlete_id="12345",
         )
 
         self._run_handler_synchronously(strava_client, mocker, {
             "object_type": "activity",
             "aspect_type": "create",
             "object_id": 777777,
+            "owner_id": 12345,
         })
 
         pipeline_mock.assert_called_once()
@@ -971,12 +973,14 @@ class TestStravaWebhookEvent:
             access_token="fake-access",
             refresh_token="fake-refresh",
             expires_at=int(time.time()) + 3600,
+            strava_athlete_id="12345",
         )
 
         self._run_handler_synchronously(strava_client, mocker, {
             "object_type": "activity",
             "aspect_type": "create",
             "object_id": 888888,
+            "owner_id": 12345,
         })
 
         # Pipeline must NOT have been invoked for a non-running sport
@@ -1017,12 +1021,14 @@ class TestStravaWebhookEvent:
             access_token="fake-access",
             refresh_token="fake-refresh",
             expires_at=int(time.time()) + 3600,
+            strava_athlete_id="12345",
         )
 
         self._run_handler_synchronously(strava_client, mocker, {
             "object_type": "activity",
             "aspect_type": "create",
             "object_id": 999999,
+            "owner_id": 12345,
         })
 
         updated = db.get_run(run_id)
@@ -1071,12 +1077,14 @@ class TestStravaWebhookEvent:
             access_token="fake-access",
             refresh_token="fake-refresh",
             expires_at=int(time.time()) + 3600,
+            strava_athlete_id="12345",
         )
 
         self._run_handler_synchronously(strava_client, mocker, {
             "object_type": "activity",
             "aspect_type": "create",
             "object_id": 404040,
+            "owner_id": 12345,
         })
 
         # Pipeline called twice (initial + first retry)
@@ -1118,12 +1126,14 @@ class TestStravaWebhookEvent:
             access_token="fake-access",
             refresh_token="fake-refresh",
             expires_at=int(time.time()) + 3600,
+            strava_athlete_id="12345",
         )
 
         self._run_handler_synchronously(strava_client, mocker, {
             "object_type": "activity",
             "aspect_type": "create",
             "object_id": 505050,
+            "owner_id": 12345,
         })
 
         # Pipeline must have been called
@@ -1132,6 +1142,93 @@ class TestStravaWebhookEvent:
         updated = db.get_run(run_id)
         assert updated["strava_activity_id"] == "505050"
 
+    def test_webhook_missing_owner_id_ignored(self, strava_client, strava_app, mocker):
+        """Events with no owner_id must not trigger the pipeline (no default-user fallback)."""
+        pipeline_mock = mocker.patch("runcoach.web.routes.run_full_pipeline")
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 600600,
+            # owner_id deliberately omitted
+        })
+
+        pipeline_mock.assert_not_called()
+
+    def test_webhook_unknown_owner_id_ignored(self, strava_client, strava_app, mocker):
+        """Events whose owner_id doesn't match any known Strava athlete must be silently dropped."""
+        pipeline_mock = mocker.patch("runcoach.web.routes.run_full_pipeline")
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 700700,
+            "owner_id": 99999999,  # not in DB
+        })
+
+        pipeline_mock.assert_not_called()
+
+    def test_webhook_run_link_scoped_to_owner(self, strava_client, strava_app, mocker):
+        """Run linking by date must only touch runs belonging to the webhook owner."""
+        import time
+        db = strava_app.config["db"]
+        mocker.patch("runcoach.web.routes.run_full_pipeline")
+
+        user_id = db.get_default_user_id()
+        db.save_strava_tokens(
+            user_id=user_id,
+            access_token="fake-access",
+            refresh_token="fake-refresh",
+            expires_at=int(time.time()) + 3600,
+            strava_athlete_id="12345",
+        )
+
+        # Insert a run for user_id (the webhook owner)
+        owner_run_id = db.insert_run(
+            stryd_activity_id=80001,
+            name="Owner Run",
+            date="2026-04-01",
+            fit_path="activities/owner.fit",
+        )
+        # Insert a second run with a *different* user_id to simulate another user
+        other_user_id = db.create_user("other_user", "fakehash")
+        other_run_id = db.insert_run(
+            stryd_activity_id=80002,
+            name="Other User Run",
+            date="2026-04-01",
+            fit_path="activities/other.fit",
+            user_id=other_user_id,
+        )
+
+        fake_activity = {
+            "id": 800800,
+            "sport_type": "Run",
+            "start_date_local": "2026-04-01T07:00:00Z",
+            "map": {"summary_polyline": "ownerpoly=="},
+        }
+        mock_client_instance = mocker.MagicMock()
+        mock_client_instance.get_valid_access_token.return_value = "fake-token"
+        mock_client_instance.get_activity.return_value = fake_activity
+        mocker.patch("runcoach.strava.StravaClient", return_value=mock_client_instance)
+
+        self._run_handler_synchronously(strava_client, mocker, {
+            "object_type": "activity",
+            "aspect_type": "create",
+            "object_id": 800800,
+            "owner_id": 12345,
+        })
+
+        # Only the owner's run should be linked
+        owner_run = db.get_run(owner_run_id)
+        other_run = db.get_run(other_run_id)
+        assert owner_run["strava_map_polyline"] == "ownerpoly=="
+        assert other_run["strava_map_polyline"] is None
 
 
 class TestRaceGoal:

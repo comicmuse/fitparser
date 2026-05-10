@@ -1184,16 +1184,20 @@ def strava_webhook():
             if not config.strava_client_id:
                 log.debug("Strava not configured, skipping webhook handler")
                 return
-            # Find the user by their Strava athlete ID (from the webhook owner_id field)
-            user_id = None
-            if owner_id:
-                user = db.get_user_by_strava_athlete_id(owner_id)
-                if user:
-                    user_id = user["id"]
-            if not user_id:
-                user_id = db.get_default_user_id()
-            if not user_id:
+            # Resolve the webhook owner to a known user. Reject events with a
+            # missing or unrecognised owner_id rather than falling back to the
+            # default user — an attacker can omit owner_id to target user 1.
+            if not owner_id:
+                log.warning("Strava webhook missing owner_id — ignoring event")
                 return
+            user = db.get_user_by_strava_athlete_id(owner_id)
+            if not user:
+                log.warning(
+                    "Strava webhook owner_id %s does not match any known athlete — ignoring",
+                    owner_id,
+                )
+                return
+            user_id = user["id"]
             client = StravaClient(config.strava_client_id, config.strava_client_secret)
             access_token = client.get_valid_access_token(db, user_id)
             if not access_token:
@@ -1232,7 +1236,7 @@ def strava_webhook():
                     return True
 
                 if start_date:
-                    runs_today = db.get_runs_on_date(start_date)
+                    runs_today = db.get_runs_on_date(start_date, user_id=user_id)
                     unlinked = [r for r in runs_today if not r.get("strava_activity_id")]
                     if unlinked:
                         db.update_run_strava_data(
