@@ -34,13 +34,13 @@ def _rain_factor(rain_pct: float) -> float:
 
 def _humidity_factor(humidity_pct: float) -> float:
     return _piecewise(humidity_pct, [
-        (0, 1.00), (50, 1.00), (70, 0.85), (85, 0.40), (100, 0.05),
+        (0, 1.00), (50, 1.00), (70, 0.85), (85, 0.50), (100, 0.10),
     ])
 
 
 def _wind_factor(wind_kmh: float) -> float:
     return _piecewise(wind_kmh, [
-        (0, 1.00), (15, 1.00), (30, 0.50), (55, 0.10), (60, 0.08),
+        (0, 1.00), (15, 1.00), (30, 0.70), (50, 0.25), (60, 0.10),
     ])
 
 
