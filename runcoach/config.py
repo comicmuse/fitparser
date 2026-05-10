@@ -30,6 +30,7 @@ class Config:
     strava_webhook_verify_token: str = ""
     strava_webhook_enabled: bool = True
     ors_api_key: str = ""
+    fcm_service_account_path: str = ""
 
     @property
     def llm_provider(self) -> str:
@@ -128,4 +129,5 @@ class Config:
             strava_webhook_verify_token=os.environ.get("STRAVA_WEBHOOK_VERIFY_TOKEN", ""),
             strava_webhook_enabled=os.environ.get("STRAVA_WEBHOOK_ENABLED", "true").lower() in ("true", "1", "yes"),
             ors_api_key=os.environ.get("ORS_API_KEY", ""),
+            fcm_service_account_path=os.environ.get("FCM_SERVICE_ACCOUNT_PATH", ""),
         )
