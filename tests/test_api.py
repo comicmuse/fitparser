@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 from runcoach.web import create_app
 from runcoach.config import Config
@@ -816,3 +816,32 @@ class TestRouteSuggestion:
         assert len(data["routes"]) >= 1
         assert "coords" in data["routes"][0]
         assert "distance_m" in data["routes"][0]
+
+
+class TestAnalyzeRunNotification:
+    def test_sends_notification_after_on_demand_analysis(self, client, auth_headers, app):
+        import json, time
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+
+        with db._connect() as conn:
+            conn.execute(
+                """INSERT INTO runs
+                   (name, date, fit_path, stage, synced_at, parsed_data, user_id)
+                   VALUES (?, ?, ?, 'parsed', datetime('now'), ?, ?)""",
+                ("Test Run", "2026-05-10", "fake.fit",
+                 json.dumps({"workout_name": "Test Run", "blocks": []}), user_id),
+            )
+        run_id = db.get_pending_runs("parsed", user_id=user_id)[0]["id"]
+
+        with patch("runcoach.analyzer.analyze_and_write") as mock_analyze, \
+             patch("runcoach.notifications.send_analysis_notification") as mock_notify:
+            mock_analyze.return_value = {
+                "commentary": "Well done!",
+                "prompt_tokens": 50,
+                "completion_tokens": 25,
+            }
+            client.post(f"/api/v1/runs/{run_id}/analyze", headers=auth_headers)
+            time.sleep(0.2)  # let background thread finish
+
+        mock_notify.assert_called_once_with(run_id, "Test Run", user_id, ANY, ANY)

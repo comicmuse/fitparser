@@ -424,6 +424,7 @@ def analyze_run(run_id: int):
 
     # Capture Flask app context for background thread
     app = current_app._get_current_object()
+    captured_user_id = request.user_id  # capture before request context ends
 
     def analyze_task():
         with app.app_context():
@@ -446,6 +447,18 @@ def analyze_run(run_id: int):
                     completion_tokens=result.get("completion_tokens"),
                 )
                 log.info(f"Analysis complete for run {run_id}")
+
+                try:
+                    from runcoach.notifications import send_analysis_notification
+                    send_analysis_notification(
+                        fresh_run["id"],
+                        fresh_run.get("name", "Run"),
+                        captured_user_id,
+                        db,
+                        config,
+                    )
+                except Exception:
+                    log.warning("Push notification failed for run %s (non-fatal)", run_id)
 
             except Exception as e:
                 log.exception(f"Analysis failed for run {run_id}")
