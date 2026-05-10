@@ -705,6 +705,15 @@ def dashboard():
     }), 200
 
 
+@api_bp.route("/planned-workouts", methods=["GET"])
+@require_auth
+def planned_workouts():
+    db = get_db()
+    today = date_type.today().isoformat()
+    workouts = db.get_upcoming_planned_workouts(from_date=today, limit=90, user_id=request.user_id)
+    return jsonify([_format_planned_workout(w) for w in workouts])
+
+
 @api_bp.route("/route-suggestion", methods=["POST"])
 @require_auth
 def api_route_suggestion():

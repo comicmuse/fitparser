@@ -744,6 +744,57 @@ class TestDashboard:
         assert nw["stress"] is None
 
 
+class TestPlannedWorkouts:
+    def test_requires_auth(self, client):
+        resp = client.get("/api/v1/planned-workouts")
+        assert resp.status_code == 401
+
+    def test_returns_empty_list_when_none(self, client, auth_headers):
+        resp = client.get("/api/v1/planned-workouts", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_returns_upcoming_workouts(self, client, auth_headers, app):
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        future1 = (date.today() + timedelta(days=1)).isoformat()
+        future2 = (date.today() + timedelta(days=3)).isoformat()
+        db.upsert_planned_workout(
+            date=future1, title="Easy Run", description="Recovery",
+            distance_m=8000.0, duration_s=2700.0, stress=35.0, user_id=user_id,
+        )
+        db.upsert_planned_workout(
+            date=future2, title="Intervals", description="Hard effort",
+            stress=72.0, user_id=user_id,
+        )
+        resp = client.get("/api/v1/planned-workouts", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 2
+        assert data[0]["date"] == future1
+        assert data[0]["name"] == "Easy Run"
+        assert data[0]["distance_m"] == pytest.approx(8000.0)
+        assert data[0]["duration_s"] == pytest.approx(2700.0)
+        assert data[0]["stress"] == pytest.approx(35.0)
+        assert data[1]["name"] == "Intervals"
+
+    def test_excludes_past_workouts(self, client, auth_headers, app):
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        past = (date.today() - timedelta(days=1)).isoformat()
+        future = (date.today() + timedelta(days=1)).isoformat()
+        db.upsert_planned_workout(date=past, title="Past Run", description="", user_id=user_id)
+        db.upsert_planned_workout(date=future, title="Future Run", description="", user_id=user_id)
+        resp = client.get("/api/v1/planned-workouts", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        names = [w["name"] for w in data]
+        assert "Past Run" not in names
+        assert "Future Run" in names
+
+
 class TestDeviceTokenEndpoints:
     def test_register_token(self, client, auth_headers):
         resp = client.post(
