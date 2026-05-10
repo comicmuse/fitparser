@@ -794,6 +794,30 @@ class TestPlannedWorkouts:
         assert "Past Run" not in names
         assert "Future Run" in names
 
+    def test_hides_workout_when_run_exists_on_same_date(self, client, auth_headers, app):
+        from datetime import date
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        today = date.today().isoformat()
+        db.upsert_planned_workout(date=today, title="Today's Workout", description="", user_id=user_id)
+        db.insert_run(stryd_activity_id=9999, name="Morning Run", date=today,
+                      fit_path="activities/x.fit", user_id=user_id)
+        resp = client.get("/api/v1/planned-workouts", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [w["name"] for w in resp.get_json()]
+        assert "Today's Workout" not in names
+
+    def test_shows_workout_when_no_run_on_date(self, client, auth_headers, app):
+        from datetime import date
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        today = date.today().isoformat()
+        db.upsert_planned_workout(date=today, title="Today's Workout", description="", user_id=user_id)
+        resp = client.get("/api/v1/planned-workouts", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [w["name"] for w in resp.get_json()]
+        assert "Today's Workout" in names
+
 
 class TestDeviceTokenEndpoints:
     def test_register_token(self, client, auth_headers):

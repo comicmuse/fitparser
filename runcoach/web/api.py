@@ -709,9 +709,17 @@ def dashboard():
 @require_auth
 def planned_workouts():
     db = get_db()
+    user_id = request.user_id
     today = date_type.today().isoformat()
-    workouts = db.get_upcoming_planned_workouts(from_date=today, limit=90, user_id=request.user_id)
-    return jsonify([_format_planned_workout(w) for w in workouts])
+    workouts = db.get_upcoming_planned_workouts(from_date=today, limit=90, user_id=user_id)
+    completed_dates = {
+        w["date"] for w in workouts
+        if db.get_runs_on_date(w["date"], user_id=user_id)
+    }
+    return jsonify([
+        _format_planned_workout(w) for w in workouts
+        if w["date"] not in completed_dates
+    ])
 
 
 @api_bp.route("/route-suggestion", methods=["POST"])
