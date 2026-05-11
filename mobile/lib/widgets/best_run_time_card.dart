@@ -11,6 +11,12 @@ class BestRunTimeCard extends ConsumerWidget {
     return const Color(0xFFf87171);
   }
 
+  String _hourLabel(int h) {
+    if (h == 0) return '12am';
+    if (h == 12) return '12pm';
+    return h < 12 ? '${h}am' : '${h - 12}pm';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(bestRunTimeProvider);
@@ -28,7 +34,12 @@ class BestRunTimeCard extends ConsumerWidget {
         final hours = List<Map<String, dynamic>>.from(data['hours'] as List);
         final bestHour = data['best_hour'] as int;
         final dayLabel = data['day_label'] as String;
+        final isTomorrow = data['is_tomorrow'] as bool? ?? false;
         const maxBarHeight = 48.0;
+
+        final firstHour = hours.first['hour'] as int;
+        final midHour = hours[hours.length ~/ 2]['hour'] as int;
+        final lastHour = hours.last['hour'] as int;
 
         return Card(
           child: Padding(
@@ -39,9 +50,11 @@ class BestRunTimeCard extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Best time to run today',
-                      style: TextStyle(
+                    Text(
+                      isTomorrow
+                          ? 'Best time to run tomorrow'
+                          : 'Best time to run today',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -86,28 +99,29 @@ class BestRunTimeCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '12am',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF888888)),
+                      _hourLabel(firstHour),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF888888),
+                      ),
                     ),
                     Text(
-                      '6am',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF888888)),
+                      _hourLabel(midHour),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF888888),
+                      ),
                     ),
                     Text(
-                      '12pm',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF888888)),
-                    ),
-                    Text(
-                      '6pm',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF888888)),
-                    ),
-                    Text(
-                      '11pm',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF888888)),
+                      _hourLabel(lastHour),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF888888),
+                      ),
                     ),
                   ],
                 ),
