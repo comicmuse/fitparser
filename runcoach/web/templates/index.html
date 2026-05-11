@@ -34,13 +34,11 @@
 
 <div id="brt-card" class="card" style="display:none;">
   <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.5rem;">
-    <h2 style="margin:0;">Best time to run today</h2>
+    <h2 id="brt-title" style="margin:0;"></h2>
     <span id="brt-label" style="font-size:0.8rem; color:var(--fg-muted);"></span>
   </div>
   <div id="brt-chart" style="display:flex; align-items:flex-end; gap:2px; height:60px; margin-bottom:0.25rem;"></div>
-  <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--fg-muted); padding:0 1px;">
-    <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span>
-  </div>
+  <div id="brt-axis" style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--fg-muted); padding:0 1px;"></div>
 </div>
 <div id="brt-error" style="display:none;"></div>
 
@@ -51,7 +49,9 @@
     fetch('/api/best-run-time?lat=' + pos.coords.latitude + '&lng=' + pos.coords.longitude)
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (!data.hours) return;
+        if (!data.hours || !data.hours.length) return;
+        document.getElementById('brt-title').textContent =
+          data.is_tomorrow ? 'Best time to run tomorrow' : 'Best time to run today';
         var chart = document.getElementById('brt-chart');
         data.hours.forEach(function(h) {
           var bar = document.createElement('div');
@@ -64,6 +64,20 @@
           }
           bar.title = h.hour + ':00 · ' + h.score + '/10';
           chart.appendChild(bar);
+        });
+        function hourLabel(h) {
+          if (h === 0) return '12am';
+          if (h === 12) return '12pm';
+          return h < 12 ? h + 'am' : (h - 12) + 'pm';
+        }
+        var firstH = data.hours[0].hour;
+        var midH = data.hours[Math.floor(data.hours.length / 2)].hour;
+        var lastH = data.hours[data.hours.length - 1].hour;
+        var axis = document.getElementById('brt-axis');
+        [firstH, midH, lastH].forEach(function(h) {
+          var s = document.createElement('span');
+          s.textContent = hourLabel(h);
+          axis.appendChild(s);
         });
         document.getElementById('brt-label').textContent = data.day_label;
         document.getElementById('brt-card').style.display = 'block';

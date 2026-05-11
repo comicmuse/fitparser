@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone, date as date_type
+from zoneinfo import ZoneInfo
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
@@ -743,7 +744,8 @@ def api_best_run_time():
         log.warning("Open-Meteo fetch failed: %s", exc)
         return jsonify({"error": "Weather service unavailable"}), 503
 
-    return jsonify(score_forecast(forecast)), 200
+    now = datetime.now(ZoneInfo(cfg.timezone)).replace(tzinfo=None)
+    return jsonify(score_forecast(forecast, now=now)), 200
 
 
 @api_bp.route("/route-suggestion", methods=["POST"])

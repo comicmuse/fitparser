@@ -7,7 +7,8 @@ import time
 
 import re
 import unicodedata
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from functools import wraps
 
 from flask import (
@@ -1381,4 +1382,5 @@ def best_run_time():
         log.warning("Open-Meteo fetch failed: %s", exc)
         return jsonify({"error": "Weather service unavailable"}), 503
 
-    return jsonify(score_forecast(forecast)), 200
+    now = datetime.now(ZoneInfo(cfg.timezone)).replace(tzinfo=None)
+    return jsonify(score_forecast(forecast, now=now)), 200
