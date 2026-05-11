@@ -839,10 +839,11 @@ class TestBestRunTime:
     def test_returns_scored_forecast(self, client, auth_headers, mocker):
         fake_result = {
             "date": "2026-05-10",
-            "hours": [{"hour": h, "score": 7, "temp_c": 12.0, "rain_pct": 5, "humidity_pct": 55, "wind_kmh": 10.0} for h in range(24)],
+            "hours": [{"hour": h, "score": 7, "temp_c": 12.0, "rain_pct": 5, "humidity_pct": 55, "wind_kmh": 10.0} for h in range(8)],
             "best_hour": 9,
             "best_score": 8,
             "day_label": "Best window: 9am · 8/10",
+            "is_tomorrow": False,
         }
         mocker.patch("runcoach.web.api.fetch_forecast", return_value={})
         mocker.patch("runcoach.web.api.score_forecast", return_value=fake_result)
@@ -851,7 +852,8 @@ class TestBestRunTime:
         assert r.status_code == 200
         data = r.get_json()
         assert data["best_score"] == 8
-        assert len(data["hours"]) == 24
+        assert len(data["hours"]) == 8
+        assert data["is_tomorrow"] is False
         assert "day_label" in data
 
     def test_open_meteo_failure_returns_503(self, client, auth_headers, mocker):
