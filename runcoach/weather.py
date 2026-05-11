@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 log = logging.getLogger(__name__)
 
@@ -110,21 +110,53 @@ def fetch_forecast(lat: float, lng: float, tz: str, days: int = 2) -> dict:
     return {"hours": hours, "sunrise": sunrises, "sunset": sunsets}
 
 
-def score_forecast(forecast: dict) -> dict:
-    """Score all hours and build the API response payload."""
-    sunrise = forecast["sunrise"]
-    sunset = forecast["sunset"]
+def score_forecast(forecast: dict, now: datetime) -> dict:
+    """Score hours within the actionable window and build the API response payload."""
+    sunrises = forecast["sunrise"]
+    sunsets = forecast["sunset"]
+    today_sunrise = sunrises[0]
+    today_sunset = sunsets[0]
+
+    now_snapped = now.replace(minute=0, second=0, microsecond=0)
+    today_window_end = today_sunset.replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
+
+    today_hours = [
+        h for h in forecast["hours"]
+        if h["dt"].date() == today_sunrise.date()
+        and h["dt"] >= now_snapped
+        and h["dt"] < today_window_end
+    ]
+
+    if len(today_hours) < 3 and len(sunrises) > 1:
+        is_tomorrow = True
+        tomorrow_sunrise = sunrises[1]
+        tomorrow_sunset = sunsets[1]
+        tomorrow_start = tomorrow_sunrise.replace(minute=0, second=0, microsecond=0)
+        tomorrow_window_end = tomorrow_sunset.replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
+        window_hours = [
+            h for h in forecast["hours"]
+            if h["dt"].date() == tomorrow_sunrise.date()
+            and h["dt"] >= tomorrow_start
+            and h["dt"] < tomorrow_window_end
+        ]
+        day_sunrise = tomorrow_sunrise
+        day_sunset = tomorrow_sunset
+    else:
+        is_tomorrow = False
+        window_hours = today_hours
+        day_sunrise = today_sunrise
+        day_sunset = today_sunset
 
     scored_hours = []
-    for h in forecast["hours"]:
+    for h in window_hours:
         s = score_hour(
             temp_c=h["temp_c"],
             rain_pct=h["rain_pct"],
             humidity_pct=h["humidity_pct"],
             wind_kmh=h["wind_kmh"],
             dt=h["dt"],
-            sunrise=sunrise,
-            sunset=sunset,
+            sunrise=day_sunrise,
+            sunset=day_sunset,
         )
         scored_hours.append({
             "hour": h["hour"],
@@ -135,21 +167,34 @@ def score_forecast(forecast: dict) -> dict:
             "wind_kmh": round(h["wind_kmh"], 1),
         })
 
+    if not scored_hours:
+        date_val = (sunrises[1] if is_tomorrow else today_sunrise).date()
+        return {
+            "date": date_val.isoformat(),
+            "hours": [],
+            "best_hour": 0,
+            "best_score": 0,
+            "day_label": "No forecast available",
+            "is_tomorrow": is_tomorrow,
+        }
+
     best = max(scored_hours, key=lambda x: x["score"])
     best_score = best["score"]
     best_hour = best["hour"]
+    date_val = (sunrises[1] if is_tomorrow else today_sunrise).date()
 
     if best_score >= 4:
         suffix = "am" if best_hour < 12 else "pm"
         display = best_hour % 12 or 12
         day_label = f"Best window: {display}{suffix} · {best_score}/10"
     else:
-        day_label = "No good windows today"
+        day_label = "No good windows tomorrow" if is_tomorrow else "No good windows today"
 
     return {
-        "date": sunrise.date().isoformat(),
+        "date": date_val.isoformat(),
         "hours": scored_hours,
         "best_hour": best_hour,
         "best_score": best_score,
         "day_label": day_label,
+        "is_tomorrow": is_tomorrow,
     }
