@@ -79,3 +79,47 @@ def test_rsb_chart_canvas_present(logged_in_page, seeded_run_id):
     page = logged_in_page
     page.reload()
     assert page.locator("canvas#rsbHistoryChart").count() == 1
+
+
+import json as _json
+
+
+class TestBestRunTimeCard:
+    def test_card_appears_when_geolocation_granted(self, browser, server_url):
+        """Bar chart card should render when geolocation is available and API succeeds."""
+        context = browser.new_context(
+            geolocation={"latitude": 53.3498, "longitude": -6.2603},
+            permissions=["geolocation"],
+        )
+        page = context.new_page()
+
+        # Intercept the API call so the test doesn't hit Open-Meteo
+        fake_payload = _json.dumps({
+            "date": "2026-05-10",
+            "hours": [
+                {"hour": h, "score": 7 if h == 9 else 5,
+                 "temp_c": 12.0, "rain_pct": 5, "humidity_pct": 55, "wind_kmh": 10.0}
+                for h in range(24)
+            ],
+            "best_hour": 9,
+            "best_score": 7,
+            "day_label": "Best window: 9am · 7/10",
+        })
+        page.route("**/api/best-run-time**", lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=fake_payload,
+        ))
+
+        # Log in
+        page.goto(f"{server_url}/login")
+        page.fill("input[name='username']", "athlete")
+        from tests.e2e.conftest import E2E_PASSWORD
+        page.fill("input[name='password']", E2E_PASSWORD)
+        page.click("button[type='submit']")
+        page.wait_for_url(f"{server_url}/")
+
+        card = page.locator("#brt-card")
+        card.wait_for(state="visible", timeout=5000)
+        assert "Best window" in page.locator("#brt-label").text_content()
+        context.close()

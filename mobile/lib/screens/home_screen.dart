@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/dashboard_provider.dart';
+import '../widgets/best_run_time_card.dart';
 import '../widgets/rsb_card.dart';
 import '../widgets/run_summary_card.dart';
 import '../widgets/next_workout_card.dart';
@@ -59,6 +60,8 @@ class HomeScreen extends ConsumerWidget {
           child: ListView(
             children: [
               const SizedBox(height: 8),
+              const BestRunTimeCard(),
+              const SizedBox(height: 12),
               RsbCard(summary: dashboard.trainingSummary),
               if (dashboard.latestRun != null) ...[
                 const SizedBox(height: 4),

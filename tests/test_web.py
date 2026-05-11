@@ -1654,3 +1654,38 @@ class TestOfflineRoutes:
         assert "fonts.googleapis.com" not in html
         assert "unpkg.com" not in html
         assert "jsdelivr.net" not in html
+
+
+class TestBestRunTimeWeb:
+    def test_requires_login(self, app):
+        client = app.test_client()
+        r = client.get("/api/best-run-time?lat=53.3&lng=-6.3")
+        assert r.status_code in (302, 401)
+
+    def test_missing_params_returns_400(self, client):
+        r = client.get("/api/best-run-time")
+        assert r.status_code == 400
+
+    def test_out_of_range_lat_returns_400(self, client):
+        r = client.get("/api/best-run-time?lat=999&lng=0")
+        assert r.status_code == 400
+
+    def test_returns_scored_forecast(self, client, mocker):
+        fake_result = {
+            "date": "2026-05-10",
+            "hours": [{"hour": h, "score": 7, "temp_c": 12.0, "rain_pct": 5, "humidity_pct": 55, "wind_kmh": 10.0} for h in range(24)],
+            "best_hour": 9,
+            "best_score": 8,
+            "day_label": "Best window: 9am · 8/10",
+        }
+        mocker.patch("runcoach.web.routes.fetch_forecast", return_value={})
+        mocker.patch("runcoach.web.routes.score_forecast", return_value=fake_result)
+        r = client.get("/api/best-run-time?lat=53.3&lng=-6.3")
+        assert r.status_code == 200
+        assert r.get_json()["best_score"] == 8
+
+    def test_weather_failure_returns_503(self, client, mocker):
+        import requests as req_lib
+        mocker.patch("runcoach.web.routes.fetch_forecast", side_effect=req_lib.RequestException("timeout"))
+        r = client.get("/api/best-run-time?lat=53.3&lng=-6.3")
+        assert r.status_code == 503

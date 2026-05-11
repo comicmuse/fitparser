@@ -32,6 +32,47 @@
 
 {% block content %}
 
+<div id="brt-card" class="card" style="display:none;">
+  <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.5rem;">
+    <h2 style="margin:0;">Best time to run today</h2>
+    <span id="brt-label" style="font-size:0.8rem; color:var(--fg-muted);"></span>
+  </div>
+  <div id="brt-chart" style="display:flex; align-items:flex-end; gap:2px; height:60px; margin-bottom:0.25rem;"></div>
+  <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--fg-muted); padding:0 1px;">
+    <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span>
+  </div>
+</div>
+<div id="brt-error" style="display:none;"></div>
+
+<script>
+(function() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    fetch('/api/best-run-time?lat=' + pos.coords.latitude + '&lng=' + pos.coords.longitude)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.hours) return;
+        var chart = document.getElementById('brt-chart');
+        data.hours.forEach(function(h) {
+          var bar = document.createElement('div');
+          var pct = (h.score / 10) * 100;
+          var color = h.score >= 7 ? '#4ade80' : h.score >= 4 ? '#fbbf24' : '#f87171';
+          bar.style.cssText = 'flex:1; height:' + pct + '%; background:' + color + '; border-radius:2px 2px 0 0; min-height:2px;';
+          if (h.hour === data.best_hour) {
+            bar.style.outline = '2px solid var(--fg)';
+            bar.style.outlineOffset = '1px';
+          }
+          bar.title = h.hour + ':00 · ' + h.score + '/10';
+          chart.appendChild(bar);
+        });
+        document.getElementById('brt-label').textContent = data.day_label;
+        document.getElementById('brt-card').style.display = 'block';
+      })
+      .catch(function() {});
+  }, function() {});
+})();
+</script>
+
 <div id="upload-form" class="card" style="display: none;">
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h2>Upload FIT File</h2>
