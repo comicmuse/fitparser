@@ -150,34 +150,39 @@ from runcoach.weather import fetch_forecast, score_forecast
 
 FAKE_OPEN_METEO = {
     "hourly": {
-        "time": [f"2026-05-10T{h:02d}:00" for h in range(24)],
-        "temperature_2m": [10.0] * 24,
-        "precipitation_probability": [5] * 24,
-        "relativehumidity_2m": [55] * 24,
-        "windspeed_10m": [10.0] * 24,
+        "time": (
+            [f"2026-05-10T{h:02d}:00" for h in range(24)] +
+            [f"2026-05-11T{h:02d}:00" for h in range(24)]
+        ),
+        "temperature_2m": [10.0] * 48,
+        "precipitation_probability": [5] * 48,
+        "relativehumidity_2m": [55] * 48,
+        "windspeed_10m": [10.0] * 48,
     },
     "daily": {
-        "sunrise": ["2026-05-10T05:30"],
-        "sunset": ["2026-05-10T21:00"],
+        "sunrise": ["2026-05-10T05:30", "2026-05-11T05:29"],
+        "sunset": ["2026-05-10T21:00", "2026-05-11T21:02"],
     },
 }
 
 
 class TestFetchForecast:
-    def test_returns_24_hours(self):
+    def test_returns_48_hours(self):
         mock_resp = MagicMock()
         mock_resp.json.return_value = FAKE_OPEN_METEO
         with patch("runcoach.weather.requests.get", return_value=mock_resp):
             result = fetch_forecast(53.3, -6.3, "Europe/Dublin")
-        assert len(result["hours"]) == 24
+        assert len(result["hours"]) == 48
 
-    def test_parses_sunrise_sunset(self):
+    def test_parses_sunrise_sunset_as_lists(self):
         mock_resp = MagicMock()
         mock_resp.json.return_value = FAKE_OPEN_METEO
         with patch("runcoach.weather.requests.get", return_value=mock_resp):
             result = fetch_forecast(53.3, -6.3, "Europe/Dublin")
-        assert result["sunrise"] == datetime(2026, 5, 10, 5, 30)
-        assert result["sunset"] == datetime(2026, 5, 10, 21, 0)
+        assert result["sunrise"][0] == datetime(2026, 5, 10, 5, 30)
+        assert result["sunset"][0] == datetime(2026, 5, 10, 21, 0)
+        assert result["sunrise"][1] == datetime(2026, 5, 11, 5, 29)
+        assert result["sunset"][1] == datetime(2026, 5, 11, 21, 2)
 
     def test_hour_dict_has_expected_keys(self):
         mock_resp = MagicMock()

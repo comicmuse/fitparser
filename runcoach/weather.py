@@ -74,8 +74,8 @@ def score_hour(
     return max(1, min(10, round(raw * 10)))
 
 
-def fetch_forecast(lat: float, lng: float, tz: str) -> dict:
-    """Fetch today's hourly forecast from Open-Meteo (no API key required)."""
+def fetch_forecast(lat: float, lng: float, tz: str, days: int = 2) -> dict:
+    """Fetch hourly forecast from Open-Meteo (no API key required)."""
     r = requests.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
@@ -83,7 +83,7 @@ def fetch_forecast(lat: float, lng: float, tz: str) -> dict:
             "longitude": lng,
             "hourly": "temperature_2m,precipitation_probability,relativehumidity_2m,windspeed_10m",
             "daily": "sunrise,sunset",
-            "forecast_days": 1,
+            "forecast_days": days,
             "timezone": tz,
         },
         timeout=10,
@@ -93,8 +93,8 @@ def fetch_forecast(lat: float, lng: float, tz: str) -> dict:
 
     hourly = data["hourly"]
     daily = data["daily"]
-    sunrise = datetime.fromisoformat(daily["sunrise"][0])
-    sunset = datetime.fromisoformat(daily["sunset"][0])
+    sunrises = [datetime.fromisoformat(s) for s in daily["sunrise"]]
+    sunsets = [datetime.fromisoformat(s) for s in daily["sunset"]]
 
     hours = []
     for i, time_str in enumerate(hourly["time"]):
@@ -107,7 +107,7 @@ def fetch_forecast(lat: float, lng: float, tz: str) -> dict:
             "wind_kmh": float(hourly["windspeed_10m"][i]),
         })
 
-    return {"hours": hours, "sunrise": sunrise, "sunset": sunset}
+    return {"hours": hours, "sunrise": sunrises, "sunset": sunsets}
 
 
 def score_forecast(forecast: dict) -> dict:
