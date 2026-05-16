@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:runcoach/providers/auth_provider.dart';
+import 'package:runcoach/providers/auth_notifier.dart';
 import 'package:runcoach/services/api_service.dart';
-import 'package:runcoach/services/notification_service.dart';
+import 'package:runcoach/services/notification_service_base.dart';
 import 'package:runcoach/services/secure_storage_service.dart';
 
 /// Pure-Dart storage: no FlutterSecureStorage, no native plugin calls.
@@ -45,8 +45,8 @@ class _NoOpApi extends ApiService {
   Future<void> logout() async {}
 }
 
-class _RecordingNotifService extends NotificationService {
-  _RecordingNotifService(_NoOpApi api) : super(api);
+/// Pure-Dart notification stub: no Firebase, no native code.
+class _RecordingNotifService extends NotificationServiceBase {
   int registerCalls = 0;
   int deregisterCalls = 0;
 
@@ -59,18 +59,15 @@ class _RecordingNotifService extends NotificationService {
 
 void main() {
   late _NoOpApi notifierApi;
-  late _NoOpApi notifApi;
   late _RecordingNotifService notif;
   late AuthNotifier notifier;
 
   tearDown(() {
     notifierApi.close();
-    notifApi.close();
   });
 
   void makeFixture({required Map<String, String> storageValues}) {
-    notifApi = _NoOpApi();
-    notif = _RecordingNotifService(notifApi);
+    notif = _RecordingNotifService();
     notifierApi = _NoOpApi();
     notifier = AuthNotifier(_FakeStorage(storageValues), notifierApi, notif);
   }

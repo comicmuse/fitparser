@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api_service.dart';
+import 'notification_service_base.dart';
 
 /// Top-level handler for background FCM messages. Must be a top-level function.
 @pragma('vm:entry-point')
@@ -9,7 +10,7 @@ Future<void> _firebaseBackgroundMessageHandler(RemoteMessage message) async {
   // No action needed — navigation on tap is handled by onMessageOpenedApp.
 }
 
-class NotificationService {
+class NotificationService extends NotificationServiceBase {
   final ApiService _api;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
@@ -47,6 +48,7 @@ class NotificationService {
   /// is confirmed (on startup with a valid session, or after login).
   /// Intentionally fire-and-forget — a 401 is silently swallowed; the next
   /// successful login will retry.
+  @override
   Future<void> registerWithServer() async {
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null) await _registerToken(token);
@@ -54,6 +56,7 @@ class NotificationService {
 
   /// Deregister the current FCM token on logout. Swallows all errors so
   /// logout always completes even if FCM is unavailable.
+  @override
   Future<void> deregister() async {
     try {
       final token = await FirebaseMessaging.instance.getToken();
