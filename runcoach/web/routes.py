@@ -1311,6 +1311,8 @@ def route_suggestion():
     if distance_m <= 0:
         return jsonify({"error": "distance_m must be positive"}), 400
 
+    include_ors = request.args.get("include_ors", "true").lower() != "false"
+
     from runcoach.strava import decode_polyline
     from runcoach.web.ors import filter_routes_by_proximity, deduplicate_routes
 
@@ -1319,12 +1321,7 @@ def route_suggestion():
     user_id = _current_user_id()
     all_routes: list[dict] = []
 
-    if cfg.ors_api_key:
-        ors_routes = _ors_fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
-        for r in ors_routes:
-            r["source"] = "ors"
-        all_routes.extend(ors_routes)
-
+    # Strava saved routes (cached in DB) — shown first
     strava_db_routes = db.get_strava_routes(user_id)
     strava_candidates = []
     for r in strava_db_routes:
@@ -1341,6 +1338,7 @@ def route_suggestion():
         })
     all_routes.extend(filter_routes_by_proximity(strava_candidates, lat, lng, distance_m))
 
+    # Previously-run routes (from Strava-linked activity polylines) — shown second
     prev_runs = db.get_runs_with_polylines(user_id, limit=200)
     prev_candidates = []
     for run in prev_runs:
@@ -1354,6 +1352,13 @@ def route_suggestion():
             "name": run.get("name"),
         })
     all_routes.extend(deduplicate_routes(filter_routes_by_proximity(prev_candidates, lat, lng, distance_m)))
+
+    # ORS algorithmically-generated routes — shown last
+    if include_ors and cfg.ors_api_key:
+        ors_routes = _ors_fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
+        for r in ors_routes:
+            r["source"] = "ors"
+        all_routes.extend(ors_routes)
 
     if not all_routes:
         if not cfg.ors_api_key:

@@ -31,6 +31,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
   List<Map<String, dynamic>>? _routes;
   int _routeIndex = 0;
   bool _loadingRoutes = false;
+  bool _loadingOrs = false;
   String? _routeError;
   bool _routeTabVisited = false;
 
@@ -51,6 +52,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
   Future<void> _fetchRoutes() async {
     setState(() {
       _loadingRoutes = true;
+      _loadingOrs = false;
       _routeError = null;
     });
     try {
@@ -74,28 +76,64 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
       ).timeout(const Duration(seconds: 15));
 
       final api = ref.read(apiServiceProvider);
-      final routes = await api.postRouteSuggestion(
+      final distanceM = widget.workout.distanceM?.toInt() ?? 5000;
+
+      // Phase 1: load saved + previously-run routes from DB immediately
+      final quickRoutes = await api.postRouteSuggestion(
         lat: position.latitude,
         lng: position.longitude,
-        distanceM: widget.workout.distanceM?.toInt() ?? 5000,
+        distanceM: distanceM,
+        includeOrs: false,
       );
 
       if (!mounted) return;
-      setState(() {
-        _routes = routes;
-        _routeIndex = 0;
-        _loadingRoutes = false;
-      });
+      if (quickRoutes.isNotEmpty) {
+        setState(() {
+          _routes = quickRoutes;
+          _routeIndex = 0;
+          _loadingRoutes = false;
+          _loadingOrs = true;
+        });
+      }
+
+      // Phase 2: fetch ORS suggestions in background and replace routes list
+      try {
+        final fullRoutes = await api.postRouteSuggestion(
+          lat: position.latitude,
+          lng: position.longitude,
+          distanceM: distanceM,
+        );
+        if (!mounted) return;
+        setState(() {
+          _routes = fullRoutes.isNotEmpty ? fullRoutes : _routes;
+          _routeIndex = _routeIndex.clamp(
+            0,
+            ((_routes?.length ?? 1) - 1).clamp(0, double.maxFinite.toInt()),
+          );
+          _loadingRoutes =
+              fullRoutes.isEmpty && (_routes == null || _routes!.isEmpty);
+          _loadingOrs = false;
+          if (_routes == null || _routes!.isEmpty) _routeError = 'error';
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _loadingOrs = false;
+          if (_routes == null || _routes!.isEmpty) _routeError = 'error';
+        });
+      }
     } on TimeoutException {
       if (!mounted) return;
       setState(() {
         _loadingRoutes = false;
+        _loadingOrs = false;
         _routeError = 'error';
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _loadingRoutes = false;
+        _loadingOrs = false;
         _routeError = 'error';
       });
     }
@@ -205,6 +243,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
           _RouteTab(
             routes: _routes,
             loading: _loadingRoutes,
+            loadingOrs: _loadingOrs,
             error: _routeError,
             routeIndex: _routeIndex,
             onPrev: _routeIndex > 0
@@ -387,6 +426,7 @@ class _StructureTab extends StatelessWidget {
 class _RouteTab extends StatelessWidget {
   final List<Map<String, dynamic>>? routes;
   final bool loading;
+  final bool loadingOrs;
   final String? error;
   final int routeIndex;
   final VoidCallback? onPrev;
@@ -396,6 +436,7 @@ class _RouteTab extends StatelessWidget {
   const _RouteTab({
     required this.routes,
     required this.loading,
+    required this.loadingOrs,
     required this.error,
     required this.routeIndex,
     required this.onPrev,
@@ -561,7 +602,9 @@ class _RouteTab extends StatelessWidget {
                 label: const Text('Prev'),
               ),
               Text(
-                'Route ${routeIndex + 1} of ${routes!.length}',
+                loadingOrs
+                    ? 'Route ${routeIndex + 1} of ${routes!.length} · Finding more…'
+                    : 'Route ${routeIndex + 1} of ${routes!.length}',
                 style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
               ),
               TextButton.icon(

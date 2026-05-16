@@ -1075,6 +1075,83 @@ class TestRouteSuggestion:
         prev_routes = [r for r in data["routes"] if r.get("source") == "previous"]
         assert len(prev_routes) == 1
 
+    def test_strava_routes_appear_before_ors(self, client, auth_headers, app):
+        from runcoach.config import Config
+        app.config["config"] = Config(
+            openai_api_key="test-key",
+            openai_model="gpt-4o",
+            data_dir=app.config["config"].data_dir,
+            timezone="Europe/London",
+            secret_key="test-secret-key",
+            ors_api_key="fake-ors-key",
+        )
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.upsert_strava_routes(user_id, [{
+            "strava_route_id": "888",
+            "name": "My Loop",
+            "distance_m": 5100.0,
+            "start_lat": 51.5001,
+            "start_lng": -0.1001,
+            "polyline": "encoded_placeholder",
+        }])
+        near_coords = [[51.5001, -0.1001], [51.5011, -0.1011]]
+        ors_response = {
+            "features": [{
+                "geometry": {"coordinates": [[-0.1, 51.5], [-0.11, 51.51]]},
+                "properties": {"summary": {"distance": 5012}},
+            }]
+        }
+        import unittest.mock as mock
+        with mock.patch("runcoach.web.api.decode_polyline", return_value=near_coords), \
+             mock.patch("runcoach.web.ors.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = ors_response
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+                headers=auth_headers,
+            )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        sources = [r["source"] for r in data["routes"]]
+        assert sources[0] == "strava"
+        assert sources[-1] == "ors"
+
+    def test_include_ors_false_skips_ors_call(self, client, auth_headers, app):
+        from runcoach.config import Config
+        app.config["config"] = Config(
+            openai_api_key="test-key",
+            openai_model="gpt-4o",
+            data_dir=app.config["config"].data_dir,
+            timezone="Europe/London",
+            secret_key="test-secret-key",
+            ors_api_key="fake-ors-key",
+        )
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.upsert_strava_routes(user_id, [{
+            "strava_route_id": "777",
+            "name": "Saved Route",
+            "distance_m": 5050.0,
+            "start_lat": 51.5001,
+            "start_lng": -0.1001,
+            "polyline": "encoded_placeholder",
+        }])
+        near_coords = [[51.5001, -0.1001], [51.5011, -0.1011]]
+        import unittest.mock as mock
+        with mock.patch("runcoach.web.api.decode_polyline", return_value=near_coords), \
+             mock.patch("runcoach.web.ors.fetch_routes") as mock_fetch:
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000, "include_ors": False},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        mock_fetch.assert_not_called()
+        routes = resp.get_json()["routes"]
+        assert all(r["source"] != "ors" for r in routes)
+
 
 class TestAnalyzeRunNotification:
     def test_sends_notification_after_on_demand_analysis(self, client, auth_headers, app):
