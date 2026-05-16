@@ -238,7 +238,7 @@ jobs:
 
   build-and-deploy:
     name: Build and Push Docker Image
-    needs: [test, docker-smoke-test]
+    needs: [test, docker-smoke-test, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read
