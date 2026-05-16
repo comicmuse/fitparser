@@ -70,7 +70,7 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
     state = AuthStatus.authenticated;
     // Re-register FCM token now that we have valid auth — the attempt on app
     // start may have 401'd if the session had expired.
-    _notifService.registerCurrentToken();
+    _notifService.registerWithServer();
   }
 
   Future<void> logout() async {

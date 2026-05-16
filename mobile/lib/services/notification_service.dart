@@ -21,6 +21,9 @@ class NotificationService {
 
   NotificationService(this._api);
 
+  /// Sets up Firebase handlers and requests OS notification permission.
+  /// Does NOT register the token with the server — call [registerWithServer]
+  /// once auth is confirmed.
   Future<void> initialize() async {
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundMessageHandler);
 
@@ -32,13 +35,21 @@ class NotificationService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
-      await registerCurrentToken();
       _subscriptions.add(
         FirebaseMessaging.instance.onTokenRefresh.listen(_registerToken),
       );
     }
 
     _setupHandlers();
+  }
+
+  /// Registers the current FCM token with the server. Call this after auth
+  /// is confirmed (on startup with a valid session, or after login).
+  /// Intentionally fire-and-forget — a 401 is silently swallowed; the next
+  /// successful login will retry.
+  Future<void> registerWithServer() async {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) await _registerToken(token);
   }
 
   /// Deregister the current FCM token on logout. Swallows all errors so
@@ -48,11 +59,6 @@ class NotificationService {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _api.deleteDeviceToken(token);
     } catch (e) {}
-  }
-
-  Future<void> registerCurrentToken() async {
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) await _registerToken(token);
   }
 
   Future<void> _registerToken(String token) async {
