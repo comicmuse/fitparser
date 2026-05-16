@@ -67,11 +67,16 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
   // Called by ApiService on 401 — re-reads auth state from storage but does NOT
   // trigger FCM re-registration to avoid spurious POSTs on every API error.
   void revalidate() {
-    _storage.getAccessToken().then((token) {
-      state = token != null
-          ? AuthStatus.authenticated
-          : AuthStatus.unauthenticated;
-    });
+    _storage
+        .getAccessToken()
+        .then((token) {
+          state = token != null
+              ? AuthStatus.authenticated
+              : AuthStatus.unauthenticated;
+        })
+        .catchError((_) {
+          state = AuthStatus.unauthenticated;
+        });
   }
 
   Future<void> login(String username, String password) async {

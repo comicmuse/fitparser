@@ -95,6 +95,8 @@ void main() {
 
       // revalidate() must not add a second registration call
       expect(notif.registerCalls, 1);
+      // state must still reflect the stored token
+      expect(notifier.state, AuthStatus.authenticated);
     });
   });
 }
