@@ -671,10 +671,10 @@ def dashboard():
     runs = db.get_runs_paginated_filtered(limit=1, offset=0, user_id=user_id)
     latest_run = format_run_for_api(runs[0]) if runs else None
 
-    # Next planned workout — skip dates that already have a Strava-linked run
+    # Next planned workout — skip dates that already have any run recorded
     today = date_type.today().isoformat()
-    upcoming = db.get_next_unfinished_planned_workout(from_date=today, user_id=user_id)
-    next_workout = _format_planned_workout(upcoming) if upcoming else None
+    upcoming = db.get_upcoming_planned_workouts(from_date=today, limit=1, user_id=user_id, exclude_completed=True)
+    next_workout = _format_planned_workout(upcoming[0]) if upcoming else None
 
     # Training summary
     try:
@@ -714,15 +714,8 @@ def planned_workouts():
     db = get_db()
     user_id = request.user_id
     today = date_type.today().isoformat()
-    workouts = db.get_upcoming_planned_workouts(from_date=today, limit=90, user_id=user_id)
-    completed_dates = {
-        w["date"] for w in workouts
-        if db.get_runs_on_date(w["date"], user_id=user_id)
-    }
-    return jsonify([
-        _format_planned_workout(w) for w in workouts
-        if w["date"] not in completed_dates
-    ])
+    workouts = db.get_upcoming_planned_workouts(from_date=today, limit=90, user_id=user_id, exclude_completed=True)
+    return jsonify([_format_planned_workout(w) for w in workouts])
 
 
 @api_bp.route("/best-run-time", methods=["GET"])

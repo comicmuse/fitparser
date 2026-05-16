@@ -569,61 +569,62 @@ class RunCoachDB:
         return [dict(r) for r in rows]
 
     def get_upcoming_planned_workouts(
-        self, from_date: str, limit: int = 14, user_id: int | None = None
+        self,
+        from_date: str,
+        limit: int = 14,
+        user_id: int | None = None,
+        exclude_completed: bool = False,
     ) -> list[dict]:
-        """Get upcoming planned workouts from a date onwards."""
-        with self._connect() as conn:
-            if user_id is not None:
-                rows = conn.execute(
-                    """SELECT * FROM planned_workouts
-                       WHERE date >= ? AND user_id = ?
-                       ORDER BY date ASC
-                       LIMIT ?""",
-                    (from_date, user_id, limit),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT * FROM planned_workouts
-                       WHERE date >= ?
-                       ORDER BY date ASC
-                       LIMIT ?""",
-                    (from_date, limit),
-                ).fetchall()
-        return [dict(r) for r in rows]
+        """Get upcoming planned workouts from a date onwards.
 
-    def get_next_unfinished_planned_workout(
-        self, from_date: str, user_id: int | None = None
-    ) -> dict | None:
-        """Return the first upcoming planned workout whose date has no Strava-linked run."""
+        When exclude_completed=True, dates that already have any run recorded
+        are omitted (workout considered done regardless of run source).
+        """
         with self._connect() as conn:
             if user_id is not None:
-                row = conn.execute(
-                    """SELECT pw.* FROM planned_workouts pw
-                       WHERE pw.date >= ? AND pw.user_id = ?
-                         AND NOT EXISTS (
-                           SELECT 1 FROM runs r
-                           WHERE r.date = pw.date
-                             AND r.user_id = pw.user_id
-                             AND r.strava_activity_id IS NOT NULL
-                         )
-                       ORDER BY pw.date ASC
-                       LIMIT 1""",
-                    (from_date, user_id),
-                ).fetchone()
+                if exclude_completed:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ? AND user_id = ?
+                             AND NOT EXISTS (
+                               SELECT 1 FROM runs r
+                               WHERE r.date = planned_workouts.date
+                                 AND r.user_id = planned_workouts.user_id
+                             )
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, user_id, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ? AND user_id = ?
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, user_id, limit),
+                    ).fetchall()
             else:
-                row = conn.execute(
-                    """SELECT pw.* FROM planned_workouts pw
-                       WHERE pw.date >= ?
-                         AND NOT EXISTS (
-                           SELECT 1 FROM runs r
-                           WHERE r.date = pw.date
-                             AND r.strava_activity_id IS NOT NULL
-                         )
-                       ORDER BY pw.date ASC
-                       LIMIT 1""",
-                    (from_date,),
-                ).fetchone()
-        return dict(row) if row else None
+                if exclude_completed:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ?
+                             AND NOT EXISTS (
+                               SELECT 1 FROM runs r
+                               WHERE r.date = planned_workouts.date
+                             )
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ?
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, limit),
+                    ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_all_planned_workouts(self, user_id: int | None = None) -> list[dict]:
         """Get all planned workouts ordered by date."""
