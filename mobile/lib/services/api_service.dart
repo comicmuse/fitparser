@@ -46,6 +46,8 @@ class ApiService {
     );
   }
 
+  void close() => _dio.close(force: true);
+
   // Auth
   Future<Map<String, String>> login(String username, String password) async {
     final resp = await _dio.post(

@@ -5,18 +5,6 @@ import 'package:runcoach/services/api_service.dart';
 import 'package:runcoach/services/notification_service.dart';
 import 'package:runcoach/services/secure_storage_service.dart';
 
-class _RecordingNotifService extends NotificationService {
-  _RecordingNotifService() : super(_NoOpApi());
-  int registerCalls = 0;
-  int deregisterCalls = 0;
-
-  @override
-  Future<void> registerWithServer() async => registerCalls++;
-
-  @override
-  Future<void> deregister() async => deregisterCalls++;
-}
-
 class _NoOpApi extends ApiService {
   _NoOpApi() : super(SecureStorageService());
 
@@ -30,28 +18,44 @@ class _NoOpApi extends ApiService {
   Future<void> logout() async {}
 }
 
-AuthNotifier _makeNotifier({
-  required Map<String, String> storageValues,
-  required _RecordingNotifService notif,
-}) {
-  FlutterSecureStorage.setMockInitialValues(storageValues);
-  final storage = SecureStorageService();
-  final api = _NoOpApi();
-  return AuthNotifier(storage, api, notif);
+class _RecordingNotifService extends NotificationService {
+  _RecordingNotifService(_NoOpApi api) : super(api);
+  int registerCalls = 0;
+  int deregisterCalls = 0;
+
+  @override
+  Future<void> registerWithServer() async => registerCalls++;
+
+  @override
+  Future<void> deregister() async => deregisterCalls++;
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late _NoOpApi notifierApi;
+  late _NoOpApi notifApi;
+  late _RecordingNotifService notif;
+  late AuthNotifier notifier;
+
+  tearDown(() {
+    notifierApi.close();
+    notifApi.close();
+  });
+
+  void makeFixture({required Map<String, String> storageValues}) {
+    FlutterSecureStorage.setMockInitialValues(storageValues);
+    notifApi = _NoOpApi();
+    notif = _RecordingNotifService(notifApi);
+    notifierApi = _NoOpApi();
+    notifier = AuthNotifier(SecureStorageService(), notifierApi, notif);
+  }
+
   group('AuthNotifier', () {
     test(
       '_checkAuth calls registerWithServer when a stored token exists',
       () async {
-        final notif = _RecordingNotifService();
-        final notifier = _makeNotifier(
-          storageValues: {'access_token': 'stored'},
-          notif: notif,
-        );
+        makeFixture(storageValues: {'access_token': 'stored'});
         await pumpEventQueue();
 
         expect(notifier.state, AuthStatus.authenticated);
@@ -62,8 +66,7 @@ void main() {
     test(
       '_checkAuth does NOT call registerWithServer when no token stored',
       () async {
-        final notif = _RecordingNotifService();
-        final notifier = _makeNotifier(storageValues: {}, notif: notif);
+        makeFixture(storageValues: {});
         await pumpEventQueue();
 
         expect(notifier.state, AuthStatus.unauthenticated);
@@ -72,8 +75,7 @@ void main() {
     );
 
     test('login calls registerWithServer after successful auth', () async {
-      final notif = _RecordingNotifService();
-      final notifier = _makeNotifier(storageValues: {}, notif: notif);
+      makeFixture(storageValues: {});
       await pumpEventQueue(); // let _checkAuth settle (unauthenticated)
 
       await notifier.login('user', 'pass');
@@ -83,11 +85,7 @@ void main() {
     });
 
     test('revalidate does NOT call registerWithServer', () async {
-      final notif = _RecordingNotifService();
-      final notifier = _makeNotifier(
-        storageValues: {'access_token': 'stored'},
-        notif: notif,
-      );
+      makeFixture(storageValues: {'access_token': 'stored'});
       await pumpEventQueue(); // _checkAuth fires once (registerCalls = 1)
 
       notifier.revalidate();
