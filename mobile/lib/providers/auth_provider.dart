@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -47,9 +48,13 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
   final ApiService _api;
   final NotificationService _notifService;
 
+  // Exposed for tests so they can await startup without pumpEventQueue().
+  @visibleForTesting
+  late final Future<void> initializationComplete;
+
   AuthNotifier(this._storage, this._api, this._notifService)
     : super(AuthStatus.unknown) {
-    _checkAuth();
+    initializationComplete = _checkAuth();
   }
 
   Future<void> _checkAuth() async {
