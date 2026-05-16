@@ -1253,6 +1253,21 @@ def strava_webhook():
                         return True
                 return False
 
+            # Fast path: if the run is already linked by Strava ID, just refresh
+            # the polyline and skip the full pipeline. Handles duplicate webhook
+            # events (Strava fires both "create" and "update" for the same activity).
+            existing_by_strava_id = db.get_run_by_strava_id(strava_id_str)
+            if existing_by_strava_id:
+                db.update_run_strava_data(
+                    run_id=existing_by_strava_id["id"],
+                    strava_map_polyline=polyline,
+                )
+                log.info(
+                    "Strava activity %s already linked to run %s — skipping pipeline",
+                    strava_id_str, existing_by_strava_id["id"],
+                )
+                return
+
             # --- Run the Stryd sync pipeline synchronously so we can check
             # whether the matching run arrived before deciding to retry. ---
             log.info(

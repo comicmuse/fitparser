@@ -71,7 +71,7 @@ def send_analysis_notification(
             sent += 1
             log.info("FCM notification sent for run %s", run_id)
         except messaging.UnregisteredError:
-            log.info("Removing stale FCM token for user %s", user_id)
+            log.warning("Stale FCM token removed for user %s — open the app to re-register", user_id)
             db.delete_device_token(token)
         except Exception as e:
             log.warning("FCM send failed: %s", e)
