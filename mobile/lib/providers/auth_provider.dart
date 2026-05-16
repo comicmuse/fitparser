@@ -54,12 +54,25 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
 
   Future<void> _checkAuth() async {
     final token = await _storage.getAccessToken();
-    state = token != null
-        ? AuthStatus.authenticated
-        : AuthStatus.unauthenticated;
+    if (token != null) {
+      state = AuthStatus.authenticated;
+      // Intentionally unawaited — 401s are silently swallowed; login() retries.
+      // ignore: unawaited_futures
+      _notifService.registerWithServer();
+    } else {
+      state = AuthStatus.unauthenticated;
+    }
   }
 
-  void revalidate() => _checkAuth();
+  // Called by ApiService on 401 — re-reads auth state from storage but does NOT
+  // trigger FCM re-registration to avoid spurious POSTs on every API error.
+  void revalidate() {
+    _storage.getAccessToken().then((token) {
+      state = token != null
+          ? AuthStatus.authenticated
+          : AuthStatus.unauthenticated;
+    });
+  }
 
   Future<void> login(String username, String password) async {
     final tokens = await _api.login(username, password);
@@ -68,8 +81,8 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
       refresh: tokens['refresh_token']!,
     );
     state = AuthStatus.authenticated;
-    // Re-register FCM token now that we have valid auth — the attempt on app
-    // start may have 401'd if the session had expired.
+    // Intentionally unawaited — see _checkAuth() note above.
+    // ignore: unawaited_futures
     _notifService.registerWithServer();
   }
 
