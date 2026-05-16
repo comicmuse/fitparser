@@ -1152,6 +1152,81 @@ class TestRouteSuggestion:
         routes = resp.get_json()["routes"]
         assert all(r["source"] != "ors" for r in routes)
 
+    def test_strava_routes_include_strava_url(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.upsert_strava_routes(user_id, [{
+            "strava_route_id": "555",
+            "name": "Strava Loop",
+            "distance_m": 5100.0,
+            "start_lat": 51.5001,
+            "start_lng": -0.1001,
+            "polyline": "encoded_placeholder",
+        }])
+        near_coords = [[51.5001, -0.1001], [51.5011, -0.1011]]
+        import unittest.mock as mock
+        with mock.patch("runcoach.web.api.decode_polyline", return_value=near_coords), \
+             mock.patch("runcoach.web.ors.fetch_routes", return_value=[]):
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+                headers=auth_headers,
+            )
+        routes = resp.get_json()["routes"]
+        strava = [r for r in routes if r.get("source") == "strava"]
+        assert len(strava) == 1
+        assert strava[0]["strava_url"] == "https://www.strava.com/routes/555"
+
+    def test_previous_routes_with_strava_activity_id_include_url(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                """INSERT INTO runs (name, date, fit_path, stage, synced_at,
+                   distance_m, strava_map_polyline, strava_activity_id, user_id)
+                   VALUES ('Strava Run', '2026-04-01', 'r.fit', 'analyzed',
+                   datetime('now'), 5050, 'poly_encoded', 12345678, ?)""",
+                (user_id,),
+            )
+        near_coords = [[51.5001, -0.1001], [51.502, -0.102]]
+        import unittest.mock as mock
+        with mock.patch("runcoach.web.api.decode_polyline", return_value=near_coords), \
+             mock.patch("runcoach.web.ors.fetch_routes", return_value=[]):
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+                headers=auth_headers,
+            )
+        routes = resp.get_json()["routes"]
+        prev = [r for r in routes if r.get("source") == "previous"]
+        assert len(prev) == 1
+        assert prev[0]["strava_url"] == "https://www.strava.com/activities/12345678"
+
+    def test_previous_routes_without_strava_activity_id_have_null_url(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                """INSERT INTO runs (name, date, fit_path, stage, synced_at,
+                   distance_m, strava_map_polyline, user_id)
+                   VALUES ('Manual Run', '2026-04-02', 'r.fit', 'analyzed',
+                   datetime('now'), 5050, 'poly_encoded', ?)""",
+                (user_id,),
+            )
+        near_coords = [[51.5001, -0.1001], [51.502, -0.102]]
+        import unittest.mock as mock
+        with mock.patch("runcoach.web.api.decode_polyline", return_value=near_coords), \
+             mock.patch("runcoach.web.ors.fetch_routes", return_value=[]):
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000},
+                headers=auth_headers,
+            )
+        routes = resp.get_json()["routes"]
+        prev = [r for r in routes if r.get("source") == "previous"]
+        assert len(prev) == 1
+        assert prev[0]["strava_url"] is None
+
 
 class TestAnalyzeRunNotification:
     def test_sends_notification_after_on_demand_analysis(self, client, auth_headers, app):

@@ -1253,7 +1253,7 @@ class RunCoachDB:
         """Return the most recent runs that have a Strava map polyline, ordered newest first."""
         with self._connect() as conn:
             rows = conn.execute(
-                """SELECT id, name, date, distance_m, strava_map_polyline
+                """SELECT id, name, date, distance_m, strava_map_polyline, strava_activity_id
                    FROM runs
                    WHERE user_id = ?
                      AND strava_map_polyline IS NOT NULL

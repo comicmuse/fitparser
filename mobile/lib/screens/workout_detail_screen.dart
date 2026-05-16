@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/planned_workout.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/power_zone_bar.dart';
@@ -652,27 +653,60 @@ class _RouteTabState extends State<_RouteTab> {
                     constraints: BoxConstraints(
                       maxWidth: MediaQuery.of(context).size.width - 24,
                     ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        route['name'] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
+                    child: GestureDetector(
+                      onTap: route['strava_url'] != null
+                          ? () => launchUrl(
+                              Uri.parse(route['strava_url'] as String),
+                              mode: LaunchMode.externalApplication,
+                            )
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          route['name'] as String,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            decoration: route['strava_url'] != null
+                                ? TextDecoration.underline
+                                : TextDecoration.none,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),
                 ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${((route['distance_m'] as num) / 1000).toStringAsFixed(1)} km',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

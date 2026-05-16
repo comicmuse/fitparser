@@ -1335,6 +1335,7 @@ def route_suggestion():
             "distance_m": int(r["distance_m"]),
             "source": "strava",
             "name": r.get("name"),
+            "strava_url": f"https://www.strava.com/routes/{r['strava_route_id']}" if r.get("strava_route_id") else None,
         })
     all_routes.extend(filter_routes_by_proximity(strava_candidates, lat, lng, distance_m))
 
@@ -1350,6 +1351,7 @@ def route_suggestion():
             "distance_m": int(run["distance_m"]),
             "source": "previous",
             "name": run.get("name"),
+            "strava_url": f"https://www.strava.com/activities/{run['strava_activity_id']}" if run.get("strava_activity_id") else None,
         })
     all_routes.extend(deduplicate_routes(filter_routes_by_proximity(prev_candidates, lat, lng, distance_m)))
 
