@@ -249,7 +249,7 @@ def get_run(run_id: int):
 
     # Attach the planned workout for this run's date if one exists
     if run.get("date"):
-        planned_list = db.get_planned_workout_for_date(run["date"])
+        planned_list = db.get_planned_workout_for_date(run["date"], user_id=request.user_id)
         if planned_list:
             p = planned_list[0]
             result["planned_workout"] = {
@@ -435,12 +435,12 @@ def analyze_run(run_id: int):
                 config: Config = app.config["RUNCOACH_CONFIG"]
 
                 # Re-fetch run data within the app context
-                fresh_run = db.get_run(run_id)
+                fresh_run = db.get_run(run_id, user_id=captured_user_id)
                 if not fresh_run:
                     log.error(f"Run {run_id} not found during analysis")
                     return
 
-                result = analyze_and_write(fresh_run, config, db=db)
+                result = analyze_and_write(fresh_run, config, db=db, user_id=captured_user_id)
                 db.update_analyzed(
                     run_id=fresh_run["id"],
                     md_path=None,

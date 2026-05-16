@@ -275,7 +275,7 @@ def link_unlinked_runs(db: RunCoachDB, user_id: int, config) -> int:
             if act_date not in runs_by_date:
                 continue
             strava_id = str(activity["id"])
-            if db.get_run_by_strava_id(strava_id):
+            if db.get_run_by_strava_id(strava_id, user_id=user_id):
                 continue
             polyline = (activity.get("map") or {}).get("summary_polyline") or None
             candidates = [r for r in runs_by_date[act_date] if not r.get("strava_activity_id")]

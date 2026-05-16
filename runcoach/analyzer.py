@@ -105,16 +105,16 @@ def _training_phase(days_until_race: int) -> str:
     return "Base Building"
 
 
-def _load_athlete_profile(db: RunCoachDB | None = None, user_id: int | None = None) -> str:
+def _load_athlete_profile(db: RunCoachDB | None = None, user_id: int = 1) -> str:
     """Load the athlete profile from the database for the given user."""
-    if db is not None and user_id is not None:
+    if db is not None:
         return db.get_athlete_profile(user_id)
     return ""
 
 
-def _load_race_goal(db: RunCoachDB | None = None, user_id: int | None = None) -> dict:
+def _load_race_goal(db: RunCoachDB | None = None, user_id: int = 1) -> dict:
     """Load the race goal (race_date, race_distance) from the database."""
-    if db is not None and user_id is not None:
+    if db is not None:
         return db.get_race_goal(user_id)
     return {"race_date": None, "race_distance": None}
 
@@ -201,7 +201,7 @@ def _dispatch_llm(system_msg: str, user_msg: str, config: Config) -> dict:
 
 def _build_system_prompt(
     db: RunCoachDB | None,
-    user_id: int | None,
+    user_id: int = 1,
     run_date: str | None = None,
     is_manual_upload: bool = False,
 ) -> str:
@@ -243,7 +243,7 @@ def _build_context_yaml(
     run_date: str,
     config: Config,
     db: RunCoachDB,
-    user_id: int | None,
+    user_id: int = 1,
 ) -> str | None:
     """Build weekly training context YAML for a run. Returns None on failure."""
     try:
@@ -279,7 +279,7 @@ def analyze_run(
     context_yaml: str | None = None,
     db: RunCoachDB | None = None,
     run_date: str | None = None,
-    user_id: int | None = None,
+    user_id: int = 1,
     is_manual_upload: bool = False,
 ) -> dict:
     """
@@ -366,7 +366,7 @@ def analyze_and_write(
     run: dict,
     config: Config,
     db: RunCoachDB | None = None,
-    user_id: int | None = None,
+    user_id: int = 1,
 ) -> dict:
     """
     Read parsed_data from a run dict, build training context, analyze, return result.
