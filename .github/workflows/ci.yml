@@ -110,7 +110,7 @@ jobs:
           retention-days: 30
 
   test:
-    name: Run Tests
+    name: Python Tests
     runs-on: ubuntu-latest
 
     steps:
