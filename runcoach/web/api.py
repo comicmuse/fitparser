@@ -671,10 +671,10 @@ def dashboard():
     runs = db.get_runs_paginated_filtered(limit=1, offset=0, user_id=user_id)
     latest_run = format_run_for_api(runs[0]) if runs else None
 
-    # Next planned workout
+    # Next planned workout — skip dates that already have a Strava-linked run
     today = date_type.today().isoformat()
-    upcoming = db.get_upcoming_planned_workouts(from_date=today, limit=1, user_id=user_id)
-    next_workout = _format_planned_workout(upcoming[0]) if upcoming else None
+    upcoming = db.get_next_unfinished_planned_workout(from_date=today, user_id=user_id)
+    next_workout = _format_planned_workout(upcoming) if upcoming else None
 
     # Training summary
     try:

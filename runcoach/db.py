@@ -591,6 +591,40 @@ class RunCoachDB:
                 ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_next_unfinished_planned_workout(
+        self, from_date: str, user_id: int | None = None
+    ) -> dict | None:
+        """Return the first upcoming planned workout whose date has no Strava-linked run."""
+        with self._connect() as conn:
+            if user_id is not None:
+                row = conn.execute(
+                    """SELECT pw.* FROM planned_workouts pw
+                       WHERE pw.date >= ? AND pw.user_id = ?
+                         AND NOT EXISTS (
+                           SELECT 1 FROM runs r
+                           WHERE r.date = pw.date
+                             AND r.user_id = pw.user_id
+                             AND r.strava_activity_id IS NOT NULL
+                         )
+                       ORDER BY pw.date ASC
+                       LIMIT 1""",
+                    (from_date, user_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """SELECT pw.* FROM planned_workouts pw
+                       WHERE pw.date >= ?
+                         AND NOT EXISTS (
+                           SELECT 1 FROM runs r
+                           WHERE r.date = pw.date
+                             AND r.strava_activity_id IS NOT NULL
+                         )
+                       ORDER BY pw.date ASC
+                       LIMIT 1""",
+                    (from_date,),
+                ).fetchone()
+        return dict(row) if row else None
+
     def get_all_planned_workouts(self, user_id: int | None = None) -> list[dict]:
         """Get all planned workouts ordered by date."""
         with self._connect() as conn:
