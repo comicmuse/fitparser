@@ -460,7 +460,7 @@ class _StructureTab extends StatelessWidget {
   }
 }
 
-class _RouteTab extends StatelessWidget {
+class _RouteTab extends StatefulWidget {
   final List<Map<String, dynamic>>? routes;
   final bool loading;
   final bool loadingOrs;
@@ -482,12 +482,53 @@ class _RouteTab extends StatelessWidget {
   });
 
   @override
+  State<_RouteTab> createState() => _RouteTabState();
+}
+
+class _RouteTabState extends State<_RouteTab> {
+  final MapController _mapController = MapController();
+
+  List<LatLng> _pointsForIndex(int index) {
+    final routes = widget.routes;
+    if (routes == null || routes.isEmpty || index >= routes.length) return [];
+    final rawCoords = routes[index]['coords'] as List<dynamic>;
+    return rawCoords.map((c) {
+      final pt = c as List<dynamic>;
+      return LatLng((pt[0] as num).toDouble(), (pt[1] as num).toDouble());
+    }).toList();
+  }
+
+  void _fitToCurrentRoute() {
+    final points = _pointsForIndex(widget.routeIndex);
+    if (points.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _mapController.fitCamera(
+          CameraFit.coordinates(
+            coordinates: points,
+            padding: const EdgeInsets.all(32),
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(_RouteTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.routes != oldWidget.routes ||
+        widget.routeIndex != oldWidget.routeIndex) {
+      _fitToCurrentRoute();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (widget.loading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (error == 'location_denied') {
+    if (widget.error == 'location_denied') {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32),
@@ -500,7 +541,7 @@ class _RouteTab extends StatelessWidget {
       );
     }
 
-    if (error != null) {
+    if (widget.error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -510,15 +551,18 @@ class _RouteTab extends StatelessWidget {
               style: TextStyle(color: Color(0xFF888888)),
             ),
             const SizedBox(height: 16),
-            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+            OutlinedButton(
+              onPressed: widget.onRetry,
+              child: const Text('Retry'),
+            ),
           ],
         ),
       );
     }
 
-    if (routes == null) return const SizedBox.shrink();
+    if (widget.routes == null) return const SizedBox.shrink();
 
-    if (routes!.isEmpty) {
+    if (widget.routes!.isEmpty) {
       return const Center(
         child: Text(
           "Couldn't load route suggestions",
@@ -527,12 +571,8 @@ class _RouteTab extends StatelessWidget {
       );
     }
 
-    final route = routes![routeIndex];
-    final rawCoords = route['coords'] as List<dynamic>;
-    final points = rawCoords.map((c) {
-      final pt = c as List<dynamic>;
-      return LatLng((pt[0] as num).toDouble(), (pt[1] as num).toDouble());
-    }).toList();
+    final route = widget.routes![widget.routeIndex];
+    final points = _pointsForIndex(widget.routeIndex);
 
     return Column(
       children: [
@@ -540,6 +580,7 @@ class _RouteTab extends StatelessWidget {
           child: Stack(
             children: [
               FlutterMap(
+                mapController: _mapController,
                 options: MapOptions(
                   initialCameraFit: CameraFit.coordinates(
                     coordinates: points,
@@ -641,18 +682,18 @@ class _RouteTab extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton.icon(
-                onPressed: onPrev,
+                onPressed: widget.onPrev,
                 icon: const Icon(Icons.chevron_left),
                 label: const Text('Prev'),
               ),
               Text(
-                loadingOrs
-                    ? 'Route ${routeIndex + 1} of ${routes!.length} · Finding more…'
-                    : 'Route ${routeIndex + 1} of ${routes!.length}',
+                widget.loadingOrs
+                    ? 'Route ${widget.routeIndex + 1} of ${widget.routes!.length} · Finding more…'
+                    : 'Route ${widget.routeIndex + 1} of ${widget.routes!.length}',
                 style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
               ),
               TextButton.icon(
-                onPressed: onNext,
+                onPressed: widget.onNext,
                 icon: const Icon(Icons.chevron_right),
                 label: const Text('Next'),
               ),
