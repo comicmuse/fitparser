@@ -32,7 +32,7 @@ class NotificationService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
-      await _registerCurrentToken();
+      await registerCurrentToken();
       _subscriptions.add(
         FirebaseMessaging.instance.onTokenRefresh.listen(_registerToken),
       );
@@ -50,7 +50,7 @@ class NotificationService {
     } catch (e) {}
   }
 
-  Future<void> _registerCurrentToken() async {
+  Future<void> registerCurrentToken() async {
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null) await _registerToken(token);
   }
