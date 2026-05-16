@@ -403,7 +403,10 @@ def analyze_run_route(run_id: int):
     def _do_analyze(app, run_id, config, user_id):
         with app.app_context():
             db = _db()
-            run = db.get_run(run_id)
+            run = db.get_run(run_id, user_id=user_id)
+            if run is None:
+                log.error("Run %s not found for user %s", run_id, user_id)
+                return
             try:
                 result = analyze_and_write(run, config, db=db, user_id=user_id)
                 db.update_analyzed(
@@ -1092,7 +1095,7 @@ def strava_backfill():
             if act_date not in runs_by_date:
                 continue
             strava_id = str(activity["id"])
-            if db.get_run_by_strava_id(strava_id):
+            if db.get_run_by_strava_id(strava_id, user_id=user_id):
                 continue  # already linked
             polyline = (activity.get("map") or {}).get("summary_polyline") or None
             candidates = [r for r in runs_by_date[act_date] if not r.get("strava_activity_id")]
@@ -1225,7 +1228,7 @@ def strava_webhook():
 
                 Returns True if the run was found and updated, False otherwise.
                 """
-                existing = db.get_run_by_strava_id(strava_id_str)
+                existing = db.get_run_by_strava_id(strava_id_str, user_id=user_id)
                 if existing:
                     db.update_run_strava_data(
                         run_id=existing["id"],
@@ -1256,7 +1259,7 @@ def strava_webhook():
             # Fast path: if the run is already linked by Strava ID, just refresh
             # the polyline and skip the full pipeline. Handles duplicate webhook
             # events (Strava fires both "create" and "update" for the same activity).
-            existing_by_strava_id = db.get_run_by_strava_id(strava_id_str)
+            existing_by_strava_id = db.get_run_by_strava_id(strava_id_str, user_id=user_id)
             if existing_by_strava_id:
                 db.update_run_strava_data(
                     run_id=existing_by_strava_id["id"],

@@ -1225,8 +1225,8 @@ class TestStravaWebhookEvent:
         })
 
         # Only the owner's run should be linked
-        owner_run = db.get_run(owner_run_id)
-        other_run = db.get_run(other_run_id)
+        owner_run = db.get_run(owner_run_id, user_id=user_id)
+        other_run = db.get_run(other_run_id, user_id=other_user_id)
         assert owner_run["strava_map_polyline"] == "ownerpoly=="
         assert other_run["strava_map_polyline"] is None
 

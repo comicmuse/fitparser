@@ -82,7 +82,7 @@ def build_weekly_context(
     data_dir: Path,
     db: RunCoachDB,
     current_cp: float | None = None,
-    user_id: int | None = None,
+    user_id: int = 1,
 ) -> dict:
     """
     Build a weekly training context summary for the 7 days before run_date.
@@ -99,7 +99,7 @@ def build_weekly_context(
     window_start = target - timedelta(days=7)
 
     # Get all runs in the 7-day window before (not including) the target date
-    all_runs = db.get_all_runs(user_id) if user_id is not None else db.get_all_runs(1)
+    all_runs = db.get_all_runs(user_id)
     week_runs = [
         r for r in all_runs
         if (r.get("parsed_data") or r.get("yaml_path"))
@@ -278,7 +278,7 @@ def build_weekly_context(
         }
 
     # ---- Prescribed workout (from Stryd training plan) ----
-    planned = db.get_planned_workout_for_date(target.isoformat())
+    planned = db.get_planned_workout_for_date(target.isoformat(), user_id=user_id)
     if planned:
         prescriptions = []
         for pw in planned:
@@ -301,7 +301,7 @@ def build_weekly_context(
 
     # ---- Next 2 upcoming scheduled workouts ----
     next_day = (target + timedelta(days=1)).isoformat()
-    upcoming = db.get_upcoming_planned_workouts(from_date=next_day, limit=2)
+    upcoming = db.get_upcoming_planned_workouts(from_date=next_day, limit=2, user_id=user_id)
     if upcoming:
         next_sessions = []
         for pw in upcoming:
@@ -327,7 +327,7 @@ def build_weekly_context(
 def build_training_summary(
     db: RunCoachDB,
     as_of_date: date | None = None,
-    user_id: int | None = None,
+    user_id: int = 1,
 ) -> dict:
     """
     Compute rolling training summary metrics for 1W, 4W-avg, and 16W-avg windows,

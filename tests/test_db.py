@@ -786,8 +786,9 @@ class TestDatabaseStartup:
         # Both users can have a workout on the same date with the same title
         db.upsert_planned_workout(date="2026-05-01", title="Tempo", user_id=1)
         db.upsert_planned_workout(date="2026-05-01", title="Tempo", user_id=2)
-        workouts = db.get_all_planned_workouts()
-        assert len(workouts) == 2
+        # Verify both rows were inserted (check each user separately)
+        assert len(db.get_all_planned_workouts(user_id=1)) == 1
+        assert len(db.get_all_planned_workouts(user_id=2)) == 1
 
     def test_reinit_existing_db_preserves_data(self, tmp_path):
         """Reinitialising against an existing fully-migrated DB does not destroy data."""
