@@ -403,7 +403,10 @@ def analyze_run_route(run_id: int):
     def _do_analyze(app, run_id, config, user_id):
         with app.app_context():
             db = _db()
-            run = db.get_run(run_id)
+            run = db.get_run(run_id, user_id=user_id)
+            if run is None:
+                log.error("Run %s not found for user %s", run_id, user_id)
+                return
             try:
                 result = analyze_and_write(run, config, db=db, user_id=user_id)
                 db.update_analyzed(
