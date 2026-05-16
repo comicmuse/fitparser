@@ -34,25 +34,34 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
   bool _loadingOrs = false;
   String? _routeError;
   bool _routeTabVisited = false;
+  Position? _prefetchedPosition;
+  bool _savedRoutesDone = false;
+  bool _orsOnTabVisit = false;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
     _tabs.addListener(_onTabChanged);
+    _fetchSavedRoutes();
   }
 
   void _onTabChanged() {
     if (_tabs.index == 2 && !_tabs.indexIsChanging && !_routeTabVisited) {
       setState(() => _routeTabVisited = true);
-      _fetchRoutes();
+      if (_savedRoutesDone && _prefetchedPosition != null) {
+        _fetchOrsRoutes(_prefetchedPosition!);
+      } else {
+        _orsOnTabVisit = true;
+      }
     }
   }
 
-  Future<void> _fetchRoutes() async {
+  // Phase 1: fetch saved/Strava routes. Called immediately on screen open so
+  // results are ready by the time the user taps the Route tab.
+  Future<void> _fetchSavedRoutes() async {
     setState(() {
       _loadingRoutes = true;
-      _loadingOrs = false;
       _routeError = null;
     });
     try {
@@ -62,6 +71,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
         setState(() {
           _loadingRoutes = false;
           _routeError = 'location_denied';
@@ -78,7 +88,6 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
       final api = ref.read(apiServiceProvider);
       final distanceM = widget.workout.distanceM?.toInt() ?? 5000;
 
-      // Phase 1: load saved + previously-run routes from DB immediately
       final quickRoutes = await api.postRouteSuggestion(
         lat: position.latitude,
         lng: position.longitude,
@@ -87,40 +96,22 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
       );
 
       if (!mounted) return;
+      _prefetchedPosition = position;
+      _savedRoutesDone = true;
+
       if (quickRoutes.isNotEmpty) {
         setState(() {
           _routes = quickRoutes;
           _routeIndex = 0;
           _loadingRoutes = false;
-          _loadingOrs = true;
+          _loadingOrs = _orsOnTabVisit;
         });
       }
+      // If quickRoutes is empty, keep _loadingRoutes = true so the Route tab
+      // spinner persists until ORS resolves (same behaviour as before).
 
-      // Phase 2: fetch ORS suggestions in background and replace routes list
-      try {
-        final fullRoutes = await api.postRouteSuggestion(
-          lat: position.latitude,
-          lng: position.longitude,
-          distanceM: distanceM,
-        );
-        if (!mounted) return;
-        setState(() {
-          _routes = fullRoutes.isNotEmpty ? fullRoutes : _routes;
-          _routeIndex = _routeIndex.clamp(
-            0,
-            ((_routes?.length ?? 1) - 1).clamp(0, double.maxFinite.toInt()),
-          );
-          _loadingRoutes =
-              fullRoutes.isEmpty && (_routes == null || _routes!.isEmpty);
-          _loadingOrs = false;
-          if (_routes == null || _routes!.isEmpty) _routeError = 'error';
-        });
-      } catch (_) {
-        if (!mounted) return;
-        setState(() {
-          _loadingOrs = false;
-          if (_routes == null || _routes!.isEmpty) _routeError = 'error';
-        });
+      if (_orsOnTabVisit) {
+        _fetchOrsRoutes(position);
       }
     } on TimeoutException {
       if (!mounted) return;
@@ -135,6 +126,43 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
         _loadingRoutes = false;
         _loadingOrs = false;
         _routeError = 'error';
+      });
+    }
+  }
+
+  // Phase 2: fetch ORS route suggestions. Called when the user first taps
+  // the Route tab (or immediately after Phase 1 if the tab was already open).
+  Future<void> _fetchOrsRoutes(Position position) async {
+    if (!mounted) return;
+    setState(() => _loadingOrs = true);
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      final distanceM = widget.workout.distanceM?.toInt() ?? 5000;
+
+      final fullRoutes = await api.postRouteSuggestion(
+        lat: position.latitude,
+        lng: position.longitude,
+        distanceM: distanceM,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _routes = fullRoutes.isNotEmpty ? fullRoutes : _routes;
+        _routeIndex = _routeIndex.clamp(
+          0,
+          ((_routes?.length ?? 1) - 1).clamp(0, double.maxFinite.toInt()),
+        );
+        _loadingRoutes = false;
+        _loadingOrs = false;
+        if (_routes == null || _routes!.isEmpty) _routeError = 'error';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingRoutes = false;
+        _loadingOrs = false;
+        if (_routes == null || _routes!.isEmpty) _routeError = 'error';
       });
     }
   }
@@ -252,7 +280,16 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen>
             onNext: _routes != null && _routeIndex < _routes!.length - 1
                 ? () => setState(() => _routeIndex++)
                 : null,
-            onRetry: _fetchRoutes,
+            onRetry: () {
+              setState(() {
+                _routes = null;
+                _routeError = null;
+                _savedRoutesDone = false;
+                _prefetchedPosition = null;
+                _orsOnTabVisit = true;
+              });
+              _fetchSavedRoutes();
+            },
           ),
         ],
       ),
