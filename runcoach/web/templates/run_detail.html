@@ -697,28 +697,67 @@
 
       navigator.geolocation.getCurrentPosition(
         function(pos) {
-          statusEl.textContent = 'Generating routes…';
           var lat = pos.coords.latitude;
           var lng = pos.coords.longitude;
-          fetch('/api/route-suggestion?lat=' + lat + '&lng=' + lng + '&distance_m=' + distanceM)
+          var baseUrl = '/api/route-suggestion?lat=' + lat + '&lng=' + lng + '&distance_m=' + distanceM;
+
+          // Phase 1: load saved + previously-run routes from DB immediately
+          statusEl.textContent = 'Loading your saved routes…';
+          fetch(baseUrl + '&include_ors=false')
             .then(function(r) { return r.json().then(function(data) { return {ok: r.ok, data: data}; }); })
             .then(function(res) {
               if (!res.ok || res.data.error) {
-                statusEl.textContent = 'Could not generate route: ' + (res.data.error || 'Unknown error');
-                btnArea.style.display = 'block';
-                return;
+                // Phase 1 failed entirely — fall through to phase 2 result only
+                statusEl.textContent = 'Finding routes…';
+              } else if (res.data.routes && res.data.routes.length) {
+                _routes = res.data.routes;
+                _currentIdx = 0;
+                statusEl.style.display = 'none';
+                document.getElementById('route-map-area').style.display = 'block';
+                _initMap(lat, lng);
+                _drawRoute(0);
+                // Show spinner in counter while ORS loads in background
+                document.getElementById('route-counter').textContent += ' · Finding more…';
+              } else {
+                statusEl.textContent = 'Finding routes…';
               }
-              _routes = res.data.routes;
-              _currentIdx = 0;
-              if (!_routes.length) {
-                statusEl.textContent = 'No routes found for this distance.';
-                btnArea.style.display = 'block';
-                return;
-              }
-              statusEl.style.display = 'none';
-              document.getElementById('route-map-area').style.display = 'block';
-              _initMap(lat, lng);
-              _drawRoute(0);
+
+              // Phase 2: fetch ORS suggestions in the background and append
+              fetch(baseUrl)
+                .then(function(r) { return r.json().then(function(data) { return {ok: r.ok, data: data}; }); })
+                .then(function(res2) {
+                  if (!res2.ok || res2.data.error) {
+                    if (!_routes.length) {
+                      statusEl.textContent = 'Could not generate route: ' + (res2.data.error || 'Unknown error');
+                      btnArea.style.display = 'block';
+                    }
+                    return;
+                  }
+                  var fullRoutes = res2.data.routes || [];
+                  if (!fullRoutes.length) {
+                    if (!_routes.length) {
+                      statusEl.textContent = 'No routes found for this distance.';
+                      btnArea.style.display = 'block';
+                    }
+                    return;
+                  }
+                  _routes = fullRoutes;
+                  if (document.getElementById('route-map-area').style.display === 'none') {
+                    statusEl.style.display = 'none';
+                    document.getElementById('route-map-area').style.display = 'block';
+                    _initMap(lat, lng);
+                    _drawRoute(0);
+                  } else {
+                    // Already showing — update counter to reflect new total
+                    _drawRoute(_currentIdx);
+                  }
+                })
+                .catch(function() {
+                  if (!_routes.length) {
+                    statusEl.textContent = 'Route service unavailable. Please try again.';
+                    btnArea.style.display = 'block';
+                  }
+                });
             })
             .catch(function() {
               statusEl.textContent = 'Route service unavailable. Please try again.';

@@ -146,10 +146,16 @@ class ApiService {
     required double lat,
     required double lng,
     required int distanceM,
+    bool includeOrs = true,
   }) async {
     final resp = await _dio.post(
       '/route-suggestion',
-      data: {'lat': lat, 'lng': lng, 'distance_m': distanceM},
+      data: {
+        'lat': lat,
+        'lng': lng,
+        'distance_m': distanceM,
+        'include_ors': includeOrs,
+      },
     );
     final routes = resp.data['routes'] as List<dynamic>;
     return routes.map((e) => e as Map<String, dynamic>).toList();

@@ -1503,6 +1503,52 @@ class TestRouteSuggestion:
         data = resp.get_json()
         assert "error" in data
 
+    def test_strava_routes_appear_before_ors(self, client, app):
+        app.config["config"].ors_api_key = "test-key"
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.upsert_strava_routes(user_id, [{
+            "strava_route_id": "999",
+            "name": "Saved Loop",
+            "distance_m": 10200.0,
+            "start_lat": 53.35,
+            "start_lng": -6.26,
+            "polyline": "encoded_placeholder",
+        }])
+        near_coords = [[53.35, -6.26], [53.36, -6.27]]
+        with patch("runcoach.strava.decode_polyline", return_value=near_coords), \
+             patch("runcoach.web.ors.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = self.ORS_SUCCESS
+            resp = client.get("/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000")
+        assert resp.status_code == 200
+        sources = [r["source"] for r in resp.get_json()["routes"]]
+        assert sources[0] == "strava"
+        assert sources[-1] == "ors"
+
+    def test_include_ors_false_skips_ors_and_returns_db_routes(self, client, app):
+        app.config["config"].ors_api_key = "test-key"
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.upsert_strava_routes(user_id, [{
+            "strava_route_id": "888",
+            "name": "My Route",
+            "distance_m": 10100.0,
+            "start_lat": 53.35,
+            "start_lng": -6.26,
+            "polyline": "encoded_placeholder",
+        }])
+        near_coords = [[53.35, -6.26], [53.36, -6.27]]
+        with patch("runcoach.strava.decode_polyline", return_value=near_coords), \
+             patch("runcoach.web.ors.fetch_routes") as mock_fetch:
+            resp = client.get(
+                "/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000&include_ors=false"
+            )
+        assert resp.status_code == 200
+        mock_fetch.assert_not_called()
+        routes = resp.get_json()["routes"]
+        assert all(r["source"] != "ors" for r in routes)
+
 
 class TestOfflineRoutes:
     def test_recent_run_ids_authenticated(self, client, app):

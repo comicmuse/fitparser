@@ -739,6 +739,8 @@ def api_route_suggestion():
     if distance_m <= 0:
         return jsonify({"error": "distance_m must be positive"}), 400
 
+    include_ors = body.get("include_ors", True)
+
     from runcoach.web.ors import filter_routes_by_proximity, deduplicate_routes
 
     cfg: Config = current_app.config["config"]
@@ -746,14 +748,7 @@ def api_route_suggestion():
     user_id = request.user_id
     all_routes: list[dict] = []
 
-    # ORS algorithmically-generated routes
-    if cfg.ors_api_key:
-        ors_routes = fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
-        for r in ors_routes:
-            r["source"] = "ors"
-        all_routes.extend(ors_routes)
-
-    # Strava saved routes (cached in DB)
+    # Strava saved routes (cached in DB) — shown first
     strava_db_routes = db.get_strava_routes(user_id)
     strava_candidates = []
     for r in strava_db_routes:
@@ -772,7 +767,7 @@ def api_route_suggestion():
         filter_routes_by_proximity(strava_candidates, lat, lng, distance_m)
     )
 
-    # Previously-run routes (from Strava-linked activity polylines)
+    # Previously-run routes (from Strava-linked activity polylines) — shown second
     prev_runs = db.get_runs_with_polylines(user_id, limit=200)
     prev_candidates = []
     for run in prev_runs:
@@ -787,6 +782,13 @@ def api_route_suggestion():
         })
     prev_nearby = filter_routes_by_proximity(prev_candidates, lat, lng, distance_m)
     all_routes.extend(deduplicate_routes(prev_nearby))
+
+    # ORS algorithmically-generated routes — shown last
+    if include_ors and cfg.ors_api_key:
+        ors_routes = fetch_routes(lat, lng, distance_m, cfg.ors_api_key)
+        for r in ors_routes:
+            r["source"] = "ors"
+        all_routes.extend(ors_routes)
 
     if not all_routes:
         if not cfg.ors_api_key:
