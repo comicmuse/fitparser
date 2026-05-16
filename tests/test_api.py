@@ -743,6 +743,25 @@ class TestDashboard:
         nw = resp.get_json()["next_workout"]
         assert nw["stress"] is None
 
+    def test_dashboard_next_workout_skips_completed_date(self, client, auth_headers, app):
+        from datetime import date, timedelta
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        today = date.today().isoformat()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        # Plan workouts for today AND tomorrow
+        db.upsert_planned_workout(date=today, title="Today Run", description="easy", user_id=user_id)
+        db.upsert_planned_workout(date=tomorrow, title="Tomorrow Run", description="hard", user_id=user_id)
+        # Mark today as completed via any run (no Strava ID needed)
+        db.insert_run(stryd_activity_id=None, name="Today Run", date=today, fit_path="", user_id=user_id)
+        # Dashboard should skip today and return tomorrow
+        resp = client.get("/api/v1/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        nw = resp.get_json()["next_workout"]
+        assert nw is not None
+        assert nw["date"] == tomorrow
+        assert nw["name"] == "Tomorrow Run"
+
 
 class TestPlannedWorkouts:
     def test_requires_auth(self, client):

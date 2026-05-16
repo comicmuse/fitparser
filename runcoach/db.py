@@ -569,26 +569,61 @@ class RunCoachDB:
         return [dict(r) for r in rows]
 
     def get_upcoming_planned_workouts(
-        self, from_date: str, limit: int = 14, user_id: int | None = None
+        self,
+        from_date: str,
+        limit: int = 14,
+        user_id: int | None = None,
+        exclude_completed: bool = False,
     ) -> list[dict]:
-        """Get upcoming planned workouts from a date onwards."""
+        """Get upcoming planned workouts from a date onwards.
+
+        When exclude_completed=True, dates that already have any run recorded
+        are omitted (workout considered done regardless of run source).
+        """
         with self._connect() as conn:
             if user_id is not None:
-                rows = conn.execute(
-                    """SELECT * FROM planned_workouts
-                       WHERE date >= ? AND user_id = ?
-                       ORDER BY date ASC
-                       LIMIT ?""",
-                    (from_date, user_id, limit),
-                ).fetchall()
+                if exclude_completed:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ? AND user_id = ?
+                             AND NOT EXISTS (
+                               SELECT 1 FROM runs r
+                               WHERE r.date = planned_workouts.date
+                                 AND r.user_id = planned_workouts.user_id
+                             )
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, user_id, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ? AND user_id = ?
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, user_id, limit),
+                    ).fetchall()
             else:
-                rows = conn.execute(
-                    """SELECT * FROM planned_workouts
-                       WHERE date >= ?
-                       ORDER BY date ASC
-                       LIMIT ?""",
-                    (from_date, limit),
-                ).fetchall()
+                if exclude_completed:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ?
+                             AND NOT EXISTS (
+                               SELECT 1 FROM runs r
+                               WHERE r.date = planned_workouts.date
+                             )
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """SELECT * FROM planned_workouts
+                           WHERE date >= ?
+                           ORDER BY date ASC
+                           LIMIT ?""",
+                        (from_date, limit),
+                    ).fetchall()
         return [dict(r) for r in rows]
 
     def get_all_planned_workouts(self, user_id: int | None = None) -> list[dict]:
