@@ -252,6 +252,7 @@ class ProfileScreen extends ConsumerWidget {
                       trailing: const Icon(Icons.open_in_new, size: 18),
                       onTap: () => launchUrl(
                         Uri.parse('https://runcoach.linehan.me.uk/privacy'),
+                        mode: LaunchMode.externalApplication,
                       ),
                     ),
                   ],
