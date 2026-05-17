@@ -2,10 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runcoach/providers/auth_notifier.dart';
 import 'package:runcoach/services/api_service.dart';
 import 'package:runcoach/services/notification_service_base.dart';
-import 'package:runcoach/services/secure_storage_service.dart';
+import 'package:runcoach/services/secure_storage_service_base.dart';
 
-/// Pure-Dart storage: no FlutterSecureStorage, no native plugin calls.
-class _FakeStorage extends SecureStorageService {
+/// Pure-Dart storage: implements the base interface directly so the test
+/// binary's link graph contains no `flutter_secure_storage`. Required to
+/// avoid the Linux CI `flutter_tester` SIGSEGV during `--coverage`
+/// finalization.
+class _FakeStorage implements SecureStorageServiceBase {
   final Map<String, String?> _store;
 
   _FakeStorage(Map<String, String> initial) : _store = Map.from(initial);
@@ -30,10 +33,16 @@ class _FakeStorage extends SecureStorageService {
     _store.remove('access_token');
     _store.remove('refresh_token');
   }
+
+  @override
+  Future<void> saveServerUrl(String url) async => _store['server_url'] = url;
+
+  @override
+  Future<String?> getServerUrl() async => _store['server_url'];
 }
 
 class _NoOpApi extends ApiService {
-  _NoOpApi() : super(SecureStorageService());
+  _NoOpApi(SecureStorageServiceBase storage) : super(storage);
 
   @override
   Future<Map<String, String>> login(String u, String p) async => {
@@ -68,8 +77,9 @@ void main() {
 
   void makeFixture({required Map<String, String> storageValues}) {
     notif = _RecordingNotifService();
-    notifierApi = _NoOpApi();
-    notifier = AuthNotifier(_FakeStorage(storageValues), notifierApi, notif);
+    final storage = _FakeStorage(storageValues);
+    notifierApi = _NoOpApi(storage);
+    notifier = AuthNotifier(storage, notifierApi, notif);
   }
 
   group('AuthNotifier', () {

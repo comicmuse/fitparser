@@ -1,11 +1,13 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'secure_storage_service_base.dart';
 
-class SecureStorageService {
+class SecureStorageService implements SecureStorageServiceBase {
   static const _storage = FlutterSecureStorage();
   static const _accessKey = 'access_token';
   static const _refreshKey = 'refresh_token';
   static const _serverUrlKey = 'server_url';
 
+  @override
   Future<void> saveTokens({
     required String access,
     required String refresh,
@@ -14,15 +16,22 @@ class SecureStorageService {
     await _storage.write(key: _refreshKey, value: refresh);
   }
 
+  @override
   Future<String?> getAccessToken() => _storage.read(key: _accessKey);
+
+  @override
   Future<String?> getRefreshToken() => _storage.read(key: _refreshKey);
 
+  @override
   Future<void> clearTokens() async {
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
   }
 
+  @override
   Future<void> saveServerUrl(String url) =>
       _storage.write(key: _serverUrlKey, value: url);
+
+  @override
   Future<String?> getServerUrl() => _storage.read(key: _serverUrlKey);
 }

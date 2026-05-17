@@ -3,7 +3,7 @@ import '../models/run.dart';
 import '../models/dashboard.dart';
 import '../models/chat_message.dart';
 import '../models/planned_workout.dart';
-import 'secure_storage_service.dart';
+import 'secure_storage_service_base.dart';
 
 class ApiService {
   static const String defaultBaseUrl = String.fromEnvironment(
@@ -13,7 +13,7 @@ class ApiService {
 
   final String _baseUrl;
   late final Dio _dio;
-  final SecureStorageService _storage;
+  final SecureStorageServiceBase _storage;
 
   /// Called when token refresh fails and credentials are cleared.
   /// Wire this up to trigger re-authentication in the auth layer.
@@ -189,7 +189,7 @@ class ApiService {
 }
 
 class _AuthInterceptor extends Interceptor {
-  final SecureStorageService _storage;
+  final SecureStorageServiceBase _storage;
   final Dio _dio;
   final String _baseUrl;
   final void Function() _onAuthFailed;

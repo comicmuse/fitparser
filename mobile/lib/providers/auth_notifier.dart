@@ -2,12 +2,12 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/notification_service_base.dart';
-import '../services/secure_storage_service.dart';
+import '../services/secure_storage_service_base.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthNotifier extends StateNotifier<AuthStatus> {
-  final SecureStorageService _storage;
+  final SecureStorageServiceBase _storage;
   final ApiService _api;
   final NotificationServiceBase _notifService;
 
