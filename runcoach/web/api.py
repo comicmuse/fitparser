@@ -842,5 +842,5 @@ def unregister_device_token():
     if not data or not data.get("token"):
         return jsonify({"error": "token is required"}), 400
     db = get_db()
-    db.delete_device_token(str(data["token"]))
+    db.delete_device_token(str(data["token"]), user_id=request.user_id)
     return jsonify({"message": "Device token removed"}), 200

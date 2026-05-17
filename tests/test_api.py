@@ -938,6 +938,37 @@ class TestDeviceTokenEndpoints:
         )
         assert resp.status_code == 400
 
+    def test_cannot_delete_another_users_token(self, client, app):
+        """User B must not be able to delete User A's device token."""
+        db = app.config["db"]
+        user_a_id = db.get_default_user_id()
+        user_b_id = db.create_user("user_b", "hashed_pw")
+
+        token_a = create_access_token(user_a_id, app.config["SECRET_KEY"])
+        token_b = create_access_token(user_b_id, app.config["SECRET_KEY"])
+        headers_a = {"Authorization": f"Bearer {token_a}"}
+        headers_b = {"Authorization": f"Bearer {token_b}"}
+
+        # User A registers a device token
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "user-a-device-token", "platform": "android"},
+            headers=headers_a,
+        )
+
+        # User B attempts to delete User A's token
+        resp = client.delete(
+            "/api/v1/device-tokens",
+            json={"token": "user-a-device-token"},
+            headers=headers_b,
+        )
+        assert resp.status_code == 200  # operation succeeds silently
+
+        # User A's token must still be present
+        tokens = db.get_device_tokens_for_user(user_a_id)
+        assert any(t["token"] == "user-a-device-token" for t in tokens), \
+            "User B was able to delete User A's device token — multi-user isolation broken"
+
 
 class TestRouteSuggestion:
     def test_requires_auth(self, client):
