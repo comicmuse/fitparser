@@ -38,7 +38,7 @@ jobs:
       - name: Run tests
         working-directory: mobile
         timeout-minutes: 10
-        run: flutter test --coverage --concurrency=1
+        run: flutter test --coverage
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4

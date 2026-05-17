@@ -61,11 +61,6 @@ void main() {
   late SecureStorageService storage;
   late ApiService service;
 
-  tearDown(() {
-    mainDio.close(force: true);
-    refreshDio.close(force: true);
-  });
-
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({
       'access_token': 'stored-access',
