@@ -498,6 +498,11 @@ def offline():
     return render_template("offline.html"), 200
 
 
+@bp.route("/privacy")
+def privacy():
+    return render_template("privacy.html"), 200
+
+
 @bp.route("/recent-run-ids")
 @_login_required
 def recent_run_ids():
