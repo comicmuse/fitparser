@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:runcoach/services/api_service.dart';
-import 'package:runcoach/services/secure_storage_service_base.dart';
+import 'package:runcoach/services/secure_storage_service.dart';
 
 /// Queues pre-built JSON responses and records every RequestOptions received.
 class _MockAdapter implements HttpClientAdapter {
@@ -39,43 +40,6 @@ class _MockAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-/// In-memory fake. Implements the base interface so the test binary does
-/// not link `flutter_secure_storage`, which on Linux CI causes
-/// `flutter_tester` to SIGSEGV during `--coverage` finalization.
-class _FakeStorage implements SecureStorageServiceBase {
-  final Map<String, String?> _store;
-
-  _FakeStorage([Map<String, String> initial = const {}])
-    : _store = Map.from(initial);
-
-  @override
-  Future<String?> getAccessToken() async => _store['access_token'];
-
-  @override
-  Future<String?> getRefreshToken() async => _store['refresh_token'];
-
-  @override
-  Future<void> saveTokens({
-    required String access,
-    required String refresh,
-  }) async {
-    _store['access_token'] = access;
-    _store['refresh_token'] = refresh;
-  }
-
-  @override
-  Future<void> clearTokens() async {
-    _store.remove('access_token');
-    _store.remove('refresh_token');
-  }
-
-  @override
-  Future<void> saveServerUrl(String url) async => _store['server_url'] = url;
-
-  @override
-  Future<String?> getServerUrl() async => _store['server_url'];
-}
-
 Map<String, dynamic> _dashboardOk() => {
   'latest_run': null,
   'next_workout': null,
@@ -88,26 +52,17 @@ Map<String, dynamic> _dashboardOk() => {
 const _baseUrl = 'http://test.local/api/v1';
 
 void main() {
-  // Restoring this call from the pre-segfault test version (1b29265). Without
-  // it, the flutter_tester subprocess SIGSEGVs during shutdown on Linux CI
-  // even when the test bodies pass and the import graph contains no native
-  // plugins.
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _MockAdapter mainAdapter;
   late Dio mainDio;
   late _MockAdapter refreshAdapter;
   late Dio refreshDio;
-  late _FakeStorage storage;
+  late SecureStorageService storage;
   late ApiService service;
 
-  tearDown(() {
-    mainDio.close(force: true);
-    refreshDio.close(force: true);
-  });
-
   setUp(() {
-    storage = _FakeStorage({
+    FlutterSecureStorage.setMockInitialValues({
       'access_token': 'stored-access',
       'refresh_token': 'stored-refresh',
     });
@@ -119,6 +74,8 @@ void main() {
     refreshDio = Dio(BaseOptions(baseUrl: _baseUrl));
     refreshAdapter = _MockAdapter();
     refreshDio.httpClientAdapter = refreshAdapter;
+
+    storage = SecureStorageService();
 
     service = ApiService(
       storage,
@@ -212,7 +169,9 @@ void main() {
       'on 401 with no stored refresh token, passes error through without refresh attempt',
       () async {
         // Fresh setup: only access token, no refresh token.
-        final freshStorage = _FakeStorage({'access_token': 'stored-access'});
+        FlutterSecureStorage.setMockInitialValues({
+          'access_token': 'stored-access',
+        });
         final freshMainDio = Dio(BaseOptions(baseUrl: _baseUrl));
         final freshMainAdapter = _MockAdapter();
         freshMainDio.httpClientAdapter = freshMainAdapter;
@@ -221,7 +180,7 @@ void main() {
         freshRefreshDio.httpClientAdapter = freshRefreshAdapter;
 
         final freshService = ApiService(
-          freshStorage,
+          SecureStorageService(),
           baseUrl: _baseUrl,
           testDio: freshMainDio,
           testRefreshDioFactory: (_) => freshRefreshDio,
