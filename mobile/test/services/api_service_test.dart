@@ -1,11 +1,9 @@
-// Debug experiment: keep all the imports the real test uses, but reduce
-// to a single trivial assertion. If this segfaults, the trigger is one
-// of the imports (most likely top-level dio or dart:typed_data). If it
-// passes, the trigger is runtime behavior (Dio creation, MockAdapter
-// implementation, etc.).
-
-import 'dart:convert';
-import 'dart:typed_data';
+// Debug experiment: same as previous trivial, but with dart:convert and
+// dart:typed_data removed. The only top-level imports left are dio,
+// flutter_test, api_service, and secure_storage_service_base — which
+// matches auth_provider_test's transitive graph (api_service.dart pulls
+// dio in either case). If this passes, dart:convert OR dart:typed_data
+// is the trigger.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,9 +13,6 @@ import 'package:runcoach/services/secure_storage_service_base.dart';
 void main() {
   test('trivial', () {
     expect(true, isTrue);
-    // Reference imports so analyzer does not flag them.
-    expect(jsonEncode(<String, int>{'a': 1}), isNotEmpty);
-    expect(Uint8List(0), isEmpty);
     expect(BaseOptions, isNotNull);
     expect(ApiService, isNotNull);
     expect(SecureStorageServiceBase, isNotNull);
