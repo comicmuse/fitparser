@@ -88,6 +88,12 @@ Map<String, dynamic> _dashboardOk() => {
 const _baseUrl = 'http://test.local/api/v1';
 
 void main() {
+  // Restoring this call from the pre-segfault test version (1b29265). Without
+  // it, the flutter_tester subprocess SIGSEGVs during shutdown on Linux CI
+  // even when the test bodies pass and the import graph contains no native
+  // plugins.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late _MockAdapter mainAdapter;
   late Dio mainDio;
   late _MockAdapter refreshAdapter;
