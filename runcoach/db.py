@@ -1084,9 +1084,15 @@ class RunCoachDB:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def delete_device_token(self, token: str) -> None:
+    def delete_device_token(self, token: str, user_id: int | None = None) -> None:
         with self._connect() as conn:
-            conn.execute("DELETE FROM device_tokens WHERE token = ?", (token,))
+            if user_id is not None:
+                conn.execute(
+                    "DELETE FROM device_tokens WHERE token = ? AND user_id = ?",
+                    (token, user_id),
+                )
+            else:
+                conn.execute("DELETE FROM device_tokens WHERE token = ?", (token,))
 
     # ------ strava_routes ------
 
