@@ -17,6 +17,7 @@ def test_privacy_page_returns_200(page, server_url):
 def test_privacy_page_no_login_required(page, server_url):
     """/privacy is accessible without authentication."""
     page.goto(f"{server_url}/privacy")
+    page.wait_for_load_state("networkidle")
     # Should not be redirected to /login
     assert "/login" not in page.url
     assert page.url.endswith("/privacy")

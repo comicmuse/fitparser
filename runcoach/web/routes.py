@@ -500,7 +500,7 @@ def offline():
 
 @bp.route("/privacy")
 def privacy():
-    return render_template("privacy.html")
+    return render_template("privacy.html"), 200
 
 
 @bp.route("/recent-run-ids")
