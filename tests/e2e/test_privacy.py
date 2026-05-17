@@ -21,3 +21,13 @@ def test_privacy_page_no_login_required(page, server_url):
     # Should not be redirected to /login
     assert "/login" not in page.url
     assert page.url.endswith("/privacy")
+
+
+def test_privacy_link_in_footer(logged_in_page, server_url):
+    """Privacy Policy link is present in the footer on the main index page."""
+    page = logged_in_page
+    page.goto(server_url)
+    page.wait_for_load_state("networkidle")
+    link = page.locator("footer a", has_text="Privacy Policy")
+    expect(link).to_be_visible()
+    expect(link).to_have_attribute("href", "/privacy")
