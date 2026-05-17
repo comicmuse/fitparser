@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 
-final _profileDataProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
+final profileDataProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
   ref,
 ) async {
   final api = ref.read(apiServiceProvider);
@@ -15,7 +15,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(_profileDataProvider);
+    final profileAsync = ref.watch(profileDataProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -224,6 +224,35 @@ class ProfileScreen extends ConsumerWidget {
                     Text(
                       'Coming soon',
                       style: TextStyle(fontSize: 13, color: Color(0xFFBBBBBB)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'LEGAL',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF888888),
+                        letterSpacing: 1,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Privacy Policy'),
+                      trailing: const Icon(Icons.open_in_new, size: 18),
+                      onTap: () => launchUrl(
+                        Uri.parse('https://runcoach.linehan.me.uk/privacy'),
+                      ),
                     ),
                   ],
                 ),
