@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy — RunCoach{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 720px; margin: 0 auto;">
+  <h1 style="font-size:1.5rem; margin-bottom:1rem;">Privacy Policy</h1>
+  <p style="color:var(--fg-muted); font-size:0.85rem; margin-bottom:1.5rem;">Last updated: May 2026</p>
+
+  <p>This policy covers RunCoach. It applies to the central hosted service at
+  <strong>runcoach.linehan.me.uk</strong> and to self-hosted instances. For
+  self-hosted deployments, the person or organisation operating the server is
+  the data controller and is responsible for their own privacy policy — this
+  document serves as a template and reference.</p>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">1. Data Controller</h2>
+  <p>For the central service: <strong>Colm Linehan</strong>,
+  <a href="mailto:runcoach@linehan.me.uk">runcoach@linehan.me.uk</a>.<br>
+  For self-hosted instances: the operator of that instance.</p>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">2. Data We Collect</h2>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Data</th><th>Details</th></tr></thead>
+    <tbody>
+      <tr><td>Account credentials</td><td>Email address; bcrypt password hash — your password is never stored in plaintext.</td></tr>
+      <tr><td>FIT activity files</td><td>Garmin FIT files downloaded from Stryd or uploaded manually; contains GPS track, power, heart rate, and pace data.</td></tr>
+      <tr><td>Athlete profile</td><td>Free-text description entered by you; used as context in AI coaching prompts.</td></tr>
+      <tr><td>AI chat history</td><td>Conversation messages per run, stored in the database.</td></tr>
+      <tr><td>Strava OAuth tokens</td><td>Access and refresh tokens, stored only if you connect Strava (optional).</td></tr>
+      <tr><td>FCM device token</td><td>Android push notification token, stored only if you enable notifications (optional).</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">3. Third-Party Data Processors</h2>
+
+  <p><strong>Stryd</strong><br>
+  RunCoach fetches activity data from Stryd on your behalf using your Stryd credentials.
+  Data held by Stryd is governed by Stryd's own privacy policy.</p>
+
+  <p><strong>OpenAI / Anthropic</strong> (central service, if configured)<br>
+  Workout data — power zone breakdown, heart rate, RSS score, duration, distance, and your
+  athlete profile text — is sent to the configured LLM provider for AI coaching analysis.
+  Both OpenAI and Anthropic operate data processing agreements and process data on servers
+  in the United States (see International Transfers below). Self-hosters who configure
+  Ollama keep all data local.</p>
+
+  <p><strong>Strava</strong> (optional)<br>
+  If you connect Strava, RunCoach stores OAuth tokens and fetches route polylines.
+  Governed by Strava's privacy policy.</p>
+
+  <p><strong>Firebase / Google FCM</strong> (central service, Android)<br>
+  Android device tokens are sent to Google's Firebase Cloud Messaging service to deliver
+  push notifications. Self-hosters can run without FCM by not setting
+  <code>FCM_SERVICE_ACCOUNT_PATH</code>.</p>
+
+  <p><strong>OpenRouteService</strong> (optional)<br>
+  If route suggestions are used, GPS coordinates are sent to the OpenRouteService API.
+  Governed by ORS's privacy policy.</p>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">4. Legal Basis (GDPR)</h2>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Purpose</th><th>Legal basis</th></tr></thead>
+    <tbody>
+      <tr><td>Account, activity storage, AI analysis</td><td>Contractual necessity (Art. 6(1)(b)) — required to provide the service.</td></tr>
+      <tr><td>Strava integration</td><td>Consent (Art. 6(1)(a)) — user-initiated, can be revoked at any time.</td></tr>
+      <tr><td>Push notifications</td><td>Consent (Art. 6(1)(a)) — user-initiated, can be revoked at any time.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">5. Data Retention</h2>
+  <p>Data is stored for as long as your account exists. Users of the central service may
+  request deletion by emailing
+  <a href="mailto:runcoach@linehan.me.uk">runcoach@linehan.me.uk</a>. For self-hosted
+  instances, contact your administrator.</p>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">6. Your Rights (GDPR)</h2>
+  <p>You have the right to:</p>
+  <ul style="margin: 0.5rem 0 0.75rem 1.5rem;">
+    <li><strong>Access</strong> — request a copy of your personal data</li>
+    <li><strong>Rectification</strong> — correct inaccurate data</li>
+    <li><strong>Erasure</strong> — request deletion of your data</li>
+    <li><strong>Portability</strong> — receive your data in a machine-readable format</li>
+    <li><strong>Object</strong> — object to processing based on legitimate interest</li>
+    <li><strong>Complain</strong> — lodge a complaint with the UK Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" target="_blank" rel="noopener">ico.org.uk</a></li>
+  </ul>
+  <p>To exercise any of these rights, contact
+  <a href="mailto:runcoach@linehan.me.uk">runcoach@linehan.me.uk</a> (central service)
+  or your instance administrator (self-hosted).</p>
+
+  <h2 style="margin-top:1.5rem; margin-bottom:0.5rem;">7. International Transfers</h2>
+  <p>OpenAI and Anthropic process data on servers in the United States. Where required,
+  transfers rely on Standard Contractual Clauses (SCCs) under UK/EU GDPR. Self-hosters
+  using Ollama keep all data on their own infrastructure.</p>
+</div>
+{% endblock %}
