@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 
+from runcoach.backup import backup_database
 from runcoach.config import Config
 from runcoach.db import RunCoachDB
 from runcoach.pipeline import run_full_pipeline
@@ -20,15 +21,26 @@ class Scheduler:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._running = False
+        self._backup_thread: threading.Thread | None = None
+        self._backup_stop_event = threading.Event()
+        self._backup_running = False
 
     @property
     def is_syncing(self) -> bool:
         return self._running
 
+    @property
+    def is_backup_running(self) -> bool:
+        return self._backup_running
+
     def start(self) -> None:
-        """Start the background scheduler thread. No-op if interval is 0."""
+        """Start background threads for sync (if interval > 0) and backup."""
+        self._backup_stop_event.clear()
+        self._backup_thread = threading.Thread(target=self._backup_loop, daemon=True)
+        self._backup_thread.start()
+
         if self.config.sync_interval_hours == 0:
-            log.info("Scheduler disabled (SYNC_INTERVAL_HOURS=0)")
+            log.info("Scheduler sync disabled (SYNC_INTERVAL_HOURS=0)")
             return
         if self._thread and self._thread.is_alive():
             return
@@ -42,8 +54,11 @@ class Scheduler:
     def stop(self) -> None:
         """Signal the scheduler to stop."""
         self._stop_event.set()
+        self._backup_stop_event.set()
         if self._thread:
             self._thread.join(timeout=5)
+        if self._backup_thread:
+            self._backup_thread.join(timeout=5)
 
     def trigger_now(self) -> None:
         """Trigger an immediate pipeline run in a background thread."""
@@ -55,6 +70,22 @@ class Scheduler:
         interval_s = self.config.sync_interval_hours * 3600
         while not self._stop_event.wait(timeout=interval_s):
             self._run_once()
+
+    def _backup_loop(self) -> None:
+        self._backup_once()
+        interval_s = self.config.backup_interval_hours * 3600
+        while not self._backup_stop_event.wait(timeout=interval_s):
+            self._backup_once()
+
+    def _backup_once(self) -> None:
+        self._backup_running = True
+        try:
+            backup_database(self.config.db_path)
+            log.info("Database backup complete")
+        except Exception:
+            log.exception("Backup error")
+        finally:
+            self._backup_running = False
 
     def _run_once(self) -> None:
         self._running = True
