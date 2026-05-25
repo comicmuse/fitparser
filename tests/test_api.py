@@ -1204,6 +1204,8 @@ class TestRouteSuggestion:
 
     def test_include_ors_false_returns_empty_routes_when_no_local_matches(self, client, auth_headers, app):
         from runcoach.config import Config
+        import unittest.mock as mock
+
         app.config["config"] = Config(
             openai_api_key="test-key",
             openai_model="gpt-4o",
@@ -1212,7 +1214,6 @@ class TestRouteSuggestion:
             secret_key="test-secret-key",
             ors_api_key="fake-ors-key",
         )
-        import unittest.mock as mock
         with mock.patch("runcoach.web.ors.fetch_routes") as mock_fetch:
             resp = client.post(
                 "/api/v1/route-suggestion",
