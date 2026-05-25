@@ -36,7 +36,7 @@ class BestRunTimeCard extends ConsumerWidget {
         final dayLabel = data['day_label'] as String;
         final isTomorrow = data['is_tomorrow'] as bool? ?? false;
         const maxBarHeight = 48.0;
-        const minBarWidth = 16.0;
+        const minReadableBarWidth = 24.0;
 
         final firstHour = hours.first['hour'] as int;
         final midHour = hours[hours.length ~/ 2]['hour'] as int;
@@ -73,7 +73,7 @@ class BestRunTimeCard extends ConsumerWidget {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final chartWidth = hours.length > 6
-                        ? hours.length * minBarWidth
+                        ? hours.length * minReadableBarWidth
                         : constraints.maxWidth;
                     return SingleChildScrollView(
                       key: const ValueKey('brt-scroll'),

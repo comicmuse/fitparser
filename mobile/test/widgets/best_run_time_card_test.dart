@@ -74,7 +74,12 @@ void main() {
   ) async {
     await tester.pumpWidget(_wrap(_fakeData(hourCount: 19)));
     await tester.pumpAndSettle();
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+    expect(scrollable.position.pixels, 0);
+    await tester.drag(find.byKey(const ValueKey('brt-scroll')), const Offset(-200, 0));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('brt-scroll')), findsOneWidget);
+    expect(scrollable.position.pixels, greaterThan(0));
     expect(find.text('11pm'), findsOneWidget);
   });
 
