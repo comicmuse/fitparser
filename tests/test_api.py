@@ -1202,6 +1202,28 @@ class TestRouteSuggestion:
         routes = resp.get_json()["routes"]
         assert all(r["source"] != "ors" for r in routes)
 
+    def test_include_ors_false_returns_empty_routes_when_no_local_matches(self, client, auth_headers, app):
+        from runcoach.config import Config
+        import unittest.mock as mock
+
+        app.config["config"] = Config(
+            openai_api_key="test-key",
+            openai_model="gpt-4o",
+            data_dir=app.config["config"].data_dir,
+            timezone="Europe/London",
+            secret_key="test-secret-key",
+            ors_api_key="fake-ors-key",
+        )
+        with mock.patch("runcoach.web.ors.fetch_routes") as mock_fetch:
+            resp = client.post(
+                "/api/v1/route-suggestion",
+                json={"lat": 51.5, "lng": -0.1, "distance_m": 5000, "include_ors": False},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        assert resp.get_json() == {"routes": []}
+        mock_fetch.assert_not_called()
+
     def test_strava_routes_include_strava_url(self, client, auth_headers, app):
         db = app.config["db"]
         user_id = db.get_default_user_id()

@@ -1646,6 +1646,16 @@ class TestRouteSuggestion:
         routes = resp.get_json()["routes"]
         assert all(r["source"] != "ors" for r in routes)
 
+    def test_include_ors_false_returns_empty_routes_when_no_local_matches(self, client, app):
+        app.config["config"].ors_api_key = "test-key"
+        with patch("runcoach.web.ors.fetch_routes") as mock_fetch:
+            resp = client.get(
+                "/api/route-suggestion?lat=53.35&lng=-6.26&distance_m=10000&include_ors=false"
+            )
+        assert resp.status_code == 200
+        assert resp.get_json() == {"routes": []}
+        mock_fetch.assert_not_called()
+
 
 class TestOfflineRoutes:
     def test_recent_run_ids_authenticated(self, client, app):

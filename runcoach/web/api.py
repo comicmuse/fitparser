@@ -811,6 +811,8 @@ def api_route_suggestion():
         all_routes.extend(ors_routes)
 
     if not all_routes:
+        if not include_ors:
+            return jsonify({"routes": []})
         if not cfg.ors_api_key:
             return jsonify({"error": "Route suggestions are not configured (ORS_API_KEY missing)"}), 503
         return jsonify({"error": "Route service unavailable"}), 502
