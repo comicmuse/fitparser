@@ -275,6 +275,7 @@ class TestScoreForecastWindowing:
         now = datetime(2026, 5, 10, 22, 0)
         result = score_forecast(self._make_forecast(), now=now)
         assert result["is_tomorrow"] is True
+        assert len(result["hours"]) == 19
         assert result["hours"][0]["hour"] == 5
         assert result["hours"][-1]["hour"] == 23
 

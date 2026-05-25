@@ -8,6 +8,10 @@ from datetime import datetime, timedelta
 log = logging.getLogger(__name__)
 
 
+def _next_midnight(dt: datetime) -> datetime:
+    return dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+
 def _piecewise(val: float, breakpoints: list[tuple[float, float]]) -> float:
     if val <= breakpoints[0][0]:
         return breakpoints[0][1]
@@ -118,9 +122,7 @@ def score_forecast(forecast: dict, now: datetime) -> dict:
     today_sunset = sunsets[0]
 
     now_snapped = now.replace(minute=0, second=0, microsecond=0)
-    today_window_end = today_sunrise.replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ) + timedelta(days=1)
+    today_window_end = _next_midnight(now_snapped)
 
     today_hours = [
         h for h in forecast["hours"]
@@ -134,9 +136,7 @@ def score_forecast(forecast: dict, now: datetime) -> dict:
         tomorrow_sunrise = sunrises[1]
         tomorrow_sunset = sunsets[1]
         tomorrow_start = tomorrow_sunrise.replace(minute=0, second=0, microsecond=0)
-        tomorrow_window_end = tomorrow_sunrise.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ) + timedelta(days=1)
+        tomorrow_window_end = _next_midnight(tomorrow_sunrise)
         window_hours = [
             h for h in forecast["hours"]
             if h["dt"].date() == tomorrow_sunrise.date()
