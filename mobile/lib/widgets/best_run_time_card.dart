@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/best_run_time_provider.dart';
@@ -36,6 +38,7 @@ class BestRunTimeCard extends ConsumerWidget {
         final dayLabel = data['day_label'] as String;
         final isTomorrow = data['is_tomorrow'] as bool? ?? false;
         const maxBarHeight = 48.0;
+        const minReadableBarWidth = 24.0;
 
         final firstHour = hours.first['hour'] as int;
         final midHour = hours[hours.length ~/ 2]['hour'] as int;
@@ -69,61 +72,86 @@ class BestRunTimeCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                SizedBox(
-                  height: maxBarHeight + 4,
-                  child: Row(
-                    key: const ValueKey('brt-bars'),
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: hours.map((h) {
-                      final score = h['score'] as int;
-                      final isHour = h['hour'] as int;
-                      final barH = (score / 10) * maxBarHeight;
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 0.5),
-                          child: Container(
-                            height: barH.clamp(2.0, maxBarHeight),
-                            decoration: BoxDecoration(
-                              color: _barColor(score),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(2),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final chartWidth = max(
+                      constraints.maxWidth,
+                      hours.length * minReadableBarWidth,
+                    );
+                    return SingleChildScrollView(
+                      key: const ValueKey('brt-scroll'),
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: chartWidth,
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: maxBarHeight + 4,
+                              child: Row(
+                                key: const ValueKey('brt-bars'),
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: hours.map((h) {
+                                  final score = h['score'] as int;
+                                  final isHour = h['hour'] as int;
+                                  final barH = (score / 10) * maxBarHeight;
+                                  return Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 0.5,
+                                      ),
+                                      child: Container(
+                                        height: barH.clamp(2.0, maxBarHeight),
+                                        decoration: BoxDecoration(
+                                          color: _barColor(score),
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(2),
+                                              ),
+                                          border: isHour == bestHour
+                                              ? Border.all(
+                                                  color: Colors.white70,
+                                                  width: 1,
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
                               ),
-                              border: isHour == bestHour
-                                  ? Border.all(color: Colors.white70, width: 1)
-                                  : null,
                             ),
-                          ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _hourLabel(firstHour),
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: Color(0xFF888888),
+                                  ),
+                                ),
+                                Text(
+                                  _hourLabel(midHour),
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: Color(0xFF888888),
+                                  ),
+                                ),
+                                Text(
+                                  _hourLabel(lastHour),
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: Color(0xFF888888),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _hourLabel(firstHour),
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: Color(0xFF888888),
                       ),
-                    ),
-                    Text(
-                      _hourLabel(midHour),
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: Color(0xFF888888),
-                      ),
-                    ),
-                    Text(
-                      _hourLabel(lastHour),
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: Color(0xFF888888),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ],
             ),

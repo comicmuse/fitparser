@@ -260,41 +260,42 @@ class TestScoreForecastWindowing:
         with patch("runcoach.weather.requests.get", return_value=mock_resp):
             return fetch_forecast(53.3, -6.3, "Europe/Dublin")
 
-    def test_today_window_trims_to_now_through_sunset_plus_2h(self):
-        # now=15:00, sunset=21:00, window_end=23:00 → hours 15..22 = 8 bars
+    def test_today_window_trims_to_now_through_midnight(self):
+        # now=15:00 → hours 15..23 = 9 bars
         now = datetime(2026, 5, 10, 15, 0)
         result = score_forecast(self._make_forecast(), now=now)
         assert result["is_tomorrow"] is False
-        assert len(result["hours"]) == 8
+        assert len(result["hours"]) == 9
         assert result["hours"][0]["hour"] == 15
-        assert result["hours"][-1]["hour"] == 22
+        assert result["hours"][-1]["hour"] == 23
 
     def test_falls_back_to_tomorrow_when_fewer_than_3_hours_left(self):
-        # now=21:00, window_end=23:00 → hours 21,22 = 2 bars < 3 → tomorrow
-        # tomorrow: sunrise 05:29 (hour 5), sunset 21:02, window_end 23:02
-        # → hours 5..22 = 18 bars
-        now = datetime(2026, 5, 10, 21, 0)
+        # now=22:00 → hours 22,23 = 2 bars < 3 → tomorrow
+        # tomorrow: sunrise 05:29 (hour 5) → hours 5..23 = 19 bars
+        now = datetime(2026, 5, 10, 22, 0)
         result = score_forecast(self._make_forecast(), now=now)
         assert result["is_tomorrow"] is True
+        assert len(result["hours"]) == 19
         assert result["hours"][0]["hour"] == 5
+        assert result["hours"][-1]["hour"] == 23
 
     def test_falls_back_to_tomorrow_when_past_window_end(self):
-        # now=23:00, window_end=23:00 → 0 bars today → tomorrow
+        # now=23:00 → 1 bar today, which is still fewer than 3 → tomorrow
         now = datetime(2026, 5, 10, 23, 0)
         result = score_forecast(self._make_forecast(), now=now)
         assert result["is_tomorrow"] is True
 
-    def test_tomorrow_window_ends_at_sunset_plus_2h(self):
-        # now=22:00 → 1 bar today (hour 22) < 3 → tomorrow
-        # tomorrow sunset=21:02, window_end=23:02 → hours 5..22 = 18 bars
+    def test_tomorrow_window_ends_at_midnight(self):
+        # now=22:00 → 2 bars today < 3 → tomorrow
+        # tomorrow should extend through 23:00
         now = datetime(2026, 5, 10, 22, 0)
         result = score_forecast(self._make_forecast(), now=now)
         assert result["is_tomorrow"] is True
-        assert result["hours"][-1]["hour"] == 22
+        assert result["hours"][-1]["hour"] == 23
 
     def test_exactly_3_hours_stays_on_today(self):
-        # now=20:00, window_end=23:00 → hours 20,21,22 = 3 bars → NOT < 3 → today
-        now = datetime(2026, 5, 10, 20, 0)
+        # now=21:00 → hours 21,22,23 = 3 bars → NOT < 3 → today
+        now = datetime(2026, 5, 10, 21, 0)
         result = score_forecast(self._make_forecast(), now=now)
         assert result["is_tomorrow"] is False
         assert len(result["hours"]) == 3
