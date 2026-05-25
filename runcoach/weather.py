@@ -118,7 +118,9 @@ def score_forecast(forecast: dict, now: datetime) -> dict:
     today_sunset = sunsets[0]
 
     now_snapped = now.replace(minute=0, second=0, microsecond=0)
-    today_window_end = today_sunset.replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
+    today_window_end = today_sunrise.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=1)
 
     today_hours = [
         h for h in forecast["hours"]
@@ -132,7 +134,9 @@ def score_forecast(forecast: dict, now: datetime) -> dict:
         tomorrow_sunrise = sunrises[1]
         tomorrow_sunset = sunsets[1]
         tomorrow_start = tomorrow_sunrise.replace(minute=0, second=0, microsecond=0)
-        tomorrow_window_end = tomorrow_sunset.replace(minute=0, second=0, microsecond=0) + timedelta(hours=2)
+        tomorrow_window_end = tomorrow_sunrise.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
         window_hours = [
             h for h in forecast["hours"]
             if h["dt"].date() == tomorrow_sunrise.date()

@@ -6,16 +6,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runcoach/widgets/best_run_time_card.dart';
 import 'package:runcoach/providers/best_run_time_provider.dart';
 
-// 6 hours (5am–10am), is_tomorrow: false by default
-Map<String, dynamic> _fakeData({int bestScore = 8, bool isTomorrow = false}) =>
+Map<String, dynamic> _fakeData({
+  int bestScore = 8,
+  bool isTomorrow = false,
+  int startHour = 5,
+  int hourCount = 6,
+}) =>
     {
       'date': '2026-05-10',
       'is_tomorrow': isTomorrow,
       'hours': List.generate(
-        6,
+        hourCount,
         (i) => {
-          'hour': i + 5,
-          'score': (i + 5) == 9 ? bestScore : 4,
+          'hour': i + startHour,
+          'score': (i + startHour) == 9 ? bestScore : 4,
           'temp_c': 12.0,
           'rain_pct': 5,
           'humidity_pct': 55,
@@ -63,6 +67,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('5am'), findsOneWidget);
     expect(find.text('10am'), findsOneWidget);
+  });
+
+  testWidgets('shows late-evening label and scrolls for long windows', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(_fakeData(hourCount: 19)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('brt-scroll')), findsOneWidget);
+    expect(find.text('11pm'), findsOneWidget);
   });
 
   testWidgets('hidden when location unavailable (null data)', (tester) async {
