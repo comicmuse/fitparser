@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/best_run_time_provider.dart';
@@ -72,9 +74,10 @@ class BestRunTimeCard extends ConsumerWidget {
                 const SizedBox(height: 8),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final chartWidth = hours.length > 6
-                        ? hours.length * minReadableBarWidth
-                        : constraints.maxWidth;
+                    final chartWidth = max(
+                      constraints.maxWidth,
+                      hours.length * minReadableBarWidth,
+                    );
                     return SingleChildScrollView(
                       key: const ValueKey('brt-scroll'),
                       scrollDirection: Axis.horizontal,
