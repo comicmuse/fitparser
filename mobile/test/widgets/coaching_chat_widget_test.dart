@@ -56,6 +56,20 @@ void main() {
     });
   });
 
+  group('ChatState', () {
+    test('copyWith preserves lastError when not overridden', () {
+      const state = ChatState(lastError: 'some error');
+      final next = state.copyWith(isSending: true);
+      expect(next.lastError, 'some error');
+    });
+
+    test('copyWith clears lastError when clearError is true', () {
+      const state = ChatState(lastError: 'old error');
+      final next = state.copyWith(clearError: true);
+      expect(next.lastError, isNull);
+    });
+  });
+
   group('ChatMessage status', () {
     test('fromJson defaults status to ok when absent', () {
       final msg = ChatMessage.fromJson({'role': 'user', 'message': 'hello'});
