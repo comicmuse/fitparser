@@ -55,4 +55,22 @@ void main() {
       expect(shouldAutoScrollChat(previous, next), isTrue);
     });
   });
+
+  group('ChatMessage status', () {
+    test('fromJson defaults status to ok when absent', () {
+      final msg = ChatMessage.fromJson({'role': 'user', 'message': 'hello'});
+      expect(msg.status, 'ok');
+      expect(msg.isRateLimited, isFalse);
+    });
+
+    test('fromJson reads rate_limited status', () {
+      final msg = ChatMessage.fromJson({
+        'role': 'user',
+        'message': 'hello',
+        'status': 'rate_limited',
+      });
+      expect(msg.status, 'rate_limited');
+      expect(msg.isRateLimited, isTrue);
+    });
+  });
 }
