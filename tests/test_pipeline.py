@@ -219,6 +219,26 @@ class TestPipelineAnalyzeStage:
         mock_analyze.assert_not_called()
         assert result["analyzed"] == 0
 
+    def test_pipeline_skips_analysis_when_quota_exceeded(self, config, db, tmp_path):
+        """Pipeline should skip analysis when user LLM quota is exceeded."""
+        config.llm_auto_analyse = True
+        user_id = db.get_default_user_id()
+
+        # Make non-admin and enable limit=0
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 0 WHERE id = ?", (user_id,))
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+
+        run_id = self._insert_parsed_run(config, db, tmp_path)
+
+        with patch("runcoach.pipeline.analyze_and_write") as mock_analyze:
+            result = run_full_pipeline(config, db)
+
+        mock_analyze.assert_not_called()
+        updated = db.get_run(run_id)
+        assert updated["stage"] == "parsed"  # not moved to analyzed
+
 
 # ---------------------------------------------------------------------------
 # Sync stage (with credentials, mocked network)
