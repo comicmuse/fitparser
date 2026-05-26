@@ -4,6 +4,7 @@
 {% block content %}
 <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1rem;">
   <h1 style="font-size:1.4rem; font-weight:700;">User Management</h1>
+  <a href="{{ url_for('main.admin_settings') }}" style="font-size:0.9rem;">⚙ Settings</a>
 </div>
 
 <div class="card">
@@ -16,6 +17,7 @@
           <th>Status</th>
           <th class="hide-mobile">Created</th>
           <th class="hide-mobile">Last login</th>
+          <th class="hide-mobile">Limit</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -45,6 +47,25 @@
           </td>
           <td class="hide-mobile" style="font-size:0.82rem;color:var(--fg-muted);">
             {{ u.last_login[:10] if u.last_login else '—' }}
+          </td>
+          <td class="hide-mobile" style="font-size:0.82rem;">
+            {% if u.llm_daily_limit is not none %}
+              {{ u.llm_daily_limit }}/day
+            {% else %}
+              <span style="color:var(--fg-muted);">Default</span>
+            {% endif %}
+            {% if u.id != current_user_id %}
+              <form method="POST" action="{{ url_for('main.admin_set_user_limit', uid=u.id) }}"
+                    style="display:inline; margin-left:0.4rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="number" name="llm_daily_limit" min="1"
+                       value="{{ u.llm_daily_limit or '' }}"
+                       placeholder="Default"
+                       style="width:70px; padding:0.2rem 0.3rem; border:1px solid var(--border);
+                              border-radius:3px; font-size:0.8rem;">
+                <button type="submit" class="btn btn-sm">Set</button>
+              </form>
+            {% endif %}
           </td>
           <td>
             <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">

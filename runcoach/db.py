@@ -144,11 +144,30 @@ CREATE TABLE IF NOT EXISTS strava_routes (
 
 CREATE INDEX IF NOT EXISTS idx_strava_routes_user ON strava_routes(user_id);
 
+CREATE TABLE IF NOT EXISTS site_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS llm_usage (
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    date       TEXT NOT NULL,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, date)
+);
 """
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _add_column_if_missing(
+    conn: sqlite3.Connection, table: str, column: str, col_def: str
+) -> None:
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
 
 
 class RunCoachDB:
@@ -166,6 +185,20 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
+            # Column migrations
+            _add_column_if_missing(conn, "users", "llm_daily_limit", "INTEGER")
+            _add_column_if_missing(
+                conn, "run_chat", "status", "TEXT NOT NULL DEFAULT 'ok'"
+            )
+            # Seed site_settings with defaults
+            conn.execute(
+                "INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)",
+                ("llm_limiting_enabled", "0"),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)",
+                ("llm_daily_limit_default", "10"),
+            )
             # Always ensure the first-ever user is an admin (idempotent).
             conn.execute(
                 """UPDATE users SET is_admin = 1
@@ -186,6 +219,42 @@ class RunCoachDB:
                 pass
             except Exception:
                 log.exception("Failed to seed athlete_profile from coach_profile.txt")
+
+    # ------ site_settings ------
+
+    def get_site_setting(self, key: str, default: str | None = None) -> str | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM site_settings WHERE key = ?", (key,)
+            ).fetchone()
+        return row["value"] if row else default
+
+    def set_site_setting(self, key: str, value: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO site_settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+
+    # ------ llm_usage ------
+
+    def check_and_increment_llm_usage(
+        self, user_id: int, date: str, limit: int
+    ) -> tuple[bool, int]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT call_count FROM llm_usage WHERE user_id = ? AND date = ?",
+                (user_id, date),
+            ).fetchone()
+            current = row["call_count"] if row else 0
+            if current < limit:
+                conn.execute(
+                    """INSERT INTO llm_usage (user_id, date, call_count) VALUES (?, ?, 1)
+                       ON CONFLICT (user_id, date) DO UPDATE SET call_count = call_count + 1""",
+                    (user_id, date),
+                )
+                return True, current + 1
+            return False, current
 
     # ------ runs ------
 
@@ -328,15 +397,16 @@ class RunCoachDB:
         model_used: str | None = None,
         prompt_tokens: int | None = None,
         completion_tokens: int | None = None,
+        status: str = "ok",
     ) -> int:
         with self._connect() as conn:
             cur = conn.execute(
                 """INSERT INTO run_chat
                    (run_id, user_id, role, message, model_used,
-                    prompt_tokens, completion_tokens, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    prompt_tokens, completion_tokens, created_at, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (run_id, user_id, role, message, model_used,
-                 prompt_tokens, completion_tokens, _now_iso()),
+                 prompt_tokens, completion_tokens, _now_iso(), status),
             )
             return cur.lastrowid
 
@@ -344,7 +414,8 @@ class RunCoachDB:
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT id, run_id, user_id, role, message,
-                          model_used, prompt_tokens, completion_tokens, created_at
+                          model_used, prompt_tokens, completion_tokens,
+                          created_at, status
                    FROM run_chat
                    WHERE run_id = ? AND user_id = ?
                    ORDER BY created_at ASC, id ASC""",
@@ -764,6 +835,13 @@ class RunCoachDB:
             conn.execute(
                 "UPDATE users SET is_admin = ? WHERE id = ?",
                 (1 if is_admin else 0, user_id),
+            )
+
+    def set_user_llm_limit(self, user_id: int, limit: int | None) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET llm_daily_limit = ? WHERE id = ?",
+                (limit, user_id),
             )
 
     def delete_user(self, user_id: int) -> None:

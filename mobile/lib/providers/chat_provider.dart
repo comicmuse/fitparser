@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
 import 'auth_provider.dart';
@@ -6,21 +7,26 @@ class ChatState {
   final List<ChatMessage> messages;
   final bool isLoading;
   final bool isSending;
+  final String? lastError;
 
   const ChatState({
     this.messages = const [],
     this.isLoading = false,
     this.isSending = false,
+    this.lastError,
   });
 
   ChatState copyWith({
     List<ChatMessage>? messages,
     bool? isLoading,
     bool? isSending,
+    String? lastError,
+    bool clearError = false,
   }) => ChatState(
     messages: messages ?? this.messages,
     isLoading: isLoading ?? this.isLoading,
     isSending: isSending ?? this.isSending,
+    lastError: clearError ? null : (lastError ?? this.lastError),
   );
 }
 
@@ -53,6 +59,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(
       messages: [...state.messages, userMsg],
       isSending: true,
+      clearError: true,
     );
     try {
       final api = _ref.read(apiServiceProvider);
@@ -62,10 +69,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
         messages: [...state.messages, response],
         isSending: false,
       );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final errorMsg =
+          (e.response?.data as Map<String, dynamic>?)?['error'] as String? ??
+          'Failed to send message. Please try again.';
+      state = state.copyWith(isSending: false, lastError: errorMsg);
     } catch (_) {
       if (!mounted) return;
-      state = state.copyWith(isSending: false);
+      state = state.copyWith(
+        isSending: false,
+        lastError: 'Failed to send message. Please try again.',
+      );
     }
+  }
+
+  void clearError() {
+    state = state.copyWith(clearError: true);
   }
 }
 

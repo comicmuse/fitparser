@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,6 +52,14 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
     setState(() => _analyzing = true);
     try {
       await ref.read(apiServiceProvider).analyzeRun(widget.run.id);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final msg =
+          (e.response?.data as Map<String, dynamic>?)?['error'] as String? ??
+          'Failed to start analysis. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      setState(() => _analyzing = false);
+      return;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -59,7 +68,6 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
       setState(() => _analyzing = false);
       return;
     }
-    // Poll every 3 seconds until the run stage flips to analyzed
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted) {
         _pollTimer?.cancel();
@@ -92,6 +100,15 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
     ref.listen(chatProvider(widget.run.id), (previous, next) {
       if (_shouldAutoScroll(previous, next)) {
         _scrollToBottom();
+      }
+    });
+
+    ref.listen(chatProvider(widget.run.id), (previous, next) {
+      if (next.lastError != null && next.lastError != previous?.lastError) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(next.lastError!)));
+        ref.read(chatProvider(widget.run.id).notifier).clearError();
       }
     });
 
@@ -157,11 +174,25 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
                 ),
               if (chatState.isLoading)
                 const Center(child: CircularProgressIndicator()),
-              ...chatState.messages.map(
-                (msg) => msg.isUser
-                    ? _UserBubble(message: msg.message)
-                    : _AiBubble(message: msg.message),
-              ),
+              ...() {
+                final msgs = chatState.messages;
+                return msgs.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final msg = entry.value;
+                  if (!msg.isUser) return _AiBubble(message: msg.message);
+                  final isLastRateLimited =
+                      msg.isRateLimited && idx == msgs.length - 1;
+                  if (isLastRateLimited) {
+                    return _RateLimitedBubble(
+                      message: msg.message,
+                      onRetry: () => ref
+                          .read(chatProvider(liveRun.id).notifier)
+                          .send(msg.message),
+                    );
+                  }
+                  return _UserBubble(message: msg.message);
+                }).toList();
+              }(),
               if (chatState.isSending)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
@@ -345,6 +376,76 @@ class _UserBubble extends StatelessWidget {
             height: 1.4,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RateLimitedBubble extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _RateLimitedBubble({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 4, left: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF6750A4),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(14),
+                topRight: Radius.circular(14),
+                bottomLeft: Radius.circular(14),
+                bottomRight: Radius.circular(3),
+              ),
+            ),
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 4, bottom: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: 13,
+                  color: Color(0xFFAAAAAA),
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  'Not sent — limit reached',
+                  style: TextStyle(fontSize: 11, color: Color(0xFFAAAAAA)),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onRetry,
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF6750A4),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

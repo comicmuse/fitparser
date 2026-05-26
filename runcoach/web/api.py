@@ -21,6 +21,7 @@ from runcoach.db import RunCoachDB
 from runcoach.config import Config
 from runcoach.analyzer import _dispatch_llm, build_chat_context
 from runcoach.context import build_training_summary
+from runcoach.rate_limiter import check_and_consume
 from runcoach.web.ors import fetch_routes
 from runcoach.strava import decode_polyline
 from runcoach.weather import fetch_forecast, score_forecast
@@ -279,7 +280,12 @@ def get_run_chat(run_id: int):
     history = db.get_chat_history(run_id, user_id=request.user_id)
     return jsonify({
         "history": [
-            {"role": h["role"], "message": h["message"], "created_at": h["created_at"]}
+            {
+                "role": h["role"],
+                "message": h["message"],
+                "created_at": h["created_at"],
+                "status": h.get("status", "ok"),
+            }
             for h in history
         ]
     }), 200
@@ -306,6 +312,11 @@ def post_run_chat(run_id: int):
     message = (body.get("message") or "").strip()
     if not message:
         return jsonify({"error": "message is required"}), 400
+
+    allowed, rate_msg = check_and_consume(db, request.user_id)
+    if not allowed:
+        db.add_chat_message(run_id, request.user_id, "user", message, status="rate_limited")
+        return jsonify({"error": rate_msg}), 429
 
     history = db.get_chat_history(run_id, user_id=request.user_id)
 
@@ -420,6 +431,10 @@ def analyze_run(run_id: int):
 
     if run["stage"] != "parsed":
         return jsonify({"error": f"Run must be in 'parsed' stage (currently '{run['stage']}')"}), 400
+
+    allowed, rate_msg = check_and_consume(db, request.user_id)
+    if not allowed:
+        return jsonify({"error": rate_msg}), 429
 
     # Trigger analysis asynchronously
     from runcoach.analyzer import analyze_and_write

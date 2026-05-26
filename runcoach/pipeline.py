@@ -12,6 +12,7 @@ import json as _json
 from runcoach.sync import sync_new_activities, sync_planned_workouts
 from runcoach.parser import parse_fit_file
 from runcoach.analyzer import analyze_and_write
+from runcoach.rate_limiter import check_and_consume
 
 log = logging.getLogger(__name__)
 
@@ -136,6 +137,13 @@ def run_full_pipeline(config: Config, db: RunCoachDB, user_id: int = 1) -> dict:
             log.info("LLM_AUTO_ANALYSE is off, skipping automatic analysis")
         else:
             for run in db.get_pending_runs("parsed", user_id=user_id, date_from=config.analyze_from):
+                allowed, rate_msg = check_and_consume(db, user_id)
+                if not allowed:
+                    log.warning(
+                        "LLM quota exceeded for user %s, skipping run %s: %s",
+                        user_id, run["id"], rate_msg,
+                    )
+                    continue
                 try:
                     result = analyze_and_write(run, config, db=db, user_id=user_id)
                     db.update_analyzed(

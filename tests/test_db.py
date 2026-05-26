@@ -63,6 +63,40 @@ class TestDatabaseInit:
         runs2 = db2.get_all_runs(1)
         assert runs1 == runs2 == []
 
+    def test_db_init_creates_rate_limit_tables(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            tables = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()]
+        assert "site_settings" in tables
+        assert "llm_usage" in tables
+
+    def test_db_init_adds_llm_daily_limit_to_users(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        assert "llm_daily_limit" in cols
+
+    def test_db_init_adds_status_to_run_chat(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(run_chat)").fetchall()]
+        assert "status" in cols
+
+    def test_db_init_seeds_site_settings(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            rows = {r[0]: r[1] for r in conn.execute(
+                "SELECT key, value FROM site_settings"
+            ).fetchall()}
+        assert rows.get("llm_limiting_enabled") == "0"
+        assert rows.get("llm_daily_limit_default") == "10"
+
 
 class TestRunsCRUD:
     """Tests for runs table CRUD operations."""
@@ -727,6 +761,7 @@ class TestDatabaseStartup:
         "strava_refresh_token", "strava_token_expires_at", "strava_athlete_id",
         "strava_webhook_subscription_id", "display_name", "race_date",
         "race_distance", "stryd_email", "stryd_password", "is_active", "is_admin",
+        "llm_daily_limit",
     }
 
     EXPECTED_PLANNED_WORKOUTS_COLUMNS = {
@@ -742,7 +777,7 @@ class TestDatabaseStartup:
 
     EXPECTED_RUN_CHAT_COLUMNS = {
         "id", "run_id", "user_id", "role", "message", "model_used",
-        "prompt_tokens", "completion_tokens", "created_at",
+        "prompt_tokens", "completion_tokens", "created_at", "status",
     }
 
     def _get_columns(self, db: RunCoachDB, table: str) -> set[str]:
@@ -1060,6 +1095,27 @@ class TestDeviceTokens:
         assert db.get_device_tokens_for_user(user_id) == []
 
 
+class TestSiteSettings:
+    def test_get_site_setting_returns_seeded_value(self, temp_db):
+        assert temp_db.get_site_setting("llm_limiting_enabled") == "0"
+        assert temp_db.get_site_setting("llm_daily_limit_default") == "10"
+
+    def test_get_site_setting_returns_default_when_absent(self, temp_db):
+        assert temp_db.get_site_setting("nonexistent") is None
+        assert temp_db.get_site_setting("nonexistent", default="42") == "42"
+
+    def test_set_site_setting_upserts(self, temp_db):
+        temp_db.set_site_setting("llm_limiting_enabled", "1")
+        assert temp_db.get_site_setting("llm_limiting_enabled") == "1"
+        # Upsert again
+        temp_db.set_site_setting("llm_limiting_enabled", "0")
+        assert temp_db.get_site_setting("llm_limiting_enabled") == "0"
+
+    def test_set_site_setting_creates_new_key(self, temp_db):
+        temp_db.set_site_setting("custom_key", "hello")
+        assert temp_db.get_site_setting("custom_key") == "hello"
+
+
 class TestStravaRoutes:
     def test_upsert_and_get_strava_routes(self, temp_db):
         routes = [
@@ -1130,3 +1186,79 @@ class TestStravaRoutes:
         assert len(result) == 1
         assert result[0]["name"] == "Run A"
         assert result[0]["strava_map_polyline"] == "poly1"
+
+
+class TestLlmUsage:
+    def test_first_call_inserts_row_and_allows(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 5)
+        assert incremented is True
+        assert count == 1
+
+    def test_subsequent_calls_increment(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 5)
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 5)
+        assert incremented is True
+        assert count == 2
+
+    def test_denies_at_limit_without_incrementing(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        # Use up all 2 calls
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 2)
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 2)
+        # Third call should be denied
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 2)
+        assert incremented is False
+        assert count == 2  # not incremented
+
+    def test_different_dates_are_independent(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-25", 1)
+        # Previous day used up its limit; new day should be fresh
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 1)
+        assert incremented is True
+        assert count == 1
+
+    def test_limit_zero_always_denies(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 0)
+        assert incremented is False
+        assert count == 0
+
+
+class TestChatMessageStatus:
+    """Tests for chat message status support."""
+
+    def test_add_chat_message_default_status_is_ok(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        run_id = temp_db.insert_run(
+            stryd_activity_id=None, name="Test", date="2026-05-26", fit_path="a.fit"
+        )
+        temp_db.add_chat_message(run_id, user_id, "user", "hello")
+        history = temp_db.get_chat_history(run_id, user_id)
+        assert history[0]["status"] == "ok"
+
+    def test_add_chat_message_rate_limited_status(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        run_id = temp_db.insert_run(
+            stryd_activity_id=None, name="Test2", date="2026-05-26", fit_path="b.fit"
+        )
+        temp_db.add_chat_message(
+            run_id, user_id, "user", "denied message", status="rate_limited"
+        )
+        history = temp_db.get_chat_history(run_id, user_id)
+        assert history[0]["status"] == "rate_limited"
+
+    def test_get_chat_history_includes_status(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        run_id = temp_db.insert_run(
+            stryd_activity_id=None, name="Test3", date="2026-05-26", fit_path="c.fit"
+        )
+        temp_db.add_chat_message(run_id, user_id, "user", "ok msg")
+        temp_db.add_chat_message(
+            run_id, user_id, "user", "denied", status="rate_limited"
+        )
+        history = temp_db.get_chat_history(run_id, user_id)
+        assert "status" in history[0]
+        assert history[1]["status"] == "rate_limited"
