@@ -806,6 +806,16 @@ def admin_delete_user(uid):
     return redirect(url_for("main.admin_users"))
 
 
+@bp.route("/admin/users/<int:uid>/set-limit", methods=["POST"])
+@_admin_required
+def admin_set_user_limit(uid):
+    raw = request.form.get("llm_daily_limit", "").strip()
+    limit = int(raw) if raw.isdigit() and int(raw) > 0 else None
+    _db().set_user_llm_limit(uid, limit)
+    flash("User limit updated.")
+    return redirect(url_for("main.admin_users"))
+
+
 @bp.route("/admin/settings", methods=["GET", "POST"])
 @_admin_required
 def admin_settings():

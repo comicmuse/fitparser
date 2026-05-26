@@ -837,6 +837,13 @@ class RunCoachDB:
                 (1 if is_admin else 0, user_id),
             )
 
+    def set_user_llm_limit(self, user_id: int, limit: int | None) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET llm_daily_limit = ? WHERE id = ?",
+                (limit, user_id),
+            )
+
     def delete_user(self, user_id: int) -> None:
         with self._connect() as conn:
             conn.execute("DELETE FROM runs WHERE user_id = ?", (user_id,))

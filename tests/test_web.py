@@ -1876,3 +1876,39 @@ class TestAdminSettings:
             sess["user_id"] = user_id
         resp = client.get("/admin/settings")
         assert resp.status_code in (302, 403)
+
+
+class TestAdminUserLimit:
+    def test_set_user_limit_updates_db(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (user_id,))
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp = client.post(
+            f"/admin/users/{user_id}/set-limit",
+            data={"llm_daily_limit": "25"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        user = db.get_user_by_id(user_id)
+        assert user["llm_daily_limit"] == 25
+
+    def test_set_user_limit_blank_clears_override(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET is_admin = 1, llm_daily_limit = 15 WHERE id = ?",
+                (user_id,),
+            )
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        client.post(
+            f"/admin/users/{user_id}/set-limit",
+            data={"llm_daily_limit": ""},
+            follow_redirects=True,
+        )
+        user = db.get_user_by_id(user_id)
+        assert user["llm_daily_limit"] is None
