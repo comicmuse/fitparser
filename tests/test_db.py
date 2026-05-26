@@ -1225,3 +1225,40 @@ class TestLlmUsage:
         incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 0)
         assert incremented is False
         assert count == 0
+
+
+class TestChatMessageStatus:
+    """Tests for chat message status support."""
+
+    def test_add_chat_message_default_status_is_ok(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        run_id = temp_db.insert_run(
+            stryd_activity_id=None, name="Test", date="2026-05-26", fit_path="a.fit"
+        )
+        temp_db.add_chat_message(run_id, user_id, "user", "hello")
+        history = temp_db.get_chat_history(run_id, user_id)
+        assert history[0]["status"] == "ok"
+
+    def test_add_chat_message_rate_limited_status(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        run_id = temp_db.insert_run(
+            stryd_activity_id=None, name="Test2", date="2026-05-26", fit_path="b.fit"
+        )
+        temp_db.add_chat_message(
+            run_id, user_id, "user", "denied message", status="rate_limited"
+        )
+        history = temp_db.get_chat_history(run_id, user_id)
+        assert history[0]["status"] == "rate_limited"
+
+    def test_get_chat_history_includes_status(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        run_id = temp_db.insert_run(
+            stryd_activity_id=None, name="Test3", date="2026-05-26", fit_path="c.fit"
+        )
+        temp_db.add_chat_message(run_id, user_id, "user", "ok msg")
+        temp_db.add_chat_message(
+            run_id, user_id, "user", "denied", status="rate_limited"
+        )
+        history = temp_db.get_chat_history(run_id, user_id)
+        assert "status" in history[0]
+        assert history[1]["status"] == "rate_limited"

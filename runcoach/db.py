@@ -397,15 +397,16 @@ class RunCoachDB:
         model_used: str | None = None,
         prompt_tokens: int | None = None,
         completion_tokens: int | None = None,
+        status: str = "ok",
     ) -> int:
         with self._connect() as conn:
             cur = conn.execute(
                 """INSERT INTO run_chat
                    (run_id, user_id, role, message, model_used,
-                    prompt_tokens, completion_tokens, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    prompt_tokens, completion_tokens, created_at, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (run_id, user_id, role, message, model_used,
-                 prompt_tokens, completion_tokens, _now_iso()),
+                 prompt_tokens, completion_tokens, _now_iso(), status),
             )
             return cur.lastrowid
 
@@ -413,7 +414,8 @@ class RunCoachDB:
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT id, run_id, user_id, role, message,
-                          model_used, prompt_tokens, completion_tokens, created_at
+                          model_used, prompt_tokens, completion_tokens,
+                          created_at, status
                    FROM run_chat
                    WHERE run_id = ? AND user_id = ?
                    ORDER BY created_at ASC, id ASC""",
