@@ -401,6 +401,11 @@ def analyze_run_route(run_id: int):
         flash(f"Run must be parsed first (current stage: {run['stage']})")
         return redirect(url_for("main.run_detail", run_id=run_id))
 
+    allowed, rate_msg = check_and_consume(db, user_id)
+    if not allowed:
+        flash(rate_msg)
+        return redirect(url_for("main.run_detail", run_id=run_id))
+
     def _do_analyze(app, run_id, config, user_id):
         with app.app_context():
             db = _db()

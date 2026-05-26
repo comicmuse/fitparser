@@ -1379,6 +1379,28 @@ class TestAnalyzeRunNotification:
 
         mock_notify.assert_called_once_with(run_id, "Test Run", user_id, ANY, ANY)
 
+    def test_analyze_rate_limited_returns_429(self, client, app):
+        # Use a non-default user so _init_schema won't re-promote them to admin
+        db = app.config["db"]
+        user_id = db.create_user("rl_analyze_user", hash_password("pass"))
+        token = create_access_token(user_id, app.config["SECRET_KEY"])
+        headers = {"Authorization": f"Bearer {token}"}
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+        run_id = db.insert_run(
+            stryd_activity_id=9010,
+            name="API Analyze Limit",
+            date="2026-05-26",
+            fit_path="activities/api_al.fit",
+            distance_m=5000,
+            moving_time_s=1500,
+            user_id=user_id,
+        )
+        db.update_parsed(run_id, None, 200.0, 145, "API Analyze Limit")
+        resp = client.post(f"/api/v1/runs/{run_id}/analyze", headers=headers)
+        assert resp.status_code == 429
+        assert "Daily analysis limit reached" in resp.get_json()["error"]
+
 
 class TestSyncStravaRoutes:
     def _strava_config(self, app):

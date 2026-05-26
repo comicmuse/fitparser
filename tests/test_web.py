@@ -1453,6 +1453,35 @@ class TestRunChat:
         assert history[0]["status"] == "rate_limited"
 
 
+class TestAnalyzeRunRateLimit:
+    """Tests for rate-limiting the analyze_run_route."""
+
+    def test_analyze_rate_limited_redirects_with_flash(self, client, app):
+        from unittest.mock import patch
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 0 WHERE id = ?", (user_id,))
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+        run_id = db.insert_run(
+            stryd_activity_id=9001,
+            name="Analyze Limit",
+            date="2026-05-26",
+            fit_path="activities/al.fit",
+        )
+        db.update_parsed(run_id, None, 200.0, 145, "Analyze Limit")
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        resp = client.post(
+            f"/run/{run_id}/analyze",
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b"Daily analysis limit reached" in resp.data
+
+
 class TestComputePowerScaleMax:
     """Tests for _compute_power_scale_max helper."""
 

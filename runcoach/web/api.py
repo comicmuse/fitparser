@@ -432,6 +432,10 @@ def analyze_run(run_id: int):
     if run["stage"] != "parsed":
         return jsonify({"error": f"Run must be in 'parsed' stage (currently '{run['stage']}')"}), 400
 
+    allowed, rate_msg = check_and_consume(db, request.user_id)
+    if not allowed:
+        return jsonify({"error": rate_msg}), 429
+
     # Trigger analysis asynchronously
     from runcoach.analyzer import analyze_and_write
     import threading
