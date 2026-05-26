@@ -206,3 +206,30 @@ Calendar day resetting at **midnight UTC**. The counter for a user is the `llm_u
 ### E2E (`tests/e2e/`)
 
 - Flash message visible on run detail page after rate-limited analyze attempt
+
+---
+
+## Mobile considerations
+
+Two existing error-handling gaps in the Flutter app must be fixed as part of this feature, otherwise the rate-limit message is never surfaced to mobile users.
+
+### `sendChatMessage` — silent error swallow
+
+**File:** `mobile/lib/providers/chat_provider.dart`
+
+Currently uses `catch (_)` which silently discards all errors. When the server returns 429 the user's message appears in the chat with no reply and no explanation.
+
+**Fix:** Catch `DioException`, extract `response.data['error']` from the response body, and surface it as an error message in the chat (e.g. append a system message or show a SnackBar).
+
+### "Analyze Now" button — raw exception in SnackBar
+
+**File:** `mobile/lib/widgets/coaching_chat_widget.dart`
+
+The `_triggerAnalysis()` method catches exceptions and shows `'Failed to start analysis: $e'` — `$e` is the raw `DioException`, not the server's error message.
+
+**Fix:** On `DioException`, check `e.response?.data['error']` and use that string in the SnackBar if present. Falls back to the generic message for non-server errors.
+
+### Flutter tests
+
+- `chat_provider`: error response surfaces message rather than silently swallowing
+- `coaching_chat_widget`: 429 response shows rate-limit message in SnackBar, not raw exception
