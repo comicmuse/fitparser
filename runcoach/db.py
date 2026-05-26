@@ -236,6 +236,26 @@ class RunCoachDB:
                 (key, value),
             )
 
+    # ------ llm_usage ------
+
+    def check_and_increment_llm_usage(
+        self, user_id: int, date: str, limit: int
+    ) -> tuple[bool, int]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT call_count FROM llm_usage WHERE user_id = ? AND date = ?",
+                (user_id, date),
+            ).fetchone()
+            current = row["call_count"] if row else 0
+            if current < limit:
+                conn.execute(
+                    """INSERT INTO llm_usage (user_id, date, call_count) VALUES (?, ?, 1)
+                       ON CONFLICT (user_id, date) DO UPDATE SET call_count = call_count + 1""",
+                    (user_id, date),
+                )
+                return True, current + 1
+            return False, current
+
     # ------ runs ------
 
     def get_all_runs(self, user_id: int) -> list[dict]:

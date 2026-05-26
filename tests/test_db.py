@@ -1186,3 +1186,42 @@ class TestStravaRoutes:
         assert len(result) == 1
         assert result[0]["name"] == "Run A"
         assert result[0]["strava_map_polyline"] == "poly1"
+
+
+class TestLlmUsage:
+    def test_first_call_inserts_row_and_allows(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 5)
+        assert incremented is True
+        assert count == 1
+
+    def test_subsequent_calls_increment(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 5)
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 5)
+        assert incremented is True
+        assert count == 2
+
+    def test_denies_at_limit_without_incrementing(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        # Use up all 2 calls
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 2)
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 2)
+        # Third call should be denied
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 2)
+        assert incremented is False
+        assert count == 2  # not incremented
+
+    def test_different_dates_are_independent(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        temp_db.check_and_increment_llm_usage(user_id, "2026-05-25", 1)
+        # Previous day used up its limit; new day should be fresh
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 1)
+        assert incremented is True
+        assert count == 1
+
+    def test_limit_zero_always_denies(self, temp_db):
+        user_id = temp_db.get_default_user_id()
+        incremented, count = temp_db.check_and_increment_llm_usage(user_id, "2026-05-26", 0)
+        assert incremented is False
+        assert count == 0
