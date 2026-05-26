@@ -806,6 +806,25 @@ def admin_delete_user(uid):
     return redirect(url_for("main.admin_users"))
 
 
+@bp.route("/admin/settings", methods=["GET", "POST"])
+@_admin_required
+def admin_settings():
+    db = _db()
+    if request.method == "POST":
+        enabled = "1" if request.form.get("llm_limiting_enabled") else "0"
+        raw_limit = request.form.get("llm_daily_limit_default", "").strip()
+        if raw_limit.isdigit() and int(raw_limit) > 0:
+            db.set_site_setting("llm_daily_limit_default", raw_limit)
+        db.set_site_setting("llm_limiting_enabled", enabled)
+        flash("Settings saved.")
+        return redirect(url_for("main.admin_settings"))
+    return render_template(
+        "admin_settings.html",
+        llm_limiting_enabled=db.get_site_setting("llm_limiting_enabled", "0") == "1",
+        llm_daily_limit_default=db.get_site_setting("llm_daily_limit_default", "10"),
+    )
+
+
 @bp.route("/athlete-profile", methods=["GET"])
 @_login_required
 def athlete_profile():

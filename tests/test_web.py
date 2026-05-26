@@ -1837,3 +1837,42 @@ class TestBestRunTimeWeb:
         mocker.patch("runcoach.web.routes.fetch_forecast", side_effect=req_lib.RequestException("timeout"))
         r = client.get("/api/best-run-time?lat=53.3&lng=-6.3")
         assert r.status_code == 503
+
+
+class TestAdminSettings:
+    def test_admin_settings_page_loads(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (user_id,))
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp = client.get("/admin/settings")
+        assert resp.status_code == 200
+        assert b"LLM Rate Limiting" in resp.data
+
+    def test_admin_settings_post_updates_values(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (user_id,))
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp = client.post(
+            "/admin/settings",
+            data={"llm_limiting_enabled": "on", "llm_daily_limit_default": "20"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert db.get_site_setting("llm_limiting_enabled") == "1"
+        assert db.get_site_setting("llm_daily_limit_default") == "20"
+
+    def test_admin_settings_requires_admin(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 0 WHERE id = ?", (user_id,))
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp = client.get("/admin/settings")
+        assert resp.status_code in (302, 403)

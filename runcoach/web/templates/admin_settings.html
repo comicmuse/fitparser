@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Site Settings — RunCoach{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1rem;">
+  <h1 style="font-size:1.4rem; font-weight:700;">Site Settings</h1>
+  <a href="{{ url_for('main.admin_users') }}" style="font-size:0.9rem;">← Users</a>
+</div>
+
+<div class="card" style="max-width:520px;">
+  <h2 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">LLM Rate Limiting</h2>
+  <form method="POST" action="{{ url_for('main.admin_settings') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div style="margin-bottom:1rem; display:flex; align-items:center; gap:0.75rem;">
+      <input
+        type="checkbox"
+        id="llm_limiting_enabled"
+        name="llm_limiting_enabled"
+        {% if llm_limiting_enabled %}checked{% endif %}
+      >
+      <label for="llm_limiting_enabled" style="font-size:0.95rem;">
+        Enable daily LLM call limit for non-admin users
+      </label>
+    </div>
+
+    <div style="margin-bottom:1.5rem;">
+      <label for="llm_daily_limit_default" style="display:block; font-size:0.9rem; margin-bottom:0.35rem;">
+        Default daily limit (calls per user)
+      </label>
+      <input
+        type="number"
+        id="llm_daily_limit_default"
+        name="llm_daily_limit_default"
+        value="{{ llm_daily_limit_default }}"
+        min="1"
+        style="width:100px; padding:0.35rem 0.5rem; border:1px solid var(--border); border-radius:4px;"
+      >
+      <p style="font-size:0.8rem; color:var(--fg-muted); margin-top:0.35rem;">
+        Applies to all non-admin users unless a per-user override is set. Resets daily at 00:00 UTC.
+      </p>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save settings</button>
+  </form>
+</div>
+{% endblock %}
