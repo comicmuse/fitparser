@@ -144,11 +144,30 @@ CREATE TABLE IF NOT EXISTS strava_routes (
 
 CREATE INDEX IF NOT EXISTS idx_strava_routes_user ON strava_routes(user_id);
 
+CREATE TABLE IF NOT EXISTS site_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS llm_usage (
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    date       TEXT NOT NULL,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, date)
+);
 """
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _add_column_if_missing(
+    conn: sqlite3.Connection, table: str, column: str, col_def: str
+) -> None:
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
 
 
 class RunCoachDB:
@@ -166,6 +185,20 @@ class RunCoachDB:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
+            # Column migrations
+            _add_column_if_missing(conn, "users", "llm_daily_limit", "INTEGER")
+            _add_column_if_missing(
+                conn, "run_chat", "status", "TEXT NOT NULL DEFAULT 'ok'"
+            )
+            # Seed site_settings with defaults
+            conn.execute(
+                "INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)",
+                ("llm_limiting_enabled", "0"),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)",
+                ("llm_daily_limit_default", "10"),
+            )
             # Always ensure the first-ever user is an admin (idempotent).
             conn.execute(
                 """UPDATE users SET is_admin = 1

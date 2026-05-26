@@ -63,6 +63,40 @@ class TestDatabaseInit:
         runs2 = db2.get_all_runs(1)
         assert runs1 == runs2 == []
 
+    def test_db_init_creates_rate_limit_tables(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            tables = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()]
+        assert "site_settings" in tables
+        assert "llm_usage" in tables
+
+    def test_db_init_adds_llm_daily_limit_to_users(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        assert "llm_daily_limit" in cols
+
+    def test_db_init_adds_status_to_run_chat(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(run_chat)").fetchall()]
+        assert "status" in cols
+
+    def test_db_init_seeds_site_settings(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = RunCoachDB(db_path)
+        with db._connect() as conn:
+            rows = {r[0]: r[1] for r in conn.execute(
+                "SELECT key, value FROM site_settings"
+            ).fetchall()}
+        assert rows.get("llm_limiting_enabled") == "0"
+        assert rows.get("llm_daily_limit_default") == "10"
+
 
 class TestRunsCRUD:
     """Tests for runs table CRUD operations."""
@@ -727,6 +761,7 @@ class TestDatabaseStartup:
         "strava_refresh_token", "strava_token_expires_at", "strava_athlete_id",
         "strava_webhook_subscription_id", "display_name", "race_date",
         "race_distance", "stryd_email", "stryd_password", "is_active", "is_admin",
+        "llm_daily_limit",
     }
 
     EXPECTED_PLANNED_WORKOUTS_COLUMNS = {
@@ -742,7 +777,7 @@ class TestDatabaseStartup:
 
     EXPECTED_RUN_CHAT_COLUMNS = {
         "id", "run_id", "user_id", "role", "message", "model_used",
-        "prompt_tokens", "completion_tokens", "created_at",
+        "prompt_tokens", "completion_tokens", "created_at", "status",
     }
 
     def _get_columns(self, db: RunCoachDB, table: str) -> set[str]:
