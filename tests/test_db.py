@@ -1095,6 +1095,27 @@ class TestDeviceTokens:
         assert db.get_device_tokens_for_user(user_id) == []
 
 
+class TestSiteSettings:
+    def test_get_site_setting_returns_seeded_value(self, temp_db):
+        assert temp_db.get_site_setting("llm_limiting_enabled") == "0"
+        assert temp_db.get_site_setting("llm_daily_limit_default") == "10"
+
+    def test_get_site_setting_returns_default_when_absent(self, temp_db):
+        assert temp_db.get_site_setting("nonexistent") is None
+        assert temp_db.get_site_setting("nonexistent", default="42") == "42"
+
+    def test_set_site_setting_upserts(self, temp_db):
+        temp_db.set_site_setting("llm_limiting_enabled", "1")
+        assert temp_db.get_site_setting("llm_limiting_enabled") == "1"
+        # Upsert again
+        temp_db.set_site_setting("llm_limiting_enabled", "0")
+        assert temp_db.get_site_setting("llm_limiting_enabled") == "0"
+
+    def test_set_site_setting_creates_new_key(self, temp_db):
+        temp_db.set_site_setting("custom_key", "hello")
+        assert temp_db.get_site_setting("custom_key") == "hello"
+
+
 class TestStravaRoutes:
     def test_upsert_and_get_strava_routes(self, temp_db):
         routes = [

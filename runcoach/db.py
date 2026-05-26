@@ -220,6 +220,22 @@ class RunCoachDB:
             except Exception:
                 log.exception("Failed to seed athlete_profile from coach_profile.txt")
 
+    # ------ site_settings ------
+
+    def get_site_setting(self, key: str, default: str | None = None) -> str | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM site_settings WHERE key = ?", (key,)
+            ).fetchone()
+        return row["value"] if row else default
+
+    def set_site_setting(self, key: str, value: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO site_settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+
     # ------ runs ------
 
     def get_all_runs(self, user_id: int) -> list[dict]:
