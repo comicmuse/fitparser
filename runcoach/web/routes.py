@@ -32,6 +32,7 @@ import json as _json
 from runcoach.analyzer import analyze_and_write, build_chat_context, _dispatch_llm
 from runcoach.auth import hash_password, verify_password
 from runcoach.config import Config
+from runcoach.rate_limiter import check_and_consume
 from runcoach.parser import parse_fit_file
 from runcoach.pipeline import run_full_pipeline
 from runcoach.web import csrf
@@ -447,6 +448,11 @@ def run_chat(run_id: int):
     message = (body.get("message") or "").strip()
     if not message:
         return jsonify({"error": "message is required"}), 400
+
+    allowed, rate_msg = check_and_consume(db, user_id)
+    if not allowed:
+        db.add_chat_message(run_id, user_id, "user", message, status="rate_limited")
+        return jsonify({"error": rate_msg}), 429
 
     history = db.get_chat_history(run_id, user_id=user_id)
 

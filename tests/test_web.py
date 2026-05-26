@@ -1389,6 +1389,69 @@ class TestRunChat:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
+    def test_chat_route_rate_limited_returns_429(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        # Make user non-admin and enable limiting with limit=0
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 0 WHERE id = ?", (user_id,))
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+        run_id = db.insert_run(
+            stryd_activity_id=7010,
+            name="Rate Limit Run",
+            date="2026-05-26",
+            fit_path="activities/rl.fit",
+        )
+        db.update_analyzed(
+            run_id=run_id, md_path=None,
+            commentary="Good run.", model_used="gpt-4o",
+            prompt_tokens=10, completion_tokens=5,
+        )
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        resp = client.post(
+            f"/run/{run_id}/chat",
+            json={"message": "How was my HR?"},
+            content_type="application/json",
+        )
+        assert resp.status_code == 429
+        data = resp.get_json()
+        assert "Daily analysis limit reached" in data["error"]
+
+    def test_chat_route_rate_limited_persists_message(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_admin = 0 WHERE id = ?", (user_id,))
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+        run_id = db.insert_run(
+            stryd_activity_id=7011,
+            name="Persist Run",
+            date="2026-05-26",
+            fit_path="activities/persist.fit",
+        )
+        db.update_analyzed(
+            run_id=run_id, md_path=None,
+            commentary="Good run.", model_used="gpt-4o",
+            prompt_tokens=10, completion_tokens=5,
+        )
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        client.post(
+            f"/run/{run_id}/chat",
+            json={"message": "Save me"},
+            content_type="application/json",
+        )
+        history = db.get_chat_history(run_id, user_id)
+        assert len(history) == 1
+        assert history[0]["role"] == "user"
+        assert history[0]["message"] == "Save me"
+        assert history[0]["status"] == "rate_limited"
+
 
 class TestComputePowerScaleMax:
     """Tests for _compute_power_scale_max helper."""

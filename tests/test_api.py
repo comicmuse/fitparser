@@ -567,6 +567,57 @@ class TestRunChat:
         assert resp.status_code == 502
         assert db.get_chat_history(run_id, user_id) == []
 
+    def test_post_chat_rate_limited_returns_429(self, client, app):
+        # Use a second (non-default) user so _init_schema won't re-promote them
+        db = app.config["db"]
+        user_id = db.create_user("rl_user1", hash_password("pass"))
+        token = create_access_token(user_id, app.config["SECRET_KEY"])
+        headers = {"Authorization": f"Bearer {token}"}
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+        run_id = db.insert_run(
+            stryd_activity_id=8020,
+            name="API Rate Limit",
+            date="2026-05-26",
+            fit_path="activities/api_rl.fit",
+            distance_m=5000,
+            moving_time_s=1500,
+            user_id=user_id,
+        )
+        resp = client.post(
+            f"/api/v1/runs/{run_id}/chat",
+            json={"message": "too many calls"},
+            headers=headers,
+        )
+        assert resp.status_code == 429
+        assert "Daily analysis limit reached" in resp.get_json()["error"]
+
+    def test_post_chat_rate_limited_persists_user_message(self, client, app):
+        # Use a second (non-default) user so _init_schema won't re-promote them
+        db = app.config["db"]
+        user_id = db.create_user("rl_user2", hash_password("pass"))
+        token = create_access_token(user_id, app.config["SECRET_KEY"])
+        headers = {"Authorization": f"Bearer {token}"}
+        db.set_site_setting("llm_limiting_enabled", "1")
+        db.set_site_setting("llm_daily_limit_default", "0")
+        run_id = db.insert_run(
+            stryd_activity_id=8021,
+            name="API Persist",
+            date="2026-05-26",
+            fit_path="activities/api_persist.fit",
+            distance_m=5000,
+            moving_time_s=1500,
+            user_id=user_id,
+        )
+        client.post(
+            f"/api/v1/runs/{run_id}/chat",
+            json={"message": "keep me"},
+            headers=headers,
+        )
+        history = db.get_chat_history(run_id, user_id)
+        assert len(history) == 1
+        assert history[0]["status"] == "rate_limited"
+
 
 # ---------------------------------------------------------------------------
 # Dashboard
