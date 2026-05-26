@@ -211,7 +211,26 @@ Calendar day resetting at **midnight UTC**. The counter for a user is the `llm_u
 
 ## Mobile considerations
 
-Two existing error-handling gaps in the Flutter app must be fixed as part of this feature, otherwise the rate-limit message is never surfaced to mobile users.
+### `run_chat` schema: `status` column
+
+```sql
+ALTER TABLE run_chat ADD COLUMN status TEXT NOT NULL DEFAULT 'ok';
+```
+
+Values: `'ok'` | `'rate_limited'`. All existing rows default to `'ok'`.
+
+### Persisting rate-limited messages
+
+When `run_chat` returns 429, the server saves the user message with `status='rate_limited'` before returning the error response. No assistant reply is added. This preserves the message in history so the user does not have to retype it.
+
+The chat history API response includes the `status` field for each message.
+
+### Retry button (mobile)
+
+The mobile chat UI shows a **Retry** button on any `rate_limited` user message that has no subsequent assistant reply (i.e. it is the last unanswered message in the thread). The button is always tappable — no client-side quota calculation. When tapped it re-sends the message text through the normal send flow:
+
+- **Success:** assistant reply is appended; the original `rate_limited` row is not modified, but the retry button disappears because the message is no longer the last unanswered one.
+- **Still rate-limited:** server returns 429 again; the error message is re-shown via SnackBar.
 
 ### `sendChatMessage` — silent error swallow
 
@@ -219,7 +238,7 @@ Two existing error-handling gaps in the Flutter app must be fixed as part of thi
 
 Currently uses `catch (_)` which silently discards all errors. When the server returns 429 the user's message appears in the chat with no reply and no explanation.
 
-**Fix:** Catch `DioException`, extract `response.data['error']` from the response body, and surface it as an error message in the chat (e.g. append a system message or show a SnackBar).
+**Fix:** Catch `DioException`, extract `response.data['error']` from the response body, and surface it as a SnackBar. The `rate_limited` message loaded from history will show the retry button on next render.
 
 ### "Analyze Now" button — raw exception in SnackBar
 
@@ -229,7 +248,12 @@ The `_triggerAnalysis()` method catches exceptions and shows `'Failed to start a
 
 **Fix:** On `DioException`, check `e.response?.data['error']` and use that string in the SnackBar if present. Falls back to the generic message for non-server errors.
 
+### Copy-paste in chat input
+
+Flutter's `TextField` supports copy-paste natively on Android. Verify manually after install; no code change expected.
+
 ### Flutter tests
 
-- `chat_provider`: error response surfaces message rather than silently swallowing
-- `coaching_chat_widget`: 429 response shows rate-limit message in SnackBar, not raw exception
+- `chat_provider`: 429 response surfaces the error message via SnackBar rather than silently swallowing
+- `coaching_chat_widget`: 429 on analyze shows rate-limit message in SnackBar, not raw exception
+- `coaching_chat_widget`: `rate_limited` message in history shows retry button; subsequent assistant reply hides it
