@@ -90,7 +90,11 @@ void main() {
 
   group('rate limited message retry', () {
     test('isRateLimited is true for rate_limited status', () {
-      const msg = ChatMessage(role: 'user', message: 'hi', status: 'rate_limited');
+      const msg = ChatMessage(
+        role: 'user',
+        message: 'hi',
+        status: 'rate_limited',
+      );
       expect(msg.isRateLimited, isTrue);
     });
 
