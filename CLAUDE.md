@@ -25,6 +25,15 @@ When implementing a GitHub issue:
    ```
 3. **Close the issue** — use `gh issue close <number>` once the PR is merged (or include `Closes #<number>` in the PR body so GitHub closes it automatically on merge).
 
+## Branch Protection
+
+`main` is protected — direct pushes are not blocked for the repo owner, but **all feature work must go through a PR**. CI runs automatically on every PR and two checks must pass before merging:
+
+- **Python Tests** — unit tests (pytest, excludes E2E)
+- **Flutter Tests** — dart format check, flutter analyze, flutter tests
+
+`strict` mode is enabled, meaning the PR branch must be up to date with `main` before merge. The `build-and-deploy` job (Docker push to GHCR) only runs on push to `main`, not on PRs.
+
 ## Development Commands
 
 ### Local Setup
