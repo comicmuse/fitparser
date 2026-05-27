@@ -22,6 +22,9 @@ htmlcov/
 # Secrets
 .env
 
+# Claude Code local settings (machine-specific paths and permissions)
+.claude/settings.local.json
+
 # Docker build artifact
 strydcmd-src/
 node_modules
