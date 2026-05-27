@@ -3,6 +3,8 @@ name: CI/CD
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -240,6 +242,7 @@ jobs:
     name: Build and Push Docker Image
     needs: [test, docker-smoke-test, e2e]
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: write  # Required to push to GHCR
