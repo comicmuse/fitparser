@@ -55,7 +55,8 @@
                 <input type="number" name="llm_daily_limit" min="1"
                        value="{{ u.llm_daily_limit or '' }}"
                        placeholder="Default"
-                       onchange="this.form.submit()"
+                       data-original="{{ u.llm_daily_limit or '' }}"
+                       onblur="this.form.submit()"
                        style="width:70px; padding:0.2rem 0.3rem; border:1px solid var(--border);
                               border-radius:3px; font-size:0.8rem;">
               </form>
@@ -142,6 +143,14 @@
   }
   document.getElementById('delete-overlay').addEventListener('click', function(e) {
     if (e.target === this) closeDeleteModal();
+  });
+
+  window.addEventListener('beforeunload', function() {
+    document.querySelectorAll('input[name="llm_daily_limit"]').forEach(function(input) {
+      if (input.value !== input.dataset.original) {
+        navigator.sendBeacon(input.form.action, new URLSearchParams(new FormData(input.form)));
+      }
+    });
   });
 </script>
 {% endblock %}
