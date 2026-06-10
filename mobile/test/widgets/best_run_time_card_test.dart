@@ -99,5 +99,6 @@ void main() {
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     completer.complete(null);
+    await tester.pumpAndSettle();
   });
 }
