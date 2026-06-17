@@ -98,7 +98,6 @@ def require_auth(f: Callable) -> Callable:
 
         # Add user_id to request context
         request.user_id = payload["user_id"]
-        request.user = user
 
         return f(*args, **kwargs)
 
