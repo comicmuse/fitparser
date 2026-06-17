@@ -5,7 +5,7 @@ from __future__ import annotations
 import jwt
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from flask import request, jsonify, current_app
+from flask import request, jsonify
 from typing import Callable, Any
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -85,6 +85,7 @@ def require_auth(f: Callable) -> Callable:
         token = auth_header[7:]  # Remove "Bearer " prefix
 
         # Verify token
+        from flask import current_app
         secret_key = current_app.config["SECRET_KEY"]
         payload = verify_token(token, secret_key, "access")
 
