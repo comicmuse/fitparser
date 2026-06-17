@@ -158,8 +158,10 @@ def refresh():
 
     db = get_db()
     user = db.get_user_by_id(payload["user_id"])
-    if not user or not user.get("is_active"):
+    if not user:
         return jsonify({"error": "Invalid or expired refresh token"}), 401
+    if not user.get("is_active"):
+        return jsonify({"error": "Account is deactivated"}), 401
 
     # Create new access token
     access_token = create_access_token(payload["user_id"], secret_key)

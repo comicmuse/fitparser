@@ -93,8 +93,10 @@ def require_auth(f: Callable) -> Callable:
 
         db = current_app.config["db"]
         user = db.get_user_by_id(payload["user_id"])
-        if not user or not user.get("is_active"):
+        if not user:
             return jsonify({"error": "Invalid or expired token"}), 401
+        if not user.get("is_active"):
+            return jsonify({"error": "Account is deactivated"}), 401
 
         # Add user_id to request context
         request.user_id = payload["user_id"]
