@@ -75,7 +75,7 @@ def _login_required(f):
         if not user_id:
             return redirect(url_for("main.login", next=request.path))
         user = _db().get_user_by_id(user_id)
-        if not user or not user.get("is_active", 1):
+        if not user or not user.get("is_active"):
             session.clear()
             return redirect(url_for("main.login", next=request.path))
         return f(*args, **kwargs)
@@ -90,7 +90,7 @@ def _admin_required(f):
         if not user_id:
             return redirect(url_for("main.login", next=request.path))
         user = _db().get_user_by_id(user_id)
-        if not user or not user.get("is_active", 1):
+        if not user or not user.get("is_active"):
             session.clear()
             return redirect(url_for("main.login", next=request.path))
         if not user.get("is_admin"):
