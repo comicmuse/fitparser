@@ -161,7 +161,7 @@ def refresh():
     if not user:
         return jsonify({"error": "Invalid or expired refresh token"}), 401
     if not user.get("is_active"):
-        return jsonify({"error": "Account is deactivated"}), 401
+        return jsonify({"error": "Account is deactivated"}), 403
 
     # Create new access token
     access_token = create_access_token(payload["user_id"], secret_key)

@@ -126,7 +126,7 @@ class TestAuthLogin:
             "/api/v1/auth/refresh",
             json={"refresh_token": refresh_tok},
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 403
         assert resp.get_json()["error"] == "Account is deactivated"
 
     def test_refresh_invalid_token(self, client):
@@ -158,7 +158,7 @@ class TestAuthLogin:
             conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
 
         resp = client.get("/api/v1/runs", headers=auth_headers)
-        assert resp.status_code == 401
+        assert resp.status_code == 403
         assert resp.get_json()["error"] == "Account is deactivated"
 
     def test_protected_route_with_missing_user_token(self, client, app):
@@ -168,6 +168,7 @@ class TestAuthLogin:
             headers={"Authorization": "Bearer " + token},
         )
         assert resp.status_code == 401
+        assert resp.get_json()["error"] == "Invalid or expired token"
 
 
 # ---------------------------------------------------------------------------
