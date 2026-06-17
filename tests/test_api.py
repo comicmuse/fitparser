@@ -85,6 +85,22 @@ class TestAuthLogin:
         )
         assert resp.status_code == 401
 
+    def test_login_inactive_user_rejected(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, is_active = 0 WHERE id = ?",
+                (hash_password("pass123"), user_id),
+            )
+
+        resp = client.post(
+            "/api/v1/auth/login",
+            json={"username": "athlete", "password": "pass123"},
+        )
+        assert resp.status_code == 403
+        assert resp.get_json()["error"] == "Account is deactivated"
+
     def test_refresh_token(self, client, app):
         from runcoach.auth import create_refresh_token
         db = app.config["db"]
@@ -97,6 +113,21 @@ class TestAuthLogin:
         )
         assert resp.status_code == 200
         assert "access_token" in resp.get_json()
+
+    def test_refresh_inactive_user_rejected(self, client, app):
+        from runcoach.auth import create_refresh_token
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        refresh_tok = create_refresh_token(user_id, app.config["SECRET_KEY"])
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
+
+        resp = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": refresh_tok},
+        )
+        assert resp.status_code == 401
+        assert resp.get_json()["error"] == "Invalid or expired refresh token"
 
     def test_refresh_invalid_token(self, client):
         resp = client.post(
@@ -117,6 +148,23 @@ class TestAuthLogin:
         resp = client.get(
             "/api/v1/runs",
             headers={"Authorization": "Bearer garbage"},
+        )
+        assert resp.status_code == 401
+
+    def test_protected_route_with_inactive_user_token(self, client, auth_headers, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
+
+        resp = client.get("/api/v1/runs", headers=auth_headers)
+        assert resp.status_code == 401
+
+    def test_protected_route_with_missing_user_token(self, client, app):
+        token = create_access_token(99999, app.config["SECRET_KEY"])
+        resp = client.get(
+            "/api/v1/runs",
+            headers={"Authorization": "Bearer " + token},
         )
         assert resp.status_code == 401
 

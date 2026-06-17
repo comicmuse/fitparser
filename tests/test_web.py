@@ -557,6 +557,35 @@ class TestLogin:
         response = client.get("/")
         assert response.status_code == 200
 
+    def test_inactive_session_redirects_to_login(self, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
+
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+        with client.session_transaction() as sess:
+            assert "user_id" not in sess
+
+    def test_missing_session_user_redirects_to_login(self, app):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess["user_id"] = 99999
+
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+        with client.session_transaction() as sess:
+            assert "user_id" not in sess
+
     def test_wrong_password_stays_on_login(self, app):
         """An incorrect password must not grant access and must re-render login."""
         client = app.test_client()
@@ -569,6 +598,25 @@ class TestLogin:
         assert b"password" in response.data.lower()
         # Flash message should indicate failure
         assert b"Incorrect" in response.data
+
+    def test_inactive_user_cannot_log_in(self, app):
+        from runcoach.auth import hash_password
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, is_active = 0 WHERE id = ?",
+                (hash_password("testpass123"), user_id),
+            )
+
+        client = app.test_client()
+        response = client.post(
+            "/login",
+            data={"username": "athlete", "password": "testpass123"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"deactivated" in response.data.lower()
 
     def test_empty_password_rejected(self, app):
         """An empty password must not authenticate."""

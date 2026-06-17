@@ -5,7 +5,7 @@ from __future__ import annotations
 import jwt
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 from typing import Callable, Any
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -85,15 +85,20 @@ def require_auth(f: Callable) -> Callable:
         token = auth_header[7:]  # Remove "Bearer " prefix
 
         # Verify token
-        from flask import current_app
         secret_key = current_app.config["SECRET_KEY"]
         payload = verify_token(token, secret_key, "access")
 
         if not payload:
             return jsonify({"error": "Invalid or expired token"}), 401
 
+        db = current_app.config["db"]
+        user = db.get_user_by_id(payload["user_id"])
+        if not user or not user.get("is_active", 1):
+            return jsonify({"error": "Invalid or expired token"}), 401
+
         # Add user_id to request context
         request.user_id = payload["user_id"]
+        request.user = user
 
         return f(*args, **kwargs)
 

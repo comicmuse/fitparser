@@ -71,7 +71,12 @@ def _login_required(f):
     """Redirect to login if the session is not authenticated."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("user_id"):
+        user_id = session.get("user_id")
+        if not user_id:
+            return redirect(url_for("main.login", next=request.path))
+        user = _db().get_user_by_id(user_id)
+        if not user or not user.get("is_active", 1):
+            session.clear()
             return redirect(url_for("main.login", next=request.path))
         return f(*args, **kwargs)
     return decorated
@@ -81,10 +86,14 @@ def _admin_required(f):
     """Redirect non-admins away."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("user_id"):
+        user_id = session.get("user_id")
+        if not user_id:
             return redirect(url_for("main.login", next=request.path))
-        user = _db().get_user_by_id(session["user_id"])
-        if not user or not user.get("is_admin"):
+        user = _db().get_user_by_id(user_id)
+        if not user or not user.get("is_active", 1):
+            session.clear()
+            return redirect(url_for("main.login", next=request.path))
+        if not user.get("is_admin"):
             flash("Admin access required.")
             return redirect(url_for("main.index"))
         return f(*args, **kwargs)

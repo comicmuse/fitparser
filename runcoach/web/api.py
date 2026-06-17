@@ -116,6 +116,8 @@ def login():
 
     if not user or not verify_password(password, user["password_hash"]):
         return jsonify({"error": "Invalid credentials"}), 401
+    if not user.get("is_active", 1):
+        return jsonify({"error": "Account is deactivated"}), 403
 
     # Update last login
     db.update_last_login(user["id"])
@@ -152,6 +154,11 @@ def refresh():
     # Verify refresh token
     payload = verify_token(refresh_token, secret_key, "refresh")
     if not payload:
+        return jsonify({"error": "Invalid or expired refresh token"}), 401
+
+    db = get_db()
+    user = db.get_user_by_id(payload["user_id"])
+    if not user or not user.get("is_active", 1):
         return jsonify({"error": "Invalid or expired refresh token"}), 401
 
     # Create new access token
