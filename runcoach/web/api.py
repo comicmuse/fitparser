@@ -114,10 +114,12 @@ def login():
     db = get_db()
     user = db.get_user_by_username(username)
 
-    if not user or not verify_password(password, user["password_hash"]):
+    if not user:
         return jsonify({"error": "Invalid credentials"}), 401
     if not user.get("is_active"):
         return jsonify({"error": "Account is deactivated"}), 403
+    if not verify_password(password, user["password_hash"]):
+        return jsonify({"error": "Invalid credentials"}), 401
 
     # Update last login
     db.update_last_login(user["id"])
