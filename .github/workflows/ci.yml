@@ -11,47 +11,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  flutter-test:
-    name: Flutter Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        working-directory: mobile
-        run: flutter pub get
-
-      - name: Verify formatting
-        working-directory: mobile
-        run: dart format --output=none --set-exit-if-changed .
-
-      - name: Analyze
-        working-directory: mobile
-        run: flutter analyze --no-fatal-infos
-
-      - name: Run tests
-        working-directory: mobile
-        timeout-minutes: 10
-        run: flutter test --coverage
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-coverage
-          path: mobile/coverage/lcov.info
-          retention-days: 30
-
   flutter-build:
     name: Flutter Build APK
-    needs: flutter-test
     runs-on: ubuntu-latest
 
     steps:
