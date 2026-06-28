@@ -27,10 +27,11 @@ When implementing a GitHub issue:
 
 ## Branch Protection
 
-`main` is protected — direct pushes are not blocked for the repo owner, but **all feature work must go through a PR**. CI runs automatically on every PR and two checks must pass before merging:
+`main` is protected — direct pushes are not blocked for the repo owner, but **all feature work must go through a PR**. CI runs automatically on every PR and one check must pass before merging:
 
 - **Python Tests** — unit tests (pytest, excludes E2E)
-- **Flutter Tests** — dart format check, flutter analyze, flutter tests
+
+Flutter tests are **not** run by CI — they must be run locally before committing any Flutter changes (see Pre-Merge Test Command below).
 
 `strict` mode is enabled, meaning the PR branch must be up to date with `main` before merge. The `build-and-deploy` job (Docker push to GHCR) only runs on push to `main`, not on PRs.
 
@@ -120,11 +121,11 @@ pytest && pytest -m e2e --no-cov -v
 ```
 
 ```bash
-# If any Flutter files were changed:
-cd mobile && dart format --output=none --set-exit-if-changed . && flutter test
+# If any Flutter files were changed (REQUIRED — Flutter is not tested by CI):
+cd mobile && dart format --output=none --set-exit-if-changed . && flutter analyze && flutter test
 ```
 
-Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end. `dart format` is enforced by CI — always run it before committing Flutter changes.
+Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end. Flutter tests are **not run by CI** — they are a local gate only. Always run `dart format`, `flutter analyze`, and `flutter test` locally before committing any `.dart` changes.
 
 ### Running Tests
 
