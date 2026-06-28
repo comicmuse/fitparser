@@ -106,6 +106,25 @@ def test_reactivate_user_restores_login(logged_in_page, server_url, deactivation
     assert page.url == f"{server_url}/"
 
 
+def test_stale_session_cleared_on_deactivation(page, server_url, deactivation_victim, e2e_data_dir):
+    """A session that was valid when issued is invalidated once the account is deactivated."""
+    from runcoach.db import RunCoachDB
+
+    page.goto(f"{server_url}/login")
+    page.fill("input[name='username']", deactivation_victim["username"])
+    page.fill("input[name='password']", deactivation_victim["password"])
+    page.click("button[type='submit']")
+    page.wait_for_url(f"{server_url}/")
+
+    db = RunCoachDB(e2e_data_dir / "runcoach.db")
+    user = db.get_user_by_username(deactivation_victim["username"])
+    db.set_user_active(user["id"], False)
+
+    page.goto(f"{server_url}/")
+    page.wait_for_load_state("networkidle")
+    assert "/login" in page.url
+
+
 # ---------------------------------------------------------------------------
 # Promote / demote
 # ---------------------------------------------------------------------------
