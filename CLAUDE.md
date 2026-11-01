@@ -33,6 +33,8 @@ When implementing a GitHub issue:
 
 Flutter tests are **not** run by CI — they must be run locally before committing any Flutter changes (see Pre-Merge Test Command below).
 
+The **Flutter Release APK** job builds a signed, installable APK on pushes to `main` (and manual runs) and uploads it as the `runcoach-release-apk` artifact — see `docs/mobile-release.md` for the required signing secrets.
+
 `strict` mode is enabled, meaning the PR branch must be up to date with `main` before merge. The `build-and-deploy` job (Docker push to GHCR) only runs on push to `main`, not on PRs.
 
 ## Development Commands

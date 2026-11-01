@@ -72,6 +72,133 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 30
 
+  flutter-release:
+    name: Flutter Release APK
+    # Installable build pointed at the production server. Runs on pushes to
+    # main and manual runs only (secrets aren't needed to validate PRs; the
+    # debug build above covers that).
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+
+    steps:
+      - name: Check signing secrets
+        id: secrets
+        run: |
+          missing=""
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning title=Release APK skipped::Missing repository secrets:$missing. See docs/mobile-release.md."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout code
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        if: steps.secrets.outputs.configured == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Write google-services.json
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/android/app/google-services.json
+          else
+            echo "::warning title=No Firebase config::GOOGLE_SERVICES_JSON secret not set — push notifications will not work in this APK."
+            cat > mobile/android/app/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "runcoach-ci",
+              "storage_bucket": "runcoach-ci.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.runcoach.mobile"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [{"current_key": "placeholder"}],
+                "services": {"appinvite_service": {"other_platform_oauth_client": []}}
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+          fi
+
+      - name: Write release keystore
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          keystore="$RUNNER_TEMP/release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          cat > mobile/android/key.properties << EOF
+          storeFile=$keystore
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Install dependencies
+        if: steps.secrets.outputs.configured == 'true'
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build release APK
+        if: steps.secrets.outputs.configured == 'true'
+        working-directory: mobile
+        # build-number = CI run number, so every build has a higher
+        # versionCode and installs as an update over the previous one.
+        run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Rename APK
+        if: steps.secrets.outputs.configured == 'true'
+        id: apk
+        run: |
+          version=$(grep '^version:' mobile/pubspec.yaml | sed -E 's/version: *([^+]*).*/\1/')
+          name="runcoach-${version}-${{ github.run_number }}.apk"
+          mv mobile/build/app/outputs/flutter-apk/app-release.apk "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "### Release APK :iphone:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$name\` (versionCode ${{ github.run_number }}) — download from the **runcoach-release-apk** artifact below." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release APK artifact
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runcoach-release-apk
+          path: ${{ steps.apk.outputs.name }}
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Remove signing material
+        if: always() && steps.secrets.outputs.configured == 'true'
+        run: rm -f "$RUNNER_TEMP/release.jks" mobile/android/key.properties
+
   test:
     name: Python Tests
     runs-on: ubuntu-latest
