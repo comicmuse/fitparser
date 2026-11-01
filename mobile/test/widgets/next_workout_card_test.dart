@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import '../../lib/models/planned_workout.dart';
-import '../../lib/widgets/next_workout_card.dart';
+import 'package:runcoach/models/planned_workout.dart';
+import 'package:runcoach/widgets/next_workout_card.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 

@@ -51,10 +51,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _error = 'Invalid username or password';
       });
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
         });
+      }
     }
   }
 

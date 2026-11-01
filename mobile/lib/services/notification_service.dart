@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'api_service.dart';
 import 'notification_service_base.dart';
 
@@ -61,13 +62,19 @@ class NotificationService extends NotificationServiceBase {
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _api.deleteDeviceToken(token);
-    } catch (e) {}
+    } catch (e) {
+      // Intentionally swallowed: logout must complete even if FCM fails.
+      debugPrint('FCM token deregistration failed: $e');
+    }
   }
 
   Future<void> _registerToken(String token) async {
     try {
       await _api.registerDeviceToken(token);
-    } catch (e) {}
+    } catch (e) {
+      // Intentionally swallowed: a later login/token refresh will retry.
+      debugPrint('FCM token registration failed: $e');
+    }
   }
 
   void _setupHandlers() {

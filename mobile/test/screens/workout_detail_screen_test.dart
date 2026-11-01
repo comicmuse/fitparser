@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/planned_workout.dart';
-import '../../lib/screens/workout_detail_screen.dart';
+import 'package:runcoach/models/planned_workout.dart';
+import 'package:runcoach/screens/workout_detail_screen.dart';
 
 PlannedWorkout _makeWorkout({required List<PlannedWorkoutBlock> structure}) =>
     PlannedWorkout(
@@ -15,13 +15,13 @@ PlannedWorkout _makeWorkout({required List<PlannedWorkoutBlock> structure}) =>
 PlannedWorkoutBlock _repeatBlock(int repeat) => PlannedWorkoutBlock(
   repeat: repeat,
   segments: [
-    PlannedWorkoutSegment(
+    const PlannedWorkoutSegment(
       intensityClass: 'work',
       durationS: 360,
       powerMinPct: 95,
       powerMaxPct: 105,
     ),
-    PlannedWorkoutSegment(intensityClass: 'rest', durationS: 120),
+    const PlannedWorkoutSegment(intensityClass: 'rest', durationS: 120),
   ],
 );
 

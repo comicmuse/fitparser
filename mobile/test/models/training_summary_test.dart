@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/training_summary.dart';
+import 'package:runcoach/models/training_summary.dart';
 
 void main() {
   group('TrainingSummary.fromJson', () {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/run.dart';
+import 'package:runcoach/models/run.dart';
 
 void main() {
   group('Run.fromJson', () {
