@@ -144,6 +144,13 @@ class ApiService {
     return resp.data as Map<String, dynamic>;
   }
 
+  /// Update the free-text coaching profile ("athlete instructions") that is
+  /// injected into every AI analysis. Returns the server's saved profile.
+  Future<Map<String, dynamic>> updateAthleteProfile(String profile) async {
+    final resp = await _dio.put('/athlete/profile', data: {'profile': profile});
+    return resp.data as Map<String, dynamic>;
+  }
+
   Future<List<Map<String, dynamic>>> postRouteSuggestion({
     required double lat,
     required double lng,
