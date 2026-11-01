@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/coaching_profile_card.dart';
 
 final profileDataProvider = FutureProvider.autoDispose<Map<String, dynamic>>((
   ref,
@@ -82,22 +83,23 @@ class ProfileScreen extends ConsumerWidget {
                         color: Color(0xFF888888),
                       ),
                     ),
-                    if ((profile['profile'] as String?)?.isNotEmpty ==
-                        true) ...[
-                      const SizedBox(height: 12),
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      Text(
-                        profile['profile'] as String,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF444444),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+
+            // Coaching profile (athlete instructions) — editable
+            CoachingProfileCard(
+              initialText: profile['profile'] as String? ?? '',
+              onSave: (text) async {
+                final saved = await ref
+                    .read(apiServiceProvider)
+                    .updateAthleteProfile(text);
+                // Other screens cache the profile; refresh them.
+                ref.invalidate(athleteProfileProvider);
+                return saved['profile'] as String? ?? text;
+              },
             ),
             const SizedBox(height: 12),
 

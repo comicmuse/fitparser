@@ -203,6 +203,25 @@ void main() {
     );
   });
 
+  group('updateAthleteProfile', () {
+    test('PUTs profile text to /athlete/profile and returns body', () async {
+      mainAdapter.enqueue(200, {
+        'profile': 'Marathon in April',
+        'display_name': 'Jane',
+        'username': 'jane',
+        'strava_athlete_id': null,
+      });
+
+      final result = await service.updateAthleteProfile('Marathon in April');
+
+      expect(result['profile'], 'Marathon in April');
+      final req = mainAdapter.requests.last;
+      expect(req.method, 'PUT');
+      expect(req.path, '/athlete/profile');
+      expect(req.data, {'profile': 'Marathon in April'});
+    });
+  });
+
   group('getPlannedWorkouts', () {
     test('GET /planned-workouts returns parsed list', () async {
       mainAdapter.enqueue(200, [
