@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/chat_message.dart';
-import '../../lib/providers/chat_provider.dart';
-import '../../lib/widgets/coaching_chat_widget.dart';
+import 'package:runcoach/models/chat_message.dart';
+import 'package:runcoach/providers/chat_provider.dart';
+import 'package:runcoach/widgets/coaching_chat_widget.dart';
 
 void main() {
   group('shouldAutoScrollChat', () {
@@ -11,23 +11,23 @@ void main() {
     ];
 
     test('does not auto-scroll when there is no previous state', () {
-      final next = ChatState(messages: history, isLoading: false);
+      const next = ChatState(messages: history, isLoading: false);
       expect(shouldAutoScrollChat(null, next), isFalse);
     });
 
     test('does not auto-scroll when initial history load completes', () {
-      final previous = const ChatState(messages: [], isLoading: true);
-      final next = ChatState(messages: history, isLoading: false);
+      const previous = ChatState(messages: [], isLoading: true);
+      const next = ChatState(messages: history, isLoading: false);
 
       expect(shouldAutoScrollChat(previous, next), isFalse);
     });
 
     test('auto-scrolls when a new user message is added', () {
-      final previous = ChatState(messages: history, isSending: false);
-      final next = ChatState(
+      const previous = ChatState(messages: history, isSending: false);
+      const next = ChatState(
         messages: [
           ...history,
-          const ChatMessage(role: 'user', message: 'Hi'),
+          ChatMessage(role: 'user', message: 'Hi'),
         ],
         isSending: true,
       );
@@ -36,18 +36,18 @@ void main() {
     });
 
     test('auto-scrolls when assistant response is added', () {
-      final previous = ChatState(
+      const previous = ChatState(
         messages: [
           ...history,
-          const ChatMessage(role: 'user', message: 'Hi'),
+          ChatMessage(role: 'user', message: 'Hi'),
         ],
         isSending: true,
       );
-      final next = ChatState(
+      const next = ChatState(
         messages: [
           ...history,
-          const ChatMessage(role: 'user', message: 'Hi'),
-          const ChatMessage(role: 'assistant', message: 'Great run.'),
+          ChatMessage(role: 'user', message: 'Hi'),
+          ChatMessage(role: 'assistant', message: 'Great run.'),
         ],
         isSending: false,
       );

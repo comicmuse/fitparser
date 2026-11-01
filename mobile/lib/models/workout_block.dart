@@ -89,8 +89,9 @@ class WorkoutBlock {
   }
 
   String get formattedPace {
-    if (durationMin == null || distanceKm == null || distanceKm! <= 0)
+    if (durationMin == null || distanceKm == null || distanceKm! <= 0) {
       return '—';
+    }
     final secPerKm = (durationMin! * 60) / distanceKm!;
     final m = secPerKm ~/ 60;
     final s = (secPerKm % 60).toInt();

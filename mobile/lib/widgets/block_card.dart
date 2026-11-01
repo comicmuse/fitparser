@@ -62,7 +62,7 @@ class BlockCard extends StatelessWidget {
                     'target',
                   ),
                 if (block.avgHr != null)
-                  _metric('${block.avgHr!.toStringAsFixed(0)}', 'HR'),
+                  _metric(block.avgHr!.toStringAsFixed(0), 'HR'),
                 _metric(block.formattedPace, 'pace'),
                 if (block.distanceKm != null)
                   _metric('${block.distanceKm!.toStringAsFixed(2)} km', 'dist'),

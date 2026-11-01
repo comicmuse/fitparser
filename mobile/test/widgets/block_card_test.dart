@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/workout_block.dart';
-import '../../lib/widgets/block_card.dart';
+import 'package:runcoach/models/workout_block.dart';
+import 'package:runcoach/widgets/block_card.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -71,7 +71,7 @@ void main() {
     testWidgets('shows compliance bar and percentages when present', (
       tester,
     ) async {
-      final compliance = PowerCompliance(
+      const compliance = PowerCompliance(
         belowPct: 10.0,
         inZonePct: 79.0,
         abovePct: 11.0,

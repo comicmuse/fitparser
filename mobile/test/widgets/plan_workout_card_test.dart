@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/models/planned_workout.dart';
-import '../../lib/widgets/plan_workout_card.dart';
+import 'package:runcoach/models/planned_workout.dart';
+import 'package:runcoach/widgets/plan_workout_card.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
