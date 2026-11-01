@@ -5,12 +5,13 @@
 {% block content %}
 <h1 style="margin-bottom:1.5rem;">Athlete Profile</h1>
 
+<form method="post" action="{{ url_for('main.athlete_profile_save') }}" id="profile-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
 {# ── 1. User info ── #}
 <div class="card" style="margin-bottom:1.5rem;">
   <h2 style="font-size:1.05rem;margin-bottom:0.75rem;">User</h2>
-  <form method="post" action="{{ url_for('main.user_info_save') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
       <div>
         <label for="display_name" style="display:block;font-size:0.85rem;color:var(--fg-muted);margin-bottom:0.35rem;">Name</label>
         <input
@@ -35,8 +36,6 @@
         >
       </div>
     </div>
-    <button type="submit" class="btn btn-primary">Save</button>
-  </form>
 </div>
 
 {# ── 2. Coaching profile ── #}
@@ -48,9 +47,7 @@
     context the coach should know.
   </p>
 
-  <form method="post" action="{{ url_for('main.athlete_profile_save') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="margin-bottom:1rem;">
+  <div>
       <textarea
         name="profile"
         id="profile"
@@ -69,10 +66,7 @@
         "
         placeholder="e.g. I'm training for the London Marathon on 26 April 2026…"
       >{{ profile }}</textarea>
-    </div>
-    <button type="submit" class="btn btn-primary">Save Profile</button>
-    <a href="{{ url_for('main.index') }}" class="btn" style="margin-left:0.5rem;">Cancel</a>
-  </form>
+  </div>
 </div>
 
 {# ── 3. Race Goal ── #}
@@ -83,27 +77,25 @@
     proximity to race day.
   </p>
 
-  {% if race_goal and race_goal.race_date and race_goal.race_distance %}
+  {% if saved_race_goal and saved_race_goal.race_date and saved_race_goal.race_distance %}
   <div style="
     display:inline-flex;align-items:center;gap:0.6rem;
     background:color-mix(in srgb,var(--accent) 12%,transparent);
     border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
     border-radius:8px;padding:0.5rem 0.9rem;margin-bottom:1rem;font-size:0.95rem;
   ">
-    🏁 <strong>{{ race_goal.race_distance }}</strong> on <strong>{{ race_goal.race_date }}</strong>
+    🏁 <strong>{{ saved_race_goal.race_distance }}</strong> on <strong>{{ saved_race_goal.race_date }}</strong>
   </div>
   {% endif %}
 
-  <form method="post" action="{{ url_for('main.race_goal_save') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">
       <div>
         <label for="race_date" style="display:block;font-size:0.85rem;color:var(--fg-muted);margin-bottom:0.35rem;">Race Date</label>
         <input
           type="date"
           name="race_date"
           id="race_date"
-          value="{{ race_goal.race_date or '' }}"
+          value="{{ race_date or '' }}"
           style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-size:0.95rem;box-sizing:border-box;"
         >
       </div>
@@ -116,16 +108,12 @@
         >
           <option value="">— select distance —</option>
           {% for dist in ['5K', '10K', '15K', '10 Mile', 'Half Marathon', 'Marathon'] %}
-          <option value="{{ dist }}"{% if race_goal.race_distance == dist %} selected{% endif %}>{{ dist }}</option>
+          <option value="{{ dist }}"{% if race_distance == dist %} selected{% endif %}>{{ dist }}</option>
           {% endfor %}
         </select>
       </div>
     </div>
-    <button type="submit" class="btn btn-primary">Save Race Goal</button>
-    {% if race_goal and race_goal.race_date %}
-    <button type="submit" name="race_date" value="" class="btn" style="margin-left:0.5rem;color:var(--fg-muted);">Clear</button>
-    {% endif %}
-  </form>
+    <button type="button" id="clear-race-goal" class="btn" style="color:var(--fg-muted);">Clear race goal</button>
 </div>
 
 {# ── 4. Stryd + Strava side by side ── #}
@@ -139,8 +127,7 @@
     <p style="color:var(--fg-muted);font-size:0.85rem;margin-bottom:0.75rem;">
       Used to download activities and your training calendar from Stryd.
     </p>
-    <form method="post" action="{{ url_for('main.stryd_credentials_save') }}" style="margin-bottom:1.25rem;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="margin-bottom:1.25rem;">
       <div style="margin-bottom:0.5rem;">
         <label style="display:block;font-size:0.85rem;font-weight:500;margin-bottom:0.3rem;">Email</label>
         <input type="email" name="stryd_email" value="{{ stryd_email or '' }}" placeholder="you@example.com"
@@ -151,27 +138,20 @@
         <input type="password" name="stryd_password" placeholder="leave blank to keep current"
           style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-size:0.9rem;" autocomplete="new-password">
       </div>
-      <button type="submit" class="btn btn-primary">Save credentials</button>
-    </form>
+    </div>
 
     <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;">Athlete UUID</h3>
     <p style="color:var(--fg-muted);font-size:0.85rem;margin-bottom:0.75rem;">
       Constructs direct links to activities in the Stryd Power Center.
       Find it in the URL on <a href="https://www.stryd.com/powercenter" target="_blank" rel="noopener">stryd.com/powercenter</a>.
     </p>
-    <form method="post" action="{{ url_for('main.stryd_athlete_id_save') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-        <input
-          type="text"
-          name="stryd_athlete_id"
-          value="{{ stryd_athlete_id or '' }}"
-          placeholder="e.g. 3633bc63-…"
-          style="flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-family:monospace;font-size:0.85rem;"
-        >
-        <button type="submit" class="btn btn-primary">Save</button>
-      </div>
-    </form>
+    <input
+      type="text"
+      name="stryd_athlete_id"
+      value="{{ stryd_athlete_id or '' }}"
+      placeholder="e.g. 3633bc63-…"
+      style="width:100%;box-sizing:border-box;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:0.5rem 0.75rem;font-family:monospace;font-size:0.85rem;"
+    >
   </div>
 
   {# Strava card (only shown when Strava is configured) #}
@@ -199,14 +179,8 @@
         {% endif %}
       </p>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-        <form method="post" action="{{ url_for('main.strava_backfill') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn">Backfill historical runs</button>
-        </form>
-        <form method="post" action="{{ url_for('main.strava_disconnect') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn" style="color:#f85149;border-color:#f85149;">Disconnect Strava</button>
-        </form>
+        <button type="submit" form="strava-backfill-form" class="btn">Backfill historical runs</button>
+        <button type="submit" form="strava-disconnect-form" class="btn" style="color:#f85149;border-color:#f85149;">Disconnect Strava</button>
       </div>
     {% else %}
       <p style="color:var(--fg-muted);font-size:0.9rem;margin-bottom:0.75rem;">
@@ -223,4 +197,29 @@
   {% endif %}
 
 </div>
+
+{# ── Single save for every section above (issue #61) ── #}
+<div style="display:flex;gap:0.5rem;align-items:center;margin-top:1.5rem;">
+  <button type="submit" id="save-profile" class="btn btn-primary">Save</button>
+  <a href="{{ url_for('main.index') }}" class="btn">Cancel</a>
+</div>
+</form>
+
+{% if strava_enabled and strava_connected %}
+{# Strava actions live outside the profile form (HTML forms can't nest);
+   their buttons above reference these via the form= attribute. #}
+<form method="post" action="{{ url_for('main.strava_backfill') }}" id="strava-backfill-form" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<form method="post" action="{{ url_for('main.strava_disconnect') }}" id="strava-disconnect-form" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endif %}
+
+<script>
+  document.getElementById('clear-race-goal').addEventListener('click', function () {
+    document.getElementById('race_date').value = '';
+    document.getElementById('race_distance').value = '';
+  });
+</script>
 {% endblock %}

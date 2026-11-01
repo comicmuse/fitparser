@@ -1280,13 +1280,13 @@ class TestStravaWebhookEvent:
 
 
 class TestRaceGoal:
-    """Tests for race goal save route."""
+    """Tests for race goal handling on the unified profile save route."""
 
     def test_race_goal_save_valid(self, client, app):
-        """POST /athlete-profile/race-goal saves valid race goal."""
+        """POST /athlete-profile saves a valid race goal."""
         response = client.post(
-            "/athlete-profile/race-goal",
-            data={"race_date": "2027-04-25", "race_distance": "Marathon"},
+            "/athlete-profile",
+            data={"race_date": "2099-04-25", "race_distance": "Marathon"},
             follow_redirects=True,
         )
         assert response.status_code == 200
@@ -1294,48 +1294,55 @@ class TestRaceGoal:
         db = app.config["db"]
         user_id = db.get_default_user_id()
         goal = db.get_race_goal(user_id)
-        assert goal["race_date"] == "2027-04-25"
+        assert goal["race_date"] == "2099-04-25"
         assert goal["race_distance"] == "Marathon"
 
     def test_race_goal_page_displays_goal(self, client, app):
         """Athlete profile page shows current race goal when set."""
         db = app.config["db"]
         user_id = db.get_default_user_id()
-        db.update_race_goal(user_id, "2027-04-25", "Marathon")
+        db.update_race_goal(user_id, "2099-04-25", "Marathon")
 
         response = client.get("/athlete-profile")
         assert response.status_code == 200
         assert b"Marathon" in response.data
-        assert b"2027-04-25" in response.data
+        assert b"2099-04-25" in response.data
 
     def test_race_goal_save_past_date_rejected(self, client):
-        """POST /athlete-profile/race-goal rejects a past date."""
+        """A newly entered past date is rejected."""
         response = client.post(
-            "/athlete-profile/race-goal",
+            "/athlete-profile",
             data={"race_date": "2020-01-01", "race_distance": "5K"},
-            follow_redirects=True,
         )
-        assert response.status_code == 200
+        assert response.status_code == 400
         assert b"future" in response.data.lower()
 
     def test_race_goal_save_invalid_distance_rejected(self, client):
-        """POST /athlete-profile/race-goal rejects unknown distance."""
+        """An unknown distance is rejected."""
         response = client.post(
-            "/athlete-profile/race-goal",
-            data={"race_date": "2027-04-25", "race_distance": "Ultra"},
-            follow_redirects=True,
+            "/athlete-profile",
+            data={"race_date": "2099-04-25", "race_distance": "Ultra"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 400
         assert b"Invalid" in response.data
+
+    def test_race_goal_partial_rejected(self, client, app):
+        """A date without a distance (or vice versa) is rejected."""
+        response = client.post(
+            "/athlete-profile",
+            data={"race_date": "2099-04-25", "race_distance": ""},
+        )
+        assert response.status_code == 400
+        assert b"both" in response.data.lower()
 
     def test_race_goal_clear(self, client, app):
         """Submitting empty values clears the race goal."""
         db = app.config["db"]
         user_id = db.get_default_user_id()
-        db.update_race_goal(user_id, "2027-04-25", "Marathon")
+        db.update_race_goal(user_id, "2099-04-25", "Marathon")
 
         response = client.post(
-            "/athlete-profile/race-goal",
+            "/athlete-profile",
             data={"race_date": "", "race_distance": ""},
             follow_redirects=True,
         )
@@ -1344,6 +1351,114 @@ class TestRaceGoal:
         goal = db.get_race_goal(user_id)
         assert goal["race_date"] is None
         assert goal["race_distance"] is None
+
+    def test_unchanged_past_race_date_does_not_block_save(self, client, app):
+        """A stored goal whose race has passed must not block saving other fields."""
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.update_race_goal(user_id, "2020-01-01", "5K")
+
+        response = client.post(
+            "/athlete-profile",
+            data={
+                "profile": "New profile text",
+                "race_date": "2020-01-01",
+                "race_distance": "5K",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert db.get_athlete_profile(user_id) == "New profile text"
+
+
+class TestUnifiedProfileSave:
+    """Issue #61: one Save button persists every section of the profile page."""
+
+    def _full_form(self, app, **overrides):
+        db = app.config["db"]
+        user_row = db.get_user_by_id(db.get_default_user_id())
+        data = {
+            "display_name": "Jane Runner",
+            "username": user_row["username"],
+            "profile": "Training for a spring marathon.",
+            "race_date": "2099-04-25",
+            "race_distance": "Marathon",
+            "stryd_email": "jane@example.com",
+            "stryd_password": "",
+            "stryd_athlete_id": "3633bc63-abcd",
+        }
+        data.update(overrides)
+        return data
+
+    def test_page_has_single_save_button(self, client):
+        response = client.get("/athlete-profile")
+        html = response.data.decode()
+        assert html.count('id="profile-form"') == 1
+        assert 'id="save-profile"' in html
+        for removed in ("Save Profile", "Save Race Goal", "Save credentials"):
+            assert removed not in html
+
+    def test_saves_profile_and_race_goal_together(self, client, app):
+        """Editing the profile and race goal then saving keeps both changes."""
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+
+        response = client.post(
+            "/athlete-profile", data=self._full_form(app), follow_redirects=True
+        )
+        assert response.status_code == 200
+        assert b"Profile saved." in response.data
+
+        assert db.get_athlete_profile(user_id) == "Training for a spring marathon."
+        goal = db.get_race_goal(user_id)
+        assert goal["race_date"] == "2099-04-25"
+        assert goal["race_distance"] == "Marathon"
+        assert db.get_display_name(user_id) == "Jane Runner"
+        assert db.get_stryd_credentials(user_id)["stryd_email"] == "jane@example.com"
+        assert db.get_stryd_athlete_id(user_id) == "3633bc63-abcd"
+
+    def test_blank_stryd_password_keeps_existing(self, client, app):
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.update_stryd_credentials(user_id, "old@example.com", "secret")
+
+        client.post("/athlete-profile", data=self._full_form(app))
+        creds = db.get_stryd_credentials(user_id)
+        assert creds["stryd_email"] == "jane@example.com"
+        assert creds["stryd_password"] == "secret"
+
+    def test_validation_error_saves_nothing_and_keeps_edits(self, client, app):
+        """An invalid race goal must not discard (or half-save) other edits."""
+        db = app.config["db"]
+        user_id = db.get_default_user_id()
+        db.update_athlete_profile(user_id, "Original profile")
+
+        response = client.post(
+            "/athlete-profile",
+            data=self._full_form(app, profile="Edited profile", race_distance="Ultra"),
+        )
+        assert response.status_code == 400
+        # Nothing persisted…
+        assert db.get_athlete_profile(user_id) == "Original profile"
+        # …but the user's edits are re-displayed so they aren't lost.
+        assert b"Edited profile" in response.data
+        assert b"Nothing was saved" in response.data
+
+    def test_empty_username_rejected(self, client, app):
+        response = client.post(
+            "/athlete-profile", data=self._full_form(app, username="  ")
+        )
+        assert response.status_code == 400
+        assert b"Username cannot be empty" in response.data
+
+    def test_old_per_section_routes_removed(self, client):
+        for path in (
+            "/athlete-profile/race-goal",
+            "/athlete-profile/user-info",
+            "/athlete-profile/stryd-id",
+            "/athlete-profile/stryd-credentials",
+        ):
+            assert client.post(path, data={}).status_code in (404, 405)
 
 
 class TestRunChat:

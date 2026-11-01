@@ -844,19 +844,16 @@ def admin_settings():
     )
 
 
-@bp.route("/athlete-profile", methods=["GET"])
-@_login_required
-def athlete_profile():
-    """Display the athlete profile page."""
+def _render_athlete_profile(overrides: dict | None = None, status: int = 200):
+    """Render the athlete profile page.
+
+    ``overrides`` replaces stored values with what the user submitted, so a
+    failed save re-displays their edits instead of discarding them.
+    """
     db = _db()
     config: Config = current_app.config["config"]
     user_id = _current_user_id()
-    profile = db.get_athlete_profile(user_id)
-    stryd_athlete_id = db.get_stryd_athlete_id(user_id)
-    display_name = db.get_display_name(user_id)
     user_row = db.get_user_by_id(user_id)
-    username = user_row["username"] if user_row else ""
-    race_goal = db.get_race_goal(user_id)
     stryd_creds = db.get_stryd_credentials(user_id)
     strava_connected = bool(db.get_strava_tokens(user_id)) if config.strava_client_id else False
     strava_athlete_id = None
@@ -865,121 +862,136 @@ def athlete_profile():
         tokens = db.get_strava_tokens(user_id)
         strava_athlete_id = tokens.get("strava_athlete_id") if tokens else None
         strava_webhook_id = db.get_strava_webhook_subscription_id(user_id)
+
+    context = {
+        "profile": db.get_athlete_profile(user_id),
+        "display_name": db.get_display_name(user_id),
+        "username": user_row["username"] if user_row else "",
+        "saved_race_goal": db.get_race_goal(user_id),
+        "race_date": None,
+        "race_distance": None,
+        "stryd_athlete_id": db.get_stryd_athlete_id(user_id),
+        "stryd_email": stryd_creds.get("stryd_email", ""),
+    }
+    context["race_date"] = context["saved_race_goal"].get("race_date")
+    context["race_distance"] = context["saved_race_goal"].get("race_distance")
+    if overrides:
+        context.update(overrides)
+
     return render_template(
         "athlete_profile.html",
-        profile=profile,
-        display_name=display_name,
-        username=username,
-        race_goal=race_goal,
-        stryd_athlete_id=stryd_athlete_id,
-        stryd_email=stryd_creds.get("stryd_email", ""),
+        **context,
         strava_connected=strava_connected,
         strava_athlete_id=strava_athlete_id,
         strava_webhook_id=strava_webhook_id,
         strava_enabled=bool(config.strava_client_id),
-    )
+    ), status
+
+
+@bp.route("/athlete-profile", methods=["GET"])
+@_login_required
+def athlete_profile():
+    """Display the athlete profile page."""
+    return _render_athlete_profile()
 
 
 @bp.route("/athlete-profile", methods=["POST"])
 @_login_required
 def athlete_profile_save():
-    """Save the athlete profile."""
-    db = _db()
-    user_id = _current_user_id()
+    """Save every section of the athlete profile page in one submission.
 
-    raw = request.form.get("profile", "")
-    profile_text = _sanitize_profile(raw).strip()
-    db.update_athlete_profile(user_id, profile_text)
-    flash("Athlete profile saved.")
-    return redirect(url_for("main.athlete_profile"))
-
-
-@bp.route("/athlete-profile/stryd-id", methods=["POST"])
-@_login_required
-def stryd_athlete_id_save():
-    """Save the Stryd athlete UUID."""
-    db = _db()
-    user_id = _current_user_id()
-    stryd_id = request.form.get("stryd_athlete_id", "").strip()
-    db.update_stryd_athlete_id(user_id, stryd_id)
-    flash("Stryd athlete ID saved.")
-    return redirect(url_for("main.athlete_profile"))
-
-
-@bp.route("/athlete-profile/user-info", methods=["POST"])
-@_login_required
-def user_info_save():
-    """Save the athlete's display name and login username."""
-    db = _db()
-    user_id = _current_user_id()
-    display_name = request.form.get("display_name", "").strip()
-    new_username = request.form.get("username", "").strip()
-    if not new_username:
-        flash("Username cannot be empty.")
-        return redirect(url_for("main.athlete_profile"))
-    # Check if new username conflicts with another user
-    existing = db.get_user_by_username(new_username)
-    if existing and existing["id"] != user_id:
-        flash("That username is already taken.")
-        return redirect(url_for("main.athlete_profile"))
-    db.update_user_info(user_id, display_name, new_username)
-    flash("User info saved.")
-    return redirect(url_for("main.athlete_profile"))
-
-
-@bp.route("/athlete-profile/race-goal", methods=["POST"])
-@_login_required
-def race_goal_save():
-    """Save the athlete's race goal (date + distance)."""
+    All fields are validated before anything is written, so a validation
+    error in one section never discards edits made in another.  Sections whose
+    fields are absent from the form are left untouched.
+    """
     from runcoach.analyzer import RACE_DISTANCES
     db = _db()
     user_id = _current_user_id()
+    form = request.form
+    errors: list[str] = []
+    overrides: dict = {}
+    writes: list = []
 
-    race_date_raw = request.form.get("race_date", "").strip()
-    race_distance_raw = request.form.get("race_distance", "").strip()
+    # ── User info ──
+    if "username" in form:
+        display_name = form.get("display_name", "").strip()
+        new_username = form.get("username", "").strip()
+        overrides.update(display_name=display_name, username=new_username)
+        if not new_username:
+            errors.append("Username cannot be empty.")
+        else:
+            existing = db.get_user_by_username(new_username)
+            if existing and existing["id"] != user_id:
+                errors.append("That username is already taken.")
+            else:
+                writes.append(lambda: db.update_user_info(user_id, display_name, new_username))
 
-    # Validate race date (must be a valid future date)
-    race_date: str | None = None
-    if race_date_raw:
-        try:
-            parsed_date = date.fromisoformat(race_date_raw)
-            if parsed_date <= date.today():
-                flash("Race date must be in the future.")
-                return redirect(url_for("main.athlete_profile"))
-            race_date = parsed_date.isoformat()
-        except ValueError:
-            flash("Invalid race date format.")
-            return redirect(url_for("main.athlete_profile"))
+    # ── Coaching profile ──
+    if "profile" in form:
+        profile_text = _sanitize_profile(form.get("profile", "")).strip()
+        overrides["profile"] = profile_text
+        writes.append(lambda: db.update_athlete_profile(user_id, profile_text))
 
-    # Validate race distance
-    race_distance: str | None = None
-    if race_distance_raw:
-        if race_distance_raw not in RACE_DISTANCES:
-            flash("Invalid race distance selected.")
-            return redirect(url_for("main.athlete_profile"))
-        race_distance = race_distance_raw
+    # ── Race goal ──
+    if "race_date" in form or "race_distance" in form:
+        race_date_raw = form.get("race_date", "").strip()
+        race_distance_raw = form.get("race_distance", "").strip()
+        overrides.update(race_date=race_date_raw, race_distance=race_distance_raw)
+        stored_date = db.get_race_goal(user_id).get("race_date")
+        race_ok = True
 
-    db.update_race_goal(user_id, race_date, race_distance)
-    if race_date and race_distance:
-        flash("Race goal saved.")
-    else:
-        flash("Race goal cleared.")
-    return redirect(url_for("main.athlete_profile"))
+        race_date: str | None = None
+        if race_date_raw:
+            try:
+                parsed_date = date.fromisoformat(race_date_raw)
+                race_date = parsed_date.isoformat()
+                # Only enforce "future" when the date was changed, so a goal
+                # whose race has now passed doesn't block saving other fields.
+                if race_date != stored_date and parsed_date <= date.today():
+                    errors.append("Race date must be in the future.")
+                    race_ok = False
+            except ValueError:
+                errors.append("Invalid race date format.")
+                race_ok = False
 
+        race_distance: str | None = None
+        if race_distance_raw:
+            if race_distance_raw not in RACE_DISTANCES:
+                errors.append("Invalid race distance selected.")
+                race_ok = False
+            race_distance = race_distance_raw
 
-@bp.route("/athlete-profile/stryd-credentials", methods=["POST"])
-@_login_required
-def stryd_credentials_save():
-    """Save the user's Stryd login credentials."""
-    db = _db()
-    user_id = _current_user_id()
-    email = request.form.get("stryd_email", "").strip()
-    pw = request.form.get("stryd_password", "")
-    if not pw:
-        existing = db.get_stryd_credentials(user_id)
-        pw = existing.get("stryd_password", "")
-    db.update_stryd_credentials(user_id, email, pw)
-    flash("Stryd credentials saved.")
+        if race_ok and bool(race_date_raw) != bool(race_distance_raw):
+            errors.append("Set both a race date and distance, or leave both blank.")
+            race_ok = False
+
+        if race_ok:
+            writes.append(lambda: db.update_race_goal(user_id, race_date, race_distance))
+
+    # ── Stryd credentials ──
+    if "stryd_email" in form:
+        stryd_email = form.get("stryd_email", "").strip()
+        overrides["stryd_email"] = stryd_email
+        stryd_pw = form.get("stryd_password", "")
+        if not stryd_pw:
+            stryd_pw = db.get_stryd_credentials(user_id).get("stryd_password", "")
+        writes.append(lambda: db.update_stryd_credentials(user_id, stryd_email, stryd_pw))
+
+    # ── Stryd athlete UUID ──
+    if "stryd_athlete_id" in form:
+        stryd_id = form.get("stryd_athlete_id", "").strip()
+        overrides["stryd_athlete_id"] = stryd_id
+        writes.append(lambda: db.update_stryd_athlete_id(user_id, stryd_id))
+
+    if errors:
+        for msg in errors:
+            flash(msg)
+        flash("Nothing was saved — fix the errors above and try again.")
+        return _render_athlete_profile(overrides, status=400)
+
+    for write in writes:
+        write()
+    flash("Profile saved.")
     return redirect(url_for("main.athlete_profile"))
 
 
