@@ -40,10 +40,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
       final authStatus = notifier.authStatus;
-      if (authStatus == AuthStatus.unauthenticated && !isLoginRoute)
+      if (authStatus == AuthStatus.unauthenticated && !isLoginRoute) {
         return '/login';
-      if (authStatus == AuthStatus.authenticated && isLoginRoute)
+      }
+      if (authStatus == AuthStatus.authenticated && isLoginRoute) {
         return '/home';
+      }
       return null;
     },
     routes: [

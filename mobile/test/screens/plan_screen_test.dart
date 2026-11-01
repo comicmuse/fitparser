@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import '../../lib/models/planned_workout.dart';
-import '../../lib/providers/plan_provider.dart';
-import '../../lib/screens/plan_screen.dart';
+import 'package:runcoach/models/planned_workout.dart';
+import 'package:runcoach/providers/plan_provider.dart';
+import 'package:runcoach/screens/plan_screen.dart';
 
 PlannedWorkout _w(
   String date,
