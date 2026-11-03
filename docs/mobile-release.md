@@ -50,6 +50,14 @@ with your machine's debug key at `~/.android/debug.keystore`
 Uploading that keystore lets CI builds install over the existing app without
 uninstalling, but debug keys aren't meant for distribution.
 
+**Coming from the old Expo (React Native) app.** Expo/EAS builds held their
+own signing key (managed by EAS unless you uploaded one), and Expo can't build
+this Flutter app. If the Expo app used a different Android package name than
+`com.runcoach.mobile`, the Flutter app installs alongside it as a separate app —
+no key matching needed; just uninstall the Expo app when you're done with it.
+If it used the same package name, use Option A and uninstall the Expo app first
+(or download its keystore with `eas credentials` and use that as the release key).
+
 ## Building a release APK locally
 
 Create `mobile/android/key.properties` (git-ignored):
