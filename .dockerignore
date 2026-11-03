@@ -39,6 +39,9 @@ tests/
 *.md
 docs/
 
+# Flutter mobile app (built separately by CI; not used by the server)
+mobile/
+
 # IDE
 .vscode
 .idea
