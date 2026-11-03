@@ -1,15 +1,35 @@
 # Mobile release APK (CI)
 
 The **Flutter Release APK** job in `.github/workflows/ci.yml` builds an
-installable, release-signed Android APK on every push to `main` and on manual
-runs (Actions → CI/CD → Run workflow). The APK is uploaded as the
-`runcoach-release-apk` artifact on the workflow run (kept for 90 days).
+installable, release-signed Android APK on pushes to `main` **that change the
+mobile app** (anything under `mobile/`, or the CI workflow itself), and on every
+manual run (Actions → CI/CD → Run workflow). Server-only changes don't rebuild
+the APK — the app talks to the server over the API, so it doesn't need to.
+
+Each build is published in two places:
+
+- **GitHub Release `mobile-latest`** — always the newest build, never expires.
+  Permanent download link (handy to bookmark on your phone):
+  `https://github.com/comicmuse/fitparser/releases/download/mobile-latest/runcoach.apk`
+  The release is replaced on every build. It's published with
+  `--latest=false`, so it won't take the "Latest" label from other releases;
+  while it's the repo's only release, GitHub still shows it as Latest.
+- **Workflow artifact `runcoach-release-apk`** on the run, as
+  `runcoach-<version>-<run>.apk` (kept for 90 days).
+
+Details:
 
 - Points at the production server (`ApiService.defaultBaseUrl`).
-- `versionCode` is the CI run number, so each build installs as an update
-  over the previous one.
-- Pull requests don't run this job; they still build the debug APK as a
-  compile check.
+- **Versioning:** `version:` in `mobile/pubspec.yaml` is the master for the
+  human-readable **versionName** — bump it by hand when a release is worth
+  naming (e.g. `1.1.0` → `1.2.0`). The **versionCode** Android uses to decide
+  whether an install is an update is set automatically by CI to the run
+  number, so it always increases; the `+N` in the pubspec is ignored by CI
+  builds.
+- Pull requests don't run this job; they build the debug APK as a compile
+  check, and only when they change the mobile app.
+- To rebuild without a mobile change (e.g. to refresh the release), use
+  *Run workflow*.
 
 If the signing secrets aren't set, the job is skipped with a warning and
 produces no artifact.
