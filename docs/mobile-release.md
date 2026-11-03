@@ -19,8 +19,12 @@ Each build is published in two places:
 Details:
 
 - Points at the production server (`ApiService.defaultBaseUrl`).
-- `versionCode` is the CI run number, so each build installs as an update
-  over the previous one.
+- **Versioning:** `version:` in `mobile/pubspec.yaml` is the master for the
+  human-readable **versionName** — bump it by hand when a release is worth
+  naming (e.g. `1.1.0` → `1.2.0`). The **versionCode** Android uses to decide
+  whether an install is an update is set automatically by CI to the run
+  number, so it always increases; the `+N` in the pubspec is ignored by CI
+  builds.
 - Pull requests don't run this job; they build the debug APK as a compile
   check, and only when they change the mobile app.
 - To rebuild without a mobile change (e.g. to refresh the release), use
