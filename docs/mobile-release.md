@@ -1,15 +1,30 @@
 # Mobile release APK (CI)
 
 The **Flutter Release APK** job in `.github/workflows/ci.yml` builds an
-installable, release-signed Android APK on every push to `main` and on manual
-runs (Actions → CI/CD → Run workflow). The APK is uploaded as the
-`runcoach-release-apk` artifact on the workflow run (kept for 90 days).
+installable, release-signed Android APK on pushes to `main` **that change the
+mobile app** (anything under `mobile/`, or the CI workflow itself), and on every
+manual run (Actions → CI/CD → Run workflow). Server-only changes don't rebuild
+the APK — the app talks to the server over the API, so it doesn't need to.
+
+Each build is published in two places:
+
+- **GitHub Release `mobile-latest`** — always the newest build, never expires.
+  Permanent download link (handy to bookmark on your phone):
+  `https://github.com/comicmuse/fitparser/releases/download/mobile-latest/runcoach.apk`
+  The release is replaced on every build and isn't marked as the repo's
+  "Latest" release.
+- **Workflow artifact `runcoach-release-apk`** on the run, as
+  `runcoach-<version>-<run>.apk` (kept for 90 days).
+
+Details:
 
 - Points at the production server (`ApiService.defaultBaseUrl`).
 - `versionCode` is the CI run number, so each build installs as an update
   over the previous one.
-- Pull requests don't run this job; they still build the debug APK as a
-  compile check.
+- Pull requests don't run this job; they build the debug APK as a compile
+  check, and only when they change the mobile app.
+- To rebuild without a mobile change (e.g. to refresh the release), use
+  *Run workflow*.
 
 If the signing secrets aren't set, the job is skipped with a warning and
 produces no artifact.

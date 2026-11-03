@@ -11,8 +11,32 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for mobile app changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            mobile:
+              - 'mobile/**'
+              - '.github/workflows/ci.yml'
+
   flutter-build:
     name: Flutter Build APK
+    # Compile check for the mobile app — skipped when nothing under mobile/ changed.
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -75,10 +99,19 @@ jobs:
   flutter-release:
     name: Flutter Release APK
     # Installable build pointed at the production server. Runs on pushes to
-    # main and manual runs only (secrets aren't needed to validate PRs; the
-    # debug build above covers that).
-    if: github.event_name != 'pull_request'
+    # main that change the mobile app, and on every manual run. PRs are
+    # covered by the debug build above.
+    needs: changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && needs.changes.outputs.mobile == 'true')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # publish the mobile-latest GitHub Release
+    # Never run two releases at once — they'd race replacing mobile-latest.
+    concurrency:
+      group: mobile-release
+      cancel-in-progress: false
     env:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -183,6 +216,7 @@ jobs:
           name="runcoach-${version}-${{ github.run_number }}.apk"
           mv mobile/build/app/outputs/flutter-apk/app-release.apk "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "### Release APK :iphone:" >> "$GITHUB_STEP_SUMMARY"
           echo "\`$name\` (versionCode ${{ github.run_number }}) — download from the **runcoach-release-apk** artifact below." >> "$GITHUB_STEP_SUMMARY"
 
@@ -194,6 +228,28 @@ jobs:
           path: ${{ steps.apk.outputs.name }}
           retention-days: 90
           if-no-files-found: error
+
+      - name: Publish mobile-latest GitHub Release
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APK: ${{ steps.apk.outputs.name }}
+        run: |
+          # Fixed asset name so the download link never changes:
+          # https://github.com/${{ github.repository }}/releases/download/mobile-latest/runcoach.apk
+          cp "$APK" runcoach.apk
+          notes="Latest mobile build: \`$APK\` (versionCode ${{ github.run_number }}) from ${{ github.sha }}.
+
+          Built by [CI run ${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). This release is replaced on every mobile build."
+          # Replace the previous release and move the tag to this commit.
+          gh release delete mobile-latest --cleanup-tag --yes --repo "${{ github.repository }}" || true
+          gh release create mobile-latest runcoach.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Mobile latest (${{ steps.apk.outputs.version }}+${{ github.run_number }})" \
+            --notes "$notes" \
+            --latest=false
+          echo "Download: ${{ github.server_url }}/${{ github.repository }}/releases/download/mobile-latest/runcoach.apk" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove signing material
         if: always() && steps.secrets.outputs.configured == 'true'
