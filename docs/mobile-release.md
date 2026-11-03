@@ -11,8 +11,9 @@ Each build is published in two places:
 - **GitHub Release `mobile-latest`** — always the newest build, never expires.
   Permanent download link (handy to bookmark on your phone):
   `https://github.com/comicmuse/fitparser/releases/download/mobile-latest/runcoach.apk`
-  The release is replaced on every build and isn't marked as the repo's
-  "Latest" release.
+  The release is replaced on every build. It's published with
+  `--latest=false`, so it won't take the "Latest" label from other releases;
+  while it's the repo's only release, GitHub still shows it as Latest.
 - **Workflow artifact `runcoach-release-apk`** on the run, as
   `runcoach-<version>-<run>.apk` (kept for 90 days).
 
