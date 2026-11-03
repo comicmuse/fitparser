@@ -35,7 +35,7 @@ Flutter tests are **not** run by CI — they must be run locally before committi
 
 The Flutter jobs only run when something under `mobile/` (or `.github/workflows/ci.yml`) changes, plus on manual runs. The **Flutter Release APK** job builds a signed, installable APK on such pushes to `main` and publishes it to the `mobile-latest` GitHub Release (and the `runcoach-release-apk` artifact) — see `docs/mobile-release.md` for details and the required signing secrets.
 
-`strict` mode is enabled, meaning the PR branch must be up to date with `main` before merge. The `build-and-deploy` job (Docker push to GHCR) only runs on push to `main`, not on PRs.
+`strict` mode is enabled, meaning the PR branch must be up to date with `main` before merge. The `build-and-deploy` job (Docker push to GHCR) only runs on push to `main`, not on PRs. It and the Docker Smoke Test are skipped when a change touches only `mobile/` (which is excluded from the image via `.dockerignore`).
 
 ## Development Commands
 
@@ -91,7 +91,7 @@ sudo usermod -aG docker $USER
 
 ### Production Deployment
 
-Production runs via Docker on this machine at `/srv/runcoach`. CI builds and pushes the image to `ghcr.io/comicmuse/fitparser:latest` on every push to `main`. To deploy:
+Production runs via Docker on this machine at `/srv/runcoach`. CI builds and pushes the image to `ghcr.io/comicmuse/fitparser:latest` on every push to `main` that changes something outside `mobile/` (each build is also tagged `main-<sha>`, which you can pin in `docker-compose.yml` to roll back). To deploy:
 
 ```bash
 cd /srv/runcoach
