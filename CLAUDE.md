@@ -27,11 +27,12 @@ When implementing a GitHub issue:
 
 ## Branch Protection
 
-`main` is protected — direct pushes are not blocked for the repo owner, but **all feature work must go through a PR**. CI runs automatically on every PR and one check must pass before merging:
+`main` is protected — direct pushes are not blocked for the repo owner, but **all feature work must go through a PR**. CI runs automatically on every PR and these checks must pass before merging:
 
 - **Python Tests** — unit tests (pytest, excludes E2E)
+- **Flutter Tests** — `dart format` check, `flutter analyze` and `flutter test` for the mobile app (skipped, and therefore passing, when nothing under `mobile/` changed)
 
-Flutter tests are **not** run by CI — they must be run locally before committing any Flutter changes (see Pre-Merge Test Command below).
+Still run the Flutter checks locally before committing `.dart` changes — it's much faster than waiting for CI.
 
 The Flutter jobs only run when something under `mobile/` (or `.github/workflows/ci.yml`) changes, plus on manual runs. The **Flutter Release APK** job builds a signed, installable APK on such pushes to `main` and publishes it to the `mobile-latest` GitHub Release (and the `runcoach-release-apk` artifact) — see `docs/mobile-release.md` for details and the required signing secrets.
 
@@ -123,11 +124,11 @@ pytest && pytest -m e2e --no-cov -v
 ```
 
 ```bash
-# If any Flutter files were changed (REQUIRED — Flutter is not tested by CI):
+# If any Flutter files were changed (also enforced by the Flutter Tests CI check):
 cd mobile && dart format --output=none --set-exit-if-changed . && flutter analyze && flutter test
 ```
 
-Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end. Flutter tests are **not run by CI** — they are a local gate only. Always run `dart format`, `flutter analyze`, and `flutter test` locally before committing any `.dart` changes.
+Unit tests alone are not sufficient. E2E tests cover web routes and templates that unit tests do not exercise end-to-end. Always run `dart format`, `flutter analyze`, and `flutter test` locally before committing any `.dart` changes; CI enforces them too via the **Flutter Tests** check.
 
 ### Running Tests
 
