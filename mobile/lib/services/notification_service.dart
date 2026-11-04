@@ -47,15 +47,16 @@ class NotificationService extends NotificationServiceBase {
   Future<void> initialize() async {
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundMessageHandler);
 
+    // Listen for Firebase Installation IDs before anything that awaits (the
+    // permission prompt can take a while); they're only sent to the server
+    // once registerWithServer() confirms auth.
+    _registrar.start();
+
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
-
-    // Listen for Firebase Installation IDs; they're only sent to the server
-    // once registerWithServer() confirms auth.
-    _registrar.start();
 
     _setupHandlers();
   }

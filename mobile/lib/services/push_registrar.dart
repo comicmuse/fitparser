@@ -46,6 +46,11 @@ class PushRegistrar {
   /// Never throws.
   Future<void> registerWithServer() async {
     _authenticated = true;
+    // onRegistered is a broadcast stream that drops events nobody is
+    // listening to, and register() below can emit straight away. At startup
+    // this runs before NotificationService.initialize() has called start(),
+    // so make sure we're listening first.
+    start();
     final known = await _storage.getPushFid();
     if (known != null) await _send(known);
     try {
