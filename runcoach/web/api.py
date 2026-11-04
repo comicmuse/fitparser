@@ -851,6 +851,20 @@ def api_route_suggestion():
 @api_bp.route("/device-tokens", methods=["POST"])
 @require_auth
 def register_device_token():
+    """
+    Register a push target for the authenticated user.
+
+    POST /api/v1/device-tokens
+    Body: {"token": "...", "platform": "android",
+           "kind": "token" | "fid",   (optional, default "token")
+           "replaces": "..."}          (optional)
+
+    ``kind`` says what ``token`` holds: an FCM registration token (app
+    builds before the FID migration, which don't send ``kind``) or a
+    Firebase Installation ID. ``replaces`` is a previous value for this
+    user to remove in the same request, so a device that switches from a
+    token to an FID isn't notified twice.
+    """
     data = request.get_json()
     if not data or not data.get("token"):
         return jsonify({"error": "token is required"}), 400
@@ -858,8 +872,18 @@ def register_device_token():
     if not token:
         return jsonify({"error": "token must not be empty"}), 400
     platform = str(data.get("platform", "android")).strip() or "android"
+    kind = str(data.get("kind", "token")).strip() or "token"
     db = get_db()
-    db.upsert_device_token(request.user_id, token, platform)
+    if kind not in db.DEVICE_TOKEN_KINDS:
+        return jsonify({
+            "error": f"kind must be one of: {', '.join(db.DEVICE_TOKEN_KINDS)}"
+        }), 400
+    db.upsert_device_token(request.user_id, token, platform, kind=kind)
+    replaces = data.get("replaces")
+    if replaces:
+        replaces = str(replaces).strip()
+        if replaces and replaces != token:
+            db.delete_device_token(replaces, user_id=request.user_id)
     return jsonify({"message": "Device token registered"}), 200
 
 

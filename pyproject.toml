@@ -25,7 +25,7 @@ runcoach-migrate = "runcoach.cli:migrate_main"
 
 [project.optional-dependencies]
 claude = ["anthropic>=0.40"]
-fcm = ["firebase-admin>=6.0"]
+fcm = ["firebase-admin>=7.7"]  # 7.7 added Message(fid=...)
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

@@ -1087,6 +1087,66 @@ class TestDeviceTokens:
         db.delete_device_token("token-xyz")
         assert db.get_device_tokens_for_user(user_id) == []
 
+    def test_kind_defaults_to_token(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        db.upsert_device_token(user_id, "token-abc", "android")
+        assert db.get_device_tokens_for_user(user_id)[0]["kind"] == "token"
+
+    def test_upsert_fid_and_switch_kind(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        db.upsert_device_token(user_id, "fid-123", "android", kind="fid")
+        assert db.get_device_tokens_for_user(user_id)[0]["kind"] == "fid"
+        db.upsert_device_token(user_id, "fid-123", "android", kind="token")
+        rows = db.get_device_tokens_for_user(user_id)
+        assert len(rows) == 1 and rows[0]["kind"] == "token"
+
+    def test_upsert_rejects_unknown_kind(self, tmp_path):
+        from runcoach.auth import hash_password
+        db = RunCoachDB(tmp_path / "db" / "runcoach.db")
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+
+        with pytest.raises(ValueError):
+            db.upsert_device_token(user_id, "x", "android", kind="apns")
+
+    def test_kind_column_added_to_existing_database(self, tmp_path):
+        """A database created before the FID migration gains `kind`, and its
+        existing rows are treated as legacy tokens."""
+        import sqlite3
+        from runcoach.auth import hash_password
+        path = tmp_path / "db" / "runcoach.db"
+        db = RunCoachDB(path)
+        db.ensure_default_user("athlete", hash_password("x"))
+        user_id = db.get_default_user_id()
+        # Recreate device_tokens with the pre-migration schema (no `kind`).
+        with sqlite3.connect(path) as conn:
+            conn.executescript("""
+                DROP TABLE device_tokens;
+                CREATE TABLE device_tokens (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    token TEXT NOT NULL UNIQUE,
+                    platform TEXT NOT NULL DEFAULT 'android',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+            """)
+            conn.execute(
+                "INSERT INTO device_tokens (user_id, token) VALUES (?, ?)",
+                (user_id, "old-token"),
+            )
+
+        db = RunCoachDB(path)  # runs the column migration
+        rows = db.get_device_tokens_for_user(user_id)
+        assert [(r["token"], r["kind"]) for r in rows] == [("old-token", "token")]
+
     def test_get_tokens_empty_for_new_user(self, tmp_path):
         from runcoach.auth import hash_password
         db = RunCoachDB(tmp_path / "db" / "runcoach.db")
