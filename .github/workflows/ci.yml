@@ -87,6 +87,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.mobile == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -103,6 +104,30 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Resolve Android NDK version
+        # Gradle downloads this NDK (~700 MB from Google) on every build because
+        # the runner image doesn't ship it; one slow download crawled at ~1%/min.
+        # Read the version Flutter wants and cache it between runs.
+        # If the lookup ever fails, caching is skipped rather than the build.
+        id: ndk
+        run: |
+          flutter_root=$(dirname "$(dirname "$(command -v flutter)")")
+          v=$(grep -oE 'val ndkVersion: String = "[0-9.]+"' \
+                "$flutter_root/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt" 2>/dev/null \
+              | grep -oE '[0-9]+(\.[0-9]+)+' || true)
+          if [ -z "$v" ]; then
+            echo "::warning title=NDK cache disabled::Could not read Flutter's ndkVersion; building without the NDK cache."
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "path=$ANDROID_HOME/ndk/$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Android NDK
+        if: steps.ndk.outputs.version != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.ndk.outputs.path }}
+          key: android-ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
 
       - name: Install dependencies
         working-directory: mobile
@@ -156,6 +181,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && needs.changes.outputs.mobile == 'true')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write  # publish the mobile-latest GitHub Release
     # Never run two releases at once — they'd race replacing mobile-latest.
@@ -201,6 +227,31 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Resolve Android NDK version
+        # Gradle downloads this NDK (~700 MB from Google) on every build because
+        # the runner image doesn't ship it; one slow download crawled at ~1%/min.
+        # Read the version Flutter wants and cache it between runs.
+        # If the lookup ever fails, caching is skipped rather than the build.
+        id: ndk
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          flutter_root=$(dirname "$(dirname "$(command -v flutter)")")
+          v=$(grep -oE 'val ndkVersion: String = "[0-9.]+"' \
+                "$flutter_root/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt" 2>/dev/null \
+              | grep -oE '[0-9]+(\.[0-9]+)+' || true)
+          if [ -z "$v" ]; then
+            echo "::warning title=NDK cache disabled::Could not read Flutter's ndkVersion; building without the NDK cache."
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "path=$ANDROID_HOME/ndk/$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Android NDK
+        if: steps.secrets.outputs.configured == 'true' && steps.ndk.outputs.version != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.ndk.outputs.path }}
+          key: android-ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
 
       - name: Write google-services.json
         if: steps.secrets.outputs.configured == 'true'
