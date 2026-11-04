@@ -31,6 +31,7 @@ When implementing a GitHub issue:
 
 - **Python Tests** — unit tests (pytest, excludes E2E)
 - **Flutter Tests** — `dart format` check, `flutter analyze` and `flutter test` for the mobile app (skipped, and therefore passing, when nothing under `mobile/` changed)
+- **Flutter Build APK** — debug APK compile check for the mobile app (also skipped when nothing under `mobile/` changed)
 
 Still run the Flutter checks locally before committing `.dart` changes — it's much faster than waiting for CI.
 
