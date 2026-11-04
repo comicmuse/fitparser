@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     user_id INTEGER NOT NULL,
     token TEXT NOT NULL UNIQUE,
     platform TEXT NOT NULL DEFAULT 'android',
+    kind TEXT NOT NULL DEFAULT 'token',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
@@ -187,6 +188,11 @@ class RunCoachDB:
             conn.executescript(SCHEMA_SQL)
             # Column migrations
             _add_column_if_missing(conn, "users", "llm_daily_limit", "INTEGER")
+            # Push target type: 'token' (FCM registration token, legacy) or
+            # 'fid' (Firebase Installation ID). Existing rows are tokens.
+            _add_column_if_missing(
+                conn, "device_tokens", "kind", "TEXT NOT NULL DEFAULT 'token'"
+            )
             _add_column_if_missing(
                 conn, "run_chat", "status", "TEXT NOT NULL DEFAULT 'ok'"
             )
@@ -1140,18 +1146,33 @@ class RunCoachDB:
 
     # ------ device_tokens ------
 
+    DEVICE_TOKEN_KINDS = ("token", "fid")
+
     def upsert_device_token(
-        self, user_id: int, token: str, platform: str = "android"
+        self,
+        user_id: int,
+        token: str,
+        platform: str = "android",
+        kind: str = "token",
     ) -> None:
+        """Register a push target for a user.
+
+        ``kind`` is ``"token"`` for an FCM registration token (what app
+        builds before the FID migration send) or ``"fid"`` for a Firebase
+        Installation ID. ``token`` holds the value either way.
+        """
+        if kind not in self.DEVICE_TOKEN_KINDS:
+            raise ValueError(f"Unknown device token kind: {kind!r}")
         now = _now_iso()
         with self._connect() as conn:
             conn.execute(
-                """INSERT INTO device_tokens (user_id, token, platform, created_at)
-                   VALUES (?, ?, ?, ?)
+                """INSERT INTO device_tokens (user_id, token, platform, kind, created_at)
+                   VALUES (?, ?, ?, ?, ?)
                    ON CONFLICT(token) DO UPDATE SET
                      user_id = excluded.user_id,
-                     platform = excluded.platform""",
-                (user_id, token, platform, now),
+                     platform = excluded.platform,
+                     kind = excluded.kind""",
+                (user_id, token, platform, kind, now),
             )
 
     def get_device_tokens_for_user(self, user_id: int) -> list[dict]:

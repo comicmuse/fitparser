@@ -1017,6 +1017,71 @@ class TestDeviceTokenEndpoints:
         )
         assert resp.status_code == 401
 
+    def test_register_defaults_to_kind_token(self, client, app, auth_headers):
+        """App builds from before the FID migration don't send `kind`."""
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "legacy-fcm-token", "platform": "android"},
+            headers=auth_headers,
+        )
+        db = app.config["db"]
+        rows = db.get_device_tokens_for_user(db.get_default_user_id())
+        assert [(r["token"], r["kind"]) for r in rows] == [("legacy-fcm-token", "token")]
+
+    def test_register_fid(self, client, app, auth_headers):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"token": "fid-abc", "platform": "android", "kind": "fid"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        db = app.config["db"]
+        rows = db.get_device_tokens_for_user(db.get_default_user_id())
+        assert [(r["token"], r["kind"]) for r in rows] == [("fid-abc", "fid")]
+
+    def test_register_rejects_unknown_kind(self, client, auth_headers):
+        resp = client.post(
+            "/api/v1/device-tokens",
+            json={"token": "x", "kind": "apns"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "kind" in resp.get_json()["error"]
+
+    def test_register_fid_replaces_old_token(self, client, app, auth_headers):
+        """Switching a device from token to FID must not leave both registered
+        (which would deliver every notification twice)."""
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "old-fcm-token"},
+            headers=auth_headers,
+        )
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "new-fid", "kind": "fid", "replaces": "old-fcm-token"},
+            headers=auth_headers,
+        )
+        db = app.config["db"]
+        rows = db.get_device_tokens_for_user(db.get_default_user_id())
+        assert [(r["token"], r["kind"]) for r in rows] == [("new-fid", "fid")]
+
+    def test_replaces_cannot_remove_another_users_token(self, client, app):
+        db = app.config["db"]
+        user_a_id = db.get_default_user_id()
+        user_b_id = db.create_user("user_b_replaces", "hashed_pw")
+        headers_a = {"Authorization": f"Bearer {create_access_token(user_a_id, app.config['SECRET_KEY'])}"}
+        headers_b = {"Authorization": f"Bearer {create_access_token(user_b_id, app.config['SECRET_KEY'])}"}
+
+        client.post("/api/v1/device-tokens", json={"token": "a-token"}, headers=headers_a)
+        client.post(
+            "/api/v1/device-tokens",
+            json={"token": "b-fid", "kind": "fid", "replaces": "a-token"},
+            headers=headers_b,
+        )
+
+        assert [r["token"] for r in db.get_device_tokens_for_user(user_a_id)] == ["a-token"]
+        assert [r["token"] for r in db.get_device_tokens_for_user(user_b_id)] == ["b-fid"]
+
     def test_delete_token(self, client, auth_headers):
         client.post(
             "/api/v1/device-tokens",

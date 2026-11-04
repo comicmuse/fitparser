@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +21,23 @@ def _init_firebase_app(service_account_path: str) -> None:
     except ValueError:
         cred = credentials.Certificate(service_account_path)
         firebase_admin.initialize_app(cred)
+
+
+def _build_message(target: str, kind: str, notification, data: dict):
+    """Build an FCM message addressed by FID or by legacy registration token.
+
+    firebase-admin 7.7 deprecates ``Message(token=...)`` in favour of
+    ``fid``. Rows registered by app builds from before the FID migration
+    still hold tokens, so keep sending to them (silencing only that
+    warning) until those devices re-register with an FID.
+    """
+    if kind == "fid":
+        return Message(notification=notification, data=data, fid=target)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message="Message.token is deprecated", category=DeprecationWarning
+        )
+        return Message(notification=notification, data=data, token=target)
 
 
 def send_analysis_notification(
@@ -58,20 +76,25 @@ def send_analysis_notification(
     sent = 0
     for token_row in tokens:
         token = token_row["token"]
+        kind = token_row.get("kind") or "token"
         try:
-            message = Message(
-                notification=Notification(
+            message = _build_message(
+                token,
+                kind,
+                Notification(
                     title="New Analysis Ready",
                     body=f"Your coach has analysed: {run_name}",
                 ),
-                data={"run_id": str(run_id), "type": "analysis_ready"},
-                token=token,
+                {"run_id": str(run_id), "type": "analysis_ready"},
             )
             messaging.send(message)
             sent += 1
-            log.info("FCM notification sent for run %s", run_id)
+            log.info("FCM notification sent for run %s (%s)", run_id, kind)
         except messaging.UnregisteredError:
-            log.warning("Stale FCM token removed for user %s — open the app to re-register", user_id)
+            log.warning(
+                "Stale FCM %s removed for user %s — open the app to re-register",
+                kind, user_id,
+            )
             db.delete_device_token(token)
         except Exception as e:
             log.warning("FCM send failed: %s", e)
