@@ -57,6 +57,21 @@ class PushRegistrar {
       await _platform.register();
     } catch (e) {
       debugPrint('FCM register() failed: $e');
+      await _registerLegacyFallback();
+    }
+  }
+
+  /// If FID registration fails (e.g. the installation-ID API isn't enabled),
+  /// keep notifications working by registering the legacy FCM token instead.
+  /// Doesn't mark the migration done, so a later successful FID registration
+  /// still replaces this token.
+  Future<void> _registerLegacyFallback() async {
+    final (ok, token) = await _lookUpLegacyToken();
+    if (!ok || token == null) return;
+    try {
+      await _api.registerDeviceToken(token, kind: 'token');
+    } catch (e) {
+      debugPrint('Legacy FCM token fallback registration failed: $e');
     }
   }
 

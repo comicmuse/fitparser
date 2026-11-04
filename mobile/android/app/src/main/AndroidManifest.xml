@@ -34,6 +34,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Opt in to FCM's Firebase Installation ID API (register() /
+             onRegistered). It is disabled by default: without this,
+             register() throws "API disabled" and no FID is issued. -->
+        <meta-data
+            android:name="firebase_messaging_installation_id_enabled"
+            android:value="true" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
