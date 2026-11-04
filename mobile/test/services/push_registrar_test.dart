@@ -8,14 +8,23 @@ import 'package:runcoach/services/push_registrar.dart';
 import 'package:runcoach/services/secure_storage_service.dart';
 
 class _FakePlatform implements PushPlatform {
+  // Broadcast, like firebase_messaging's onRegistered: events emitted while
+  // nobody is listening are dropped.
   final controller = StreamController<String>.broadcast();
   int registerCalls = 0;
+
+  /// When set, register() emits this FID immediately, as the real plugin
+  /// can, before the caller has a chance to subscribe.
+  String? emitOnRegister;
   int legacyLookups = 0;
   String? legacy = 'legacy-fcm-token';
   bool legacyThrows = false;
 
   @override
-  Future<void> register() async => registerCalls++;
+  Future<void> register() async {
+    registerCalls++;
+    if (emitOnRegister != null) controller.add(emitOnRegister!);
+  }
 
   @override
   Stream<String> get onRegistered => controller.stream;
@@ -201,4 +210,21 @@ void main() {
     await registrar.deregister();
     expect(api.deleted, isEmpty);
   });
+
+  test(
+    'regression: FID emitted by register() before start() is not lost',
+    () async {
+      // At app startup AuthNotifier calls registerWithServer() before
+      // NotificationService.initialize() has called start().
+      final early = PushRegistrar(platform, api, storage); // no start()
+      platform.emitOnRegister = 'fid-early';
+
+      await early.registerWithServer();
+      await pumpEventQueue();
+
+      expect(storage.fid, 'fid-early');
+      expect(api.registered.map((c) => c.token), contains('fid-early'));
+      await early.dispose();
+    },
+  );
 }
