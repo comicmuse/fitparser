@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import '../services/secure_storage_service.dart';
@@ -35,7 +36,7 @@ final serverUrlProvider = AsyncNotifierProvider<ServerUrlNotifier, String>(
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   final urlAsync = ref.watch(serverUrlProvider);
-  final url = urlAsync.valueOrNull ?? _defaultServerUrl;
+  final url = urlAsync.value ?? _defaultServerUrl;
   return ApiService(ref.read(secureStorageProvider), baseUrl: url);
 });
 

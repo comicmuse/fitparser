@@ -353,7 +353,7 @@ class _ServerUrlCardState extends ConsumerState<_ServerUrlCard> {
                 children: [
                   Expanded(
                     child: Text(
-                      urlAsync.valueOrNull ?? '…',
+                      urlAsync.value ?? '…',
                       style: const TextStyle(
                         fontSize: 13,
                         color: Color(0xFF444444),

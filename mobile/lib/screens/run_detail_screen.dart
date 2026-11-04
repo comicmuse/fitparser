@@ -100,7 +100,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen>
               TextButton(
                 onPressed: () {
                   final strydAthleteId =
-                      profileAsync.valueOrNull?['stryd_athlete_id'] as String?;
+                      profileAsync.value?['stryd_athlete_id'] as String?;
                   final url = strydAthleteId != null
                       ? 'https://www.stryd.com/powercenter/athletes/$strydAthleteId/profile/entries/activities/${run.strydActivityId}'
                       : 'https://www.stryd.com/activities/${run.strydActivityId}';
