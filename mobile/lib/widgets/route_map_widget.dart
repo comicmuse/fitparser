@@ -53,7 +53,7 @@ class RouteMapWidget extends StatelessWidget {
           children: [
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.runcoach.app',
+              userAgentPackageName: 'com.runcoach.mobile',
             ),
             PolylineLayer(
               polylines: [
