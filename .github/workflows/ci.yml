@@ -45,6 +45,42 @@ jobs:
               - '**'
               - '!mobile/**'
 
+  flutter-test:
+    name: Flutter Tests
+    # Format, analyze and unit-test the mobile app — skipped when nothing
+    # under mobile/ changed. Re-enabled after the flutter_tester segfault
+    # (#44) stopped reproducing; the timeout guards against a recurrence.
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Verify formatting
+        working-directory: mobile
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Run tests
+        working-directory: mobile
+        timeout-minutes: 10
+        run: flutter test
+
   flutter-build:
     name: Flutter Build APK
     # Compile check for the mobile app — skipped when nothing under mobile/ changed.
@@ -139,7 +175,8 @@ jobs:
     # Installable build pointed at the production server. Runs on pushes to
     # main that change the mobile app, and on every manual run. PRs are
     # covered by the debug build above.
-    needs: changes
+    # Never publish an APK whose tests fail.
+    needs: [changes, flutter-test]
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && needs.changes.outputs.mobile == 'true')
