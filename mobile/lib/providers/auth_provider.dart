@@ -41,7 +41,10 @@ final apiServiceProvider = Provider<ApiService>((ref) {
 });
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService(ref.read(apiServiceProvider));
+  return NotificationService(
+    ref.read(apiServiceProvider),
+    ref.read(secureStorageProvider),
+  );
 });
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthStatus>((ref) {
