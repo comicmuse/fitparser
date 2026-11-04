@@ -37,7 +37,13 @@ class NotificationService extends NotificationServiceBase {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
+      // firebase_messaging 17 deprecates onTokenRefresh/getToken in favour of
+      // register()/onRegistered, which yield a Firebase Installation ID (FID)
+      // rather than an FCM registration token. The server sends with
+      // Message(token=...), so switching needs a coordinated server change;
+      // until then keep the token API (still functional in v17).
       _subscriptions.add(
+        // ignore: deprecated_member_use
         FirebaseMessaging.instance.onTokenRefresh.listen(_registerToken),
       );
     }
@@ -51,6 +57,7 @@ class NotificationService extends NotificationServiceBase {
   /// successful login will retry.
   @override
   Future<void> registerWithServer() async {
+    // ignore: deprecated_member_use (see note in initialize())
     final token = await FirebaseMessaging.instance.getToken();
     if (token != null) await _registerToken(token);
   }
@@ -60,6 +67,7 @@ class NotificationService extends NotificationServiceBase {
   @override
   Future<void> deregister() async {
     try {
+      // ignore: deprecated_member_use (see note in initialize())
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _api.deleteDeviceToken(token);
     } catch (e) {
