@@ -7,9 +7,6 @@ on:
     branches: [ main ]
   workflow_dispatch:  # Allow manual trigger
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   changes:
     name: Detect changes
@@ -22,11 +19,11 @@ jobs:
       server: ${{ steps.server.outputs.server }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check for mobile app changes
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             mobile:
@@ -37,7 +34,7 @@ jobs:
       # file counts only if it matches all patterns, i.e. is not under mobile/.
       - name: Check for server changes
         id: server
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           predicate-quantifier: 'every'
           filters: |
@@ -56,7 +53,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -91,10 +88,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -124,7 +121,7 @@ jobs:
 
       - name: Cache Android NDK
         if: steps.ndk.outputs.version != ''
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ steps.ndk.outputs.path }}
           key: android-ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
@@ -164,7 +161,7 @@ jobs:
         run: flutter build apk --debug --dart-define=BASE_URL=http://localhost:5001/api/v1
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runcoach-debug-apk
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
@@ -212,11 +209,11 @@ jobs:
 
       - name: Checkout code
         if: steps.secrets.outputs.configured == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java
         if: steps.secrets.outputs.configured == 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -248,7 +245,7 @@ jobs:
 
       - name: Cache Android NDK
         if: steps.secrets.outputs.configured == 'true' && steps.ndk.outputs.version != ''
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ steps.ndk.outputs.path }}
           key: android-ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
@@ -323,7 +320,7 @@ jobs:
 
       - name: Upload release APK artifact
         if: steps.secrets.outputs.configured == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runcoach-release-apk
           path: ${{ steps.apk.outputs.name }}
@@ -362,10 +359,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -380,7 +377,7 @@ jobs:
           pytest --cov=runcoach --cov-report=xml --cov-report=term --ignore=tests/e2e
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.xml
@@ -393,10 +390,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -416,7 +413,7 @@ jobs:
 
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-traces
           path: test-results/
@@ -431,13 +428,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
       - name: Build Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -497,7 +494,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -519,7 +516,7 @@ jobs:
             type=sha,prefix={{branch}}-
 
       - name: Push Docker image to GHCR
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
