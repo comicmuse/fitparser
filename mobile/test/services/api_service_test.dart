@@ -227,6 +227,35 @@ void main() {
     });
   });
 
+  group('registerDeviceToken', () {
+    test('defaults to kind token without replaces', () async {
+      mainAdapter.enqueue(200, {'message': 'ok'});
+      await service.registerDeviceToken('tok');
+      expect(mainAdapter.requests.last.data, {
+        'token': 'tok',
+        'platform': 'android',
+        'kind': 'token',
+      });
+    });
+
+    test('sends kind fid and replaces', () async {
+      mainAdapter.enqueue(200, {'message': 'ok'});
+      await service.registerDeviceToken(
+        'fid-1',
+        kind: 'fid',
+        replaces: 'old-tok',
+      );
+      expect(mainAdapter.requests.last.method, 'POST');
+      expect(mainAdapter.requests.last.path, '/device-tokens');
+      expect(mainAdapter.requests.last.data, {
+        'token': 'fid-1',
+        'platform': 'android',
+        'kind': 'fid',
+        'replaces': 'old-tok',
+      });
+    });
+  });
+
   group('updateAthleteProfile', () {
     test('PUTs profile text to /athlete/profile and returns body', () async {
       mainAdapter.enqueue(200, {

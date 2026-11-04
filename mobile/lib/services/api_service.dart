@@ -183,10 +183,22 @@ class ApiService {
   }
 
   // Device tokens
-  Future<void> registerDeviceToken(String token) async {
+  /// Registers a push target. [kind] is `'fid'` (Firebase Installation ID)
+  /// or `'token'` (legacy FCM registration token). [replaces] is a previous
+  /// value for this user that the server removes in the same request.
+  Future<void> registerDeviceToken(
+    String token, {
+    String kind = 'token',
+    String? replaces,
+  }) async {
     await _dio.post(
       '/device-tokens',
-      data: {'token': token, 'platform': 'android'},
+      data: {
+        'token': token,
+        'platform': 'android',
+        'kind': kind,
+        'replaces': ?replaces,
+      },
     );
   }
 

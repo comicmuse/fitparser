@@ -83,6 +83,38 @@ void main() {
     expect(await service.getServerUrl(), isNull);
   });
 
+  test('push FID and legacy-migration flag round-trip', () async {
+    expect(await service.getPushFid(), isNull);
+    expect(await service.isLegacyTokenMigrated(), isFalse);
+
+    await service.savePushFid('fid-1');
+    await service.markLegacyTokenMigrated();
+
+    expect(await service.getPushFid(), 'fid-1');
+    expect(await service.isLegacyTokenMigrated(), isTrue);
+  });
+
+  test(
+    'push state survives clearTokens (logout keeps the device identity)',
+    () async {
+      await service.savePushFid('fid-1');
+      await service.markLegacyTokenMigrated();
+      await service.clearTokens();
+
+      expect(await service.getPushFid(), 'fid-1');
+      expect(await service.isLegacyTokenMigrated(), isTrue);
+    },
+  );
+
+  test(
+    'unreadable storage reports not migrated (so migration retries)',
+    () async {
+      plugin.throwOnRead = true;
+      expect(await service.isLegacyTokenMigrated(), isFalse);
+      expect(await service.getPushFid(), isNull);
+    },
+  );
+
   test('clearTokens removes both tokens', () async {
     await service.saveTokens(access: 'a', refresh: 'r');
     await service.clearTokens();

@@ -45,6 +45,18 @@ class _FakeStorage implements SecureStorageService {
 
   @override
   Future<String?> getServerUrl() async => null;
+
+  @override
+  Future<String?> getPushFid() async => null;
+
+  @override
+  Future<void> savePushFid(String fid) async {}
+
+  @override
+  Future<bool> isLegacyTokenMigrated() async => false;
+
+  @override
+  Future<void> markLegacyTokenMigrated() async {}
 }
 
 class _FakeApi implements ApiService {

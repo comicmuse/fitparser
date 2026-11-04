@@ -9,6 +9,8 @@ class SecureStorageService {
   static const _accessKey = 'access_token';
   static const _refreshKey = 'refresh_token';
   static const _serverUrlKey = 'server_url';
+  static const _pushFidKey = 'push_fid';
+  static const _legacyTokenMigratedKey = 'push_legacy_token_migrated';
 
   /// Reads a value, treating any storage failure as "not stored".
   ///
@@ -40,6 +42,19 @@ class SecureStorageService {
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
   }
+
+  /// Firebase Installation ID last registered with the server, so logout can
+  /// remove it even if Firebase doesn't re-emit it this session.
+  Future<String?> getPushFid() => _read(_pushFidKey);
+  Future<void> savePushFid(String fid) =>
+      _storage.write(key: _pushFidKey, value: fid);
+
+  /// Whether this install has told the server to drop its legacy FCM token
+  /// in favour of an FID (issue #77), so the deprecated lookup runs once.
+  Future<bool> isLegacyTokenMigrated() async =>
+      await _read(_legacyTokenMigratedKey) == 'true';
+  Future<void> markLegacyTokenMigrated() =>
+      _storage.write(key: _legacyTokenMigratedKey, value: 'true');
 
   Future<void> saveServerUrl(String url) =>
       _storage.write(key: _serverUrlKey, value: url);
