@@ -10,11 +10,11 @@ import 'package:runcoach/services/notification_service_base.dart';
 import 'package:runcoach/services/secure_storage_service.dart';
 
 class _FakeStorage implements SecureStorageService {
-  _FakeStorage({String? access}) : _access = access;
+  _FakeStorage({String? access, this.throwOnRead = false}) : _access = access;
 
   String? _access;
   String? _refresh;
-  bool throwOnRead = false;
+  bool throwOnRead;
 
   @override
   Future<String?> getAccessToken() async {
@@ -95,6 +95,18 @@ void main() {
       expect(notifier.state, AuthStatus.authenticated);
       expect(notif.registerCalls, 1);
     });
+
+    test(
+      'storage read throws: unauthenticated, not stuck on unknown',
+      () async {
+        storage = _FakeStorage(access: 'stored', throwOnRead: true);
+        final notifier = AuthNotifier(storage, api, notif);
+        await notifier.initializationComplete;
+
+        expect(notifier.state, AuthStatus.unauthenticated);
+        expect(notif.registerCalls, 0);
+      },
+    );
 
     test('no stored token: unauthenticated and does NOT register', () async {
       storage = _FakeStorage();

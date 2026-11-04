@@ -21,7 +21,13 @@ class AuthNotifier extends StateNotifier<AuthStatus> {
   }
 
   Future<void> _checkAuth() async {
-    final token = await _storage.getAccessToken();
+    String? token;
+    try {
+      token = await _storage.getAccessToken();
+    } catch (_) {
+      // Unreadable storage must not leave the app stuck on AuthStatus.unknown.
+      token = null;
+    }
     if (token != null) {
       state = AuthStatus.authenticated;
       // Intentionally unawaited — 401s are silently swallowed; login() retries.
