@@ -81,6 +81,35 @@ def test_rsb_chart_canvas_present(logged_in_page, seeded_run_id):
     assert page.locator("canvas#rsbHistoryChart").count() == 1
 
 
+def test_rsb_chart_rendered_by_chartjs(logged_in_page, seeded_run_id):
+    """Chart.js loads from the CDN at the pinned version and draws the RSB chart.
+
+    Skipped (not failed) only when the CDN itself is unreachable, e.g. in a
+    sandbox without internet access; CI has access, so it runs there.
+    """
+    page = logged_in_page
+    page.reload()
+    src = page.locator("script[src*='chart.js@']").get_attribute("src")
+    pinned = src.split("chart.js@", 1)[1].split("/", 1)[0]
+
+    try:
+        reachable = page.request.get(src).ok
+    except Exception:
+        reachable = False
+    if not reachable:
+        pytest.skip(f"Chart.js CDN unreachable from this environment: {src}")
+
+    page.wait_for_function(
+        "() => window.Chart && Chart.getChart('rsbHistoryChart') !== undefined",
+        timeout=10_000,
+    )
+    assert page.evaluate("() => Chart.version") == pinned
+    datasets = page.evaluate(
+        "() => Chart.getChart('rsbHistoryChart').data.datasets.map(d => d.label)"
+    )
+    assert datasets[:3] == ["RSB", "CTL", "ATL"]
+
+
 import json as _json
 
 
