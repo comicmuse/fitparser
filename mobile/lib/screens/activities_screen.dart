@@ -82,7 +82,7 @@ class ActivitiesScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           ymAsync.when(
             loading: () => const SizedBox(height: 40),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
             data: (ym) => YearMonthChips(
               available: ym,
               selectedYear: filter.year,

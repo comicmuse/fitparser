@@ -203,6 +203,30 @@ void main() {
     );
   });
 
+  group('getRuns query parameters', () {
+    final empty = {'runs': <dynamic>[], 'pagination': <String, dynamic>{}};
+
+    test('omits year and month when not given', () async {
+      mainAdapter.enqueue(200, empty);
+      await service.getRuns();
+      expect(mainAdapter.requests.last.queryParameters, {
+        'page': 1,
+        'per_page': 20,
+      });
+    });
+
+    test('includes year and month when given', () async {
+      mainAdapter.enqueue(200, empty);
+      await service.getRuns(page: 2, year: 2026, month: 5);
+      expect(mainAdapter.requests.last.queryParameters, {
+        'page': 2,
+        'per_page': 20,
+        'year': 2026,
+        'month': 5,
+      });
+    });
+  });
+
   group('updateAthleteProfile', () {
     test('PUTs profile text to /athlete/profile and returns body', () async {
       mainAdapter.enqueue(200, {

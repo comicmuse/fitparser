@@ -49,7 +49,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(
         path: '/workout-detail',
         parentNavigatorKey: _rootNavKey,
@@ -62,7 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/home',
-            builder: (_, __) => const HomeScreen(),
+            builder: (_, _) => const HomeScreen(),
             routes: [
               GoRoute(
                 path: 'run/:id',
@@ -75,7 +75,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/activities',
-            builder: (_, __) => const ActivitiesScreen(),
+            builder: (_, _) => const ActivitiesScreen(),
             routes: [
               GoRoute(
                 path: 'run/:id',
@@ -86,8 +86,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/plan', builder: (_, __) => const PlanScreen()),
-          GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+          GoRoute(path: '/plan', builder: (_, _) => const PlanScreen()),
+          GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
         ],
       ),
     ],

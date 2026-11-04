@@ -24,10 +24,10 @@ PlannedWorkout _w(
 Widget _wrap(List<PlannedWorkout> workouts) {
   final router = GoRouter(
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const PlanScreen()),
+      GoRoute(path: '/', builder: (_, _) => const PlanScreen()),
       GoRoute(
         path: '/workout-detail',
-        builder: (_, __) => const Scaffold(body: Text('detail')),
+        builder: (_, _) => const Scaffold(body: Text('detail')),
       ),
     ],
   );
@@ -51,7 +51,7 @@ void main() {
     testWidgets('shows loading indicator initially', (tester) async {
       final completer = Completer<List<PlannedWorkout>>();
       final router = GoRouter(
-        routes: [GoRoute(path: '/', builder: (_, __) => const PlanScreen())],
+        routes: [GoRoute(path: '/', builder: (_, _) => const PlanScreen())],
       );
       await tester.pumpWidget(
         ProviderScope(
