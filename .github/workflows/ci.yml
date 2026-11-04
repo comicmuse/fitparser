@@ -7,6 +7,12 @@ on:
     branches: [ main ]
   workflow_dispatch:  # Allow manual trigger
 
+env:
+  # CMake version the Android Gradle Plugin installs by default (the jni
+  # plugin builds native code with it). Cached alongside the NDK; if AGP's
+  # default ever changes, the cache just misses and Gradle downloads it.
+  ANDROID_CMAKE_VERSION: '3.22.1'
+
 jobs:
   changes:
     name: Detect changes
@@ -118,6 +124,7 @@ jobs:
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "path=$ANDROID_HOME/ndk/$v" >> "$GITHUB_OUTPUT"
+          echo "cmake_path=$ANDROID_HOME/cmake/$ANDROID_CMAKE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Android NDK
         if: steps.ndk.outputs.version != ''
@@ -125,6 +132,15 @@ jobs:
         with:
           path: ${{ steps.ndk.outputs.path }}
           key: android-ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
+
+      - name: Cache Android CMake
+        # Every APK build downloaded CMake from Google too; one corrupted
+        # download ("Archive is not a ZIP archive") failed a main build.
+        if: steps.ndk.outputs.cmake_path != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.ndk.outputs.cmake_path }}
+          key: android-cmake-${{ runner.os }}-${{ env.ANDROID_CMAKE_VERSION }}
 
       - name: Install dependencies
         working-directory: mobile
@@ -242,6 +258,7 @@ jobs:
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "path=$ANDROID_HOME/ndk/$v" >> "$GITHUB_OUTPUT"
+          echo "cmake_path=$ANDROID_HOME/cmake/$ANDROID_CMAKE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Android NDK
         if: steps.secrets.outputs.configured == 'true' && steps.ndk.outputs.version != ''
@@ -249,6 +266,15 @@ jobs:
         with:
           path: ${{ steps.ndk.outputs.path }}
           key: android-ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
+
+      - name: Cache Android CMake
+        # Every APK build downloaded CMake from Google too; one corrupted
+        # download ("Archive is not a ZIP archive") failed a main build.
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.ndk.outputs.cmake_path }}
+          key: android-cmake-${{ runner.os }}-${{ env.ANDROID_CMAKE_VERSION }}
 
       - name: Write google-services.json
         if: steps.secrets.outputs.configured == 'true'
