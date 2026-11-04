@@ -90,8 +90,8 @@ class ApiService {
     final params = <String, dynamic>{
       'page': page,
       'per_page': perPage,
-      if (year != null) 'year': year,
-      if (month != null) 'month': month,
+      'year': ?year,
+      'month': ?month,
     };
     final resp = await _dio.get('/runs', queryParameters: params);
     final data = resp.data as Map<String, dynamic>;

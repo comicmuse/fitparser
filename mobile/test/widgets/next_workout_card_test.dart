@@ -11,7 +11,7 @@ Widget _wrapWithRouter(Widget card, {void Function(Object?)? onNavigate}) {
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => Scaffold(body: card),
+        builder: (_, _) => Scaffold(body: card),
         routes: [
           GoRoute(
             path: 'workout-detail',

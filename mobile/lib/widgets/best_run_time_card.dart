@@ -30,7 +30,7 @@ class BestRunTimeCard extends ConsumerWidget {
           child: Center(child: CircularProgressIndicator()),
         ),
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (data) {
         if (data == null) return const SizedBox.shrink();
         final hours = List<Map<String, dynamic>>.from(data['hours'] as List);
