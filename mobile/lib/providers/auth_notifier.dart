@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../services/api_service.dart';
 import '../services/notification_service_base.dart';
 import '../services/secure_storage_service.dart';

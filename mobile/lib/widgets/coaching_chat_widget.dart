@@ -88,7 +88,7 @@ class _CoachingChatWidgetState extends ConsumerState<CoachingChatWidget> {
 
     // Watch the live run so we detect when analysis completes
     final runAsync = ref.watch(runDetailProvider(widget.run.id));
-    final liveRun = runAsync.valueOrNull ?? widget.run;
+    final liveRun = runAsync.value ?? widget.run;
     final isAnalyzed = liveRun.stage == RunStage.analyzed;
 
     // Stop polling once analysis is complete
