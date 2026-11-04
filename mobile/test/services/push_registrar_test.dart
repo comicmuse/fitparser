@@ -20,9 +20,14 @@ class _FakePlatform implements PushPlatform {
   String? legacy = 'legacy-fcm-token';
   bool legacyThrows = false;
 
+  /// When set, register() throws, like the plugin does when the
+  /// installation-ID API isn't enabled in the manifest.
+  Object? registerError;
+
   @override
   Future<void> register() async {
     registerCalls++;
+    if (registerError != null) throw registerError!;
     if (emitOnRegister != null) controller.add(emitOnRegister!);
   }
 
@@ -227,4 +232,48 @@ void main() {
       await early.dispose();
     },
   );
+
+  group('register() failure (e.g. installation-ID API disabled)', () {
+    setUp(() {
+      platform.registerError = Exception('API disabled');
+    });
+
+    test('falls back to registering the legacy token', () async {
+      await registrar.registerWithServer();
+
+      expect(
+        api.registered.single.toString(),
+        '(legacy-fcm-token, token, replaces: null)',
+      );
+      // Not migrated, so a later FID registration still replaces the token.
+      expect(storage.migrated, isFalse);
+    });
+
+    test('a later FID registration replaces the fallback token', () async {
+      await registrar.registerWithServer();
+      platform.registerError = null;
+      platform.emitOnRegister = 'fid-1';
+
+      await registrar.registerWithServer();
+      await pumpEventQueue();
+
+      expect(
+        api.registered.last.toString(),
+        '(fid-1, fid, replaces: legacy-fcm-token)',
+      );
+      expect(storage.migrated, isTrue);
+    });
+
+    test('no fallback request when there is no legacy token', () async {
+      platform.legacy = null;
+      await registrar.registerWithServer();
+      expect(api.registered, isEmpty);
+    });
+
+    test('failed legacy lookup during fallback is swallowed', () async {
+      platform.legacyThrows = true;
+      await registrar.registerWithServer();
+      expect(api.registered, isEmpty);
+    });
+  });
 }
